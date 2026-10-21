@@ -1089,3 +1089,381 @@ describe("ScatterPlot", () => {
     expect(snapshot()).toEqual(medium);
   });
 });
+
+const multiMain = [
+  { x: 0, y: 0 },
+  { x: 10, y: 10 },
+];
+const multiSeries = [
+  {
+    id: "extra-1",
+    name: "温度",
+    pairs: [
+      { x: 2, y: 20 },
+      { x: 8, y: 30 },
+    ],
+  },
+  {
+    id: "extra-2",
+    name: "压力",
+    pairs: [{ x: 4, y: -10 }],
+  },
+  {
+    id: "extra-3",
+    name: "湿度",
+    pairs: [{ x: 20, y: 40 }],
+  },
+];
+
+function expectMultiGeometry(): string {
+  return JSON.stringify({
+    domains: [
+      "data-domain-x-min",
+      "data-domain-x-max",
+      "data-domain-y-min",
+      "data-domain-y-max",
+    ].map((name) => screen.getByTestId("scatter-plot").getAttribute(name)),
+    series: screen.getAllByTestId("scatter-series").map((group) => ({
+      id: group.getAttribute("data-series-id"),
+      name: group.getAttribute("data-series-name"),
+      color: group.getAttribute("data-series-color"),
+      shape: group.getAttribute("data-series-shape"),
+      points: Array.from(
+        group.querySelectorAll('[data-testid="scatter-point"]'),
+      ).map((point) => ({
+        tag: point.tagName,
+        series: point.getAttribute("data-series-id"),
+        x: point.getAttribute("data-x"),
+        y: point.getAttribute("data-y"),
+        cx: point.getAttribute("cx"),
+        cy: point.getAttribute("cy"),
+        rx: point.getAttribute("x"),
+        ry: point.getAttribute("y"),
+        vertices: point.getAttribute("points"),
+        shape: point.getAttribute("data-shape"),
+        fill: point.getAttribute("fill"),
+      })),
+    })),
+    curve: screen.queryByTestId("fit-curve")?.getAttribute("points") ?? null,
+    bars: screen
+      .queryAllByTestId("error-bar")
+      .map((bar) => bar.innerHTML),
+  });
+}
+
+describe("ScatterPlot multi-series", () => {
+  it("keeps the single main series as circle points and a complete legend", () => {
+    render(
+      <ScatterPlot pairs={multiMain} xColumn="time_s" yColumn="absorbance" />,
+    );
+
+    expect(screen.getByTestId("scatter-plot")).toHaveAttribute(
+      "data-series-count",
+      "1",
+    );
+    const groups = screen.getAllByTestId("scatter-series");
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toHaveAttribute("data-series-id", "main");
+    const points = screen.getAllByTestId("scatter-point");
+    expect(points).toHaveLength(2);
+    for (const point of points) {
+      expect(point.tagName).toBe("circle");
+      expect(point).toHaveAttribute("data-series-id", "main");
+      expect(point).toHaveAttribute("fill", "#0e7490");
+    }
+    const legendItems = screen.getAllByTestId("series-legend-item");
+    expect(legendItems).toHaveLength(1);
+    expect(legendItems[0]).toHaveTextContent("absorbance");
+    expect(legendItems[0]).toHaveTextContent("2 个数据点");
+    expect(
+      legendItems[0].querySelector('[data-testid="series-legend-marker"]'),
+    ).toHaveAttribute("data-shape", "circle");
+  });
+
+  it("renders 2, 3 and 4 series with deterministic colors, shapes and legend counts", () => {
+    const { rerender } = render(
+      <ScatterPlot
+        pairs={multiMain}
+        extraSeries={multiSeries.slice(0, 1)}
+        xColumn="time_s"
+        yColumn="absorbance"
+        yUnit="mV"
+      />,
+    );
+
+    const counts = [2, 3, 4];
+    const shapes = ["circle", "square", "triangle", "diamond"];
+    const colors = ["#0e7490", "#6d5bd0", "#be123c", "#4d7c0f"];
+
+    counts.forEach((count, index) => {
+      if (index > 0) {
+        rerender(
+          <ScatterPlot
+            pairs={multiMain}
+            extraSeries={multiSeries.slice(0, count - 1)}
+            xColumn="time_s"
+            yColumn="absorbance"
+            yUnit="mV"
+          />,
+        );
+      }
+      const plot = screen.getByTestId("scatter-plot");
+      expect(plot).toHaveAttribute("data-series-count", String(count));
+      const groups = screen.getAllByTestId("scatter-series");
+      expect(groups).toHaveLength(count);
+      const expectedIds = ["main", ...multiSeries.slice(0, count - 1).map((s) => s.id)];
+      expect(groups.map((group) => group.getAttribute("data-series-id"))).toEqual(
+        expectedIds,
+      );
+      groups.forEach((group, seriesIndex) => {
+        expect(group).toHaveAttribute("data-series-color", colors[seriesIndex]);
+        expect(group).toHaveAttribute("data-series-shape", shapes[seriesIndex]);
+        const points = group.querySelectorAll('[data-testid="scatter-point"]');
+        expect(points).toHaveLength(
+          seriesIndex === 0 ? multiMain.length : multiSeries[seriesIndex - 1].pairs.length,
+        );
+        points.forEach((point) => {
+          expect(point).toHaveAttribute("data-series-id", expectedIds[seriesIndex]);
+          expect(point).toHaveAttribute("data-shape", shapes[seriesIndex]);
+          expect(point).toHaveAttribute("fill", colors[seriesIndex]);
+        });
+      });
+
+      const legendItems = screen.getAllByTestId("series-legend-item");
+      expect(legendItems.map((item) => item.getAttribute("data-series-id"))).toEqual(
+        expectedIds,
+      );
+      expect(
+        legendItems.map((item) => item.getAttribute("data-point-count")),
+      ).toEqual(
+        expectedIds.map((id) =>
+          id === "main"
+            ? String(multiMain.length)
+            : String(
+                multiSeries.find((series) => series.id === id)?.pairs.length ?? 0,
+              ),
+        ),
+      );
+      legendItems.forEach((item, seriesIndex) => {
+        const marker = item.querySelector(
+          '[data-testid="series-legend-marker"]',
+        );
+        expect(marker).toHaveAttribute("data-shape", shapes[seriesIndex]);
+        expect(marker).toHaveAttribute("data-color", colors[seriesIndex]);
+        expect(item).toHaveTextContent(
+          `${seriesIndex === 0 ? multiMain.length : multiSeries[seriesIndex - 1].pairs.length} 个数据点`,
+        );
+      });
+    });
+    expect(screen.getByTestId("scatter-summary")).toHaveTextContent(
+      "4 个系列 · 6 个数据点",
+    );
+    expect(screen.getByTestId("scatter-plot")).toHaveAccessibleName(
+      /4 个系列，6 个数据点，系列：absorbance、温度、压力、湿度/,
+    );
+    expect(screen.getByTestId("scatter-y-label")).toHaveTextContent("Y (mV)");
+    expect(screen.getByTestId("scatter-x-label")).toHaveTextContent("time_s");
+  });
+
+  it("uses the union of all series for fixed shared X and Y domains", () => {
+    const { rerender } = render(
+      <ScatterPlot
+        pairs={multiMain}
+        extraSeries={multiSeries.slice(0, 1)}
+        xColumn="time_s"
+        yColumn="absorbance"
+      />,
+    );
+    expect(screen.getByTestId("scatter-plot")).toHaveAttribute(
+      "data-domain-x-min",
+      "-0.5",
+    );
+    expect(screen.getByTestId("scatter-plot")).toHaveAttribute(
+      "data-domain-x-max",
+      "10.5",
+    );
+    expect(screen.getByTestId("scatter-plot")).toHaveAttribute(
+      "data-domain-y-min",
+      "-1.5",
+    );
+    expect(screen.getByTestId("scatter-plot")).toHaveAttribute(
+      "data-domain-y-max",
+      "31.5",
+    );
+
+    rerender(
+      <ScatterPlot
+        pairs={multiMain}
+        extraSeries={multiSeries.slice(0, 3)}
+        xColumn="time_s"
+        yColumn="absorbance"
+      />,
+    );
+    const plot = screen.getByTestId("scatter-plot");
+    expect(plot).toHaveAttribute("data-domain-x-min", "-1");
+    expect(plot).toHaveAttribute("data-domain-x-max", "21");
+    expect(plot).toHaveAttribute("data-domain-y-min", "-12.5");
+    expect(plot).toHaveAttribute("data-domain-y-max", "42.5");
+
+    const main = screen
+      .getAllByTestId("scatter-series")
+      .find((group) => group.getAttribute("data-series-id") === "main");
+    const firstPoint = main?.querySelector('[data-testid="scatter-point"]');
+    expect(Number(firstPoint?.getAttribute("cx"))).toBeCloseTo(100.36, 2);
+    expect(Number(firstPoint?.getAttribute("cy"))).toBeCloseTo(234.18, 2);
+  });
+
+  it("keeps the main fit curve and error bars while including their Y extent in the shared domain", () => {
+    const fit = weightedFit(multiMain, [1, 0]);
+    render(
+      <ScatterPlot
+        pairs={multiMain}
+        extraSeries={multiSeries.slice(0, 1)}
+        xColumn="time_s"
+        yColumn="absorbance"
+        fit={fit}
+      />,
+    );
+
+    const curve = screen.getByTestId("fit-curve");
+    expect(curve).toHaveAttribute("data-point-count", "101");
+    expect(curve).toHaveAttribute("data-degree", "1");
+    expect(screen.getAllByTestId("error-bar")).toHaveLength(2);
+    const plot = screen.getByTestId("scatter-plot");
+    const yMin = Number(plot.getAttribute("data-domain-y-min"));
+    const yMax = Number(plot.getAttribute("data-domain-y-max"));
+    for (const sample of curveCoordinates(curve)) {
+      expect(sample[1]).toBeGreaterThanOrEqual(0);
+      expect(sample[1]).toBeLessThanOrEqual(360);
+    }
+    for (const bar of screen.getAllByTestId("error-bar")) {
+      expect(Number(bar.getAttribute("data-y-low"))).toBeGreaterThanOrEqual(yMin);
+      expect(Number(bar.getAttribute("data-y-high"))).toBeLessThanOrEqual(yMax);
+    }
+    expect(yMin).toBeLessThanOrEqual(-0.012);
+    expect(yMax).toBeGreaterThanOrEqual(31.5);
+    expect(screen.getAllByTestId("scatter-series")).toHaveLength(2);
+  });
+
+  it("does not change the main fit curve when added series stay inside the X domain", () => {
+    const fit = weightedFit(multiMain, [1, 0]);
+    const { rerender } = render(
+      <ScatterPlot
+        pairs={multiMain}
+        xColumn="time_s"
+        yColumn="absorbance"
+        fit={fit}
+      />,
+    );
+    const before = screen.getByTestId("fit-curve").getAttribute("points");
+    rerender(
+      <ScatterPlot
+        pairs={multiMain}
+        extraSeries={[
+          { id: "extra-1", name: "内部", pairs: [{ x: 3, y: 5 }] },
+        ]}
+        xColumn="time_s"
+        yColumn="absorbance"
+        fit={fit}
+      />,
+    );
+    expect(screen.getByTestId("fit-curve").getAttribute("points")).toBe(before);
+  });
+
+  it("keeps domains and all series geometry identical across tick densities and font scales", () => {
+    const fit = weightedFit(multiMain, [1, 0]);
+    const { rerender } = render(
+      <ScatterPlot
+        pairs={multiMain}
+        extraSeries={multiSeries.slice(0, 3)}
+        xColumn="time_s"
+        yColumn="absorbance"
+        fit={fit}
+        title="多系列"
+        showGrid
+        tickDensity="sparse"
+        fontScale="small"
+      />,
+    );
+    const snapshot = expectMultiGeometry();
+    const tickCounts = {
+      x: screen.getAllByTestId("scatter-x-tick").length,
+      y: screen.getAllByTestId("scatter-y-tick").length,
+    };
+    expect(tickCounts.x).toBeGreaterThanOrEqual(3);
+    expect(tickCounts.x).toBeLessThanOrEqual(4);
+    expect(tickCounts.y).toBeGreaterThanOrEqual(3);
+    expect(tickCounts.y).toBeLessThanOrEqual(4);
+    expect(screen.getAllByTestId("grid-line")).toHaveLength(
+      tickCounts.x + tickCounts.y,
+    );
+    expect(screen.getByTestId("chart-title")).toHaveTextContent("多系列");
+
+    for (const tickDensity of ["standard", "dense", "sparse"] as TickDensity[]) {
+      for (const fontScale of ["medium", "large", "small"] as const) {
+        rerender(
+          <ScatterPlot
+            pairs={multiMain}
+            extraSeries={multiSeries.slice(0, 3)}
+            xColumn="time_s"
+            yColumn="absorbance"
+            fit={fit}
+            title="多系列"
+            showGrid
+            tickDensity={tickDensity}
+            fontScale={fontScale}
+          />,
+        );
+        expect(expectMultiGeometry()).toBe(snapshot);
+        expect(screen.getByTestId("chart-title")).toHaveTextContent("多系列");
+      }
+    }
+  });
+
+  it("renders an empty added series in its group and legend without crashing", () => {
+    render(
+      <ScatterPlot
+        pairs={multiMain}
+        extraSeries={[{ id: "extra-empty", name: "空系列", pairs: [] }]}
+        xColumn="time_s"
+        yColumn="absorbance"
+      />,
+    );
+    const groups = screen.getAllByTestId("scatter-series");
+    expect(groups).toHaveLength(2);
+    expect(groups[1]).toHaveAttribute("data-point-count", "0");
+    const items = screen.getAllByTestId("series-legend-item");
+    expect(items[1]).toHaveTextContent("空系列");
+    expect(items[1]).toHaveTextContent("0 个数据点");
+    expect(screen.getByTestId("scatter-plot")).toHaveAttribute(
+      "data-point-count",
+      "2",
+    );
+    expect(screen.queryByTestId("scatter-empty")).not.toBeInTheDocument();
+  });
+
+  it("shows the existing empty state when every series has no finite points", () => {
+    render(
+      <ScatterPlot
+        pairs={[]}
+        extraSeries={[
+          { id: "extra-1", name: "空一", pairs: [] },
+          { id: "extra-2", name: "空二", pairs: [{ x: NaN, y: 1 }] },
+        ]}
+        xColumn="time_s"
+        yColumn="absorbance"
+      />,
+    );
+    expect(screen.getByTestId("scatter-empty")).toHaveTextContent(
+      "暂无可绘制的数据点",
+    );
+    expect(screen.queryAllByTestId("scatter-series")).toHaveLength(0);
+    expect(screen.getByTestId("scatter-summary")).toHaveTextContent(
+      "3 个系列 · 0 个数据点",
+    );
+    expect(screen.getAllByTestId("series-legend-item")).toHaveLength(3);
+    expect(screen.getAllByTestId("series-legend-item")[2]).toHaveTextContent(
+      "0 个数据点",
+    );
+  });
+});
