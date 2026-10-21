@@ -6,6 +6,7 @@ from simple counts so the same upload always yields the same response.
 
 from __future__ import annotations
 
+import csv
 import io
 from typing import Any
 
@@ -52,6 +53,32 @@ def _is_numeric_column(series: pd.Series) -> bool:
     ) and int(series.notna().sum()) > 0
 
 
+def _validate_field_counts(data: bytes) -> None:
+    """Reject ragged records before pandas can silently shift or drop fields."""
+    try:
+        text = data.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise CsvImportError(f"Malformed CSV: {exc}", status_code=422) from exc
+
+    reader = csv.reader(io.StringIO(text, newline=""))
+    expected: int | None = None
+    try:
+        for record in reader:
+            if not record:
+                continue
+            if expected is None:
+                expected = len(record)
+                continue
+            if len(record) != expected:
+                raise CsvImportError(
+                    f"Malformed CSV: row {reader.line_num} has {len(record)} field(s) "
+                    f"but the header has {expected}",
+                    status_code=422,
+                )
+    except csv.Error as exc:
+        raise CsvImportError(f"Malformed CSV: {exc}", status_code=422) from exc
+
+
 def parse_csv_bytes(data: bytes) -> dict[str, Any]:
     """Parse raw CSV bytes into columns, numeric columns, preview, and warnings."""
     if not data or not data.strip():
@@ -62,8 +89,10 @@ def parse_csv_bytes(data: bytes) -> dict[str, Any]:
             status_code=413,
         )
 
+    _validate_field_counts(data)
+
     try:
-        frame = pd.read_csv(io.BytesIO(data), encoding="utf-8-sig")
+        frame = pd.read_csv(io.BytesIO(data), encoding="utf-8-sig", index_col=False)
     except (pd.errors.EmptyDataError, pd.errors.ParserError, UnicodeDecodeError, ValueError) as exc:
         raise CsvImportError(f"Malformed CSV: {exc}", status_code=422) from exc
 
@@ -87,6 +116,7 @@ def parse_csv_bytes(data: bytes) -> dict[str, Any]:
     for column in frame.columns:
         series = frame[column]
         _describe_non_numeric(series, str(column), warnings)
+        _describe_non_finite(series, str(column), warnings)
         if _is_numeric_column(series):
             numeric_columns.append(str(column))
 
@@ -120,3 +150,12 @@ def _describe_non_numeric(series: pd.Series, column: str, warnings: list[str]) -
         warnings.append(
             f"Column '{column}' has {non_numeric} non-numeric value(s) among numeric data"
         )
+
+
+def _describe_non_finite(series: pd.Series, column: str, warnings: list[str]) -> None:
+    if not _is_numeric_column(series):
+        return
+    values = series.dropna().to_numpy(dtype=float)
+    non_finite = int((~np.isfinite(values)).sum())
+    if non_finite > 0:
+        warnings.append(f"Column '{column}' has {non_finite} non-finite value(s)")

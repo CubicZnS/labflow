@@ -73,6 +73,37 @@ def test_csv_import_rejects_malformed_csv() -> None:
     assert "malformed" in response.json()["detail"].lower()
 
 
+@pytest.mark.parametrize(
+    "content",
+    [
+        b"a,b\n1,2,3\n",
+        b"a,b\n1,2\n3,4,5\n",
+        b"a,b,c\n1,2\n",
+        b"a,b\n1,2,\n",
+        b"a,b\n1\n",
+    ],
+    ids=["extra-first-row", "extra-later-row", "missing-fields", "trailing-comma", "short-row"],
+)
+def test_csv_import_rejects_ragged_rows(content: bytes) -> None:
+    response = upload(content)
+    assert response.status_code == 422
+    detail = response.json()["detail"].lower()
+    assert "malformed csv" in detail
+    assert "field" in detail
+
+
+def test_csv_import_accepts_quoted_commas_and_newlines() -> None:
+    content = b'a,b\n"x,y",2\n"line1\nline2",3\n'
+    response = upload(content)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["row_count"] == 2
+    assert body["preview"] == [
+        {"a": "x,y", "b": 2},
+        {"a": "line1\nline2", "b": 3},
+    ]
+
+
 def test_csv_import_rejects_unsupported_content_type() -> None:
     response = upload(b"a,b\n1,2\n", content_type="application/pdf")
     assert response.status_code == 415
@@ -97,6 +128,7 @@ def test_csv_import_preview_serializes_non_finite_values_as_null() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["preview"][0] == {"x": 1, "y": None}
+    assert any("non-finite" in warning for warning in body["warnings"])
 
 
 @pytest.mark.parametrize("content_type", ["text/csv; charset=utf-8", "text/plain"])
