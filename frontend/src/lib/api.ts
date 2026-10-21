@@ -16,10 +16,19 @@ export type PreviewCell = string | number | boolean | null;
 
 export type CsvPreviewRow = Record<string, PreviewCell>;
 
+export type ColumnStats = {
+  n: number;
+  missing: number;
+  mean: number;
+  std: number;
+  sem: number;
+};
+
 export type CsvImportResponse = {
   row_count: number;
   columns: string[];
   numeric_columns: string[];
+  column_stats: Record<string, ColumnStats>;
   preview: CsvPreviewRow[];
   warnings: string[];
 };

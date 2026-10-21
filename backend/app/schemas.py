@@ -40,9 +40,18 @@ class FitResponse(BaseModel):
     intercept: float | None = None
 
 
+class ColumnStats(BaseModel):
+    n: int
+    missing: int
+    mean: float
+    std: float
+    sem: float
+
+
 class CsvImportResponse(BaseModel):
     row_count: int
     columns: list[str]
     numeric_columns: list[str]
+    column_stats: dict[str, ColumnStats]
     preview: list[dict[str, Any]]
     warnings: list[str]

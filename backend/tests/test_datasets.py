@@ -1,3 +1,5 @@
+import math
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -26,6 +28,52 @@ def test_csv_import_returns_columns_and_preview() -> None:
         {"time": 2, "value": 3.5, "label": "c"},
     ]
     assert body["warnings"] == []
+
+
+def test_csv_import_returns_summary_statistics_for_numeric_columns() -> None:
+    response = upload(b"time,value,label\n0,1,a\n1,2,b\n2,3,c\n3,4,d\n")
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body["column_stats"]) == {"time", "value"}
+
+    stats = body["column_stats"]["value"]
+    assert stats["n"] == 4
+    assert stats["missing"] == 0
+    assert stats["mean"] == pytest.approx(2.5)
+    assert stats["std"] == pytest.approx(math.sqrt(5 / 3))
+    assert stats["sem"] == pytest.approx(math.sqrt(5 / 3) / 2)
+
+
+def test_csv_import_statistics_exclude_missing_and_non_finite_values() -> None:
+    response = upload(b"time,value\n0,1\n1,\n2,3\n3,NaN\n4,inf\n5,-inf\n")
+    assert response.status_code == 200
+    body = response.json()
+
+    stats = body["column_stats"]["value"]
+    assert stats["n"] == 2
+    assert stats["missing"] == 4
+    assert stats["mean"] == pytest.approx(2.0)
+    assert stats["std"] == pytest.approx(math.sqrt(2))
+    assert stats["sem"] == pytest.approx(1.0)
+
+
+def test_csv_import_statistics_omit_non_numeric_columns() -> None:
+    response = upload(b"label,value\nx,1\ny,2\nz,3\n")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["numeric_columns"] == ["value"]
+    assert set(body["column_stats"]) == {"value"}
+
+
+def test_csv_import_statistics_omit_columns_with_too_few_finite_values() -> None:
+    response = upload(b"single,mixed\n1,1\n,\n,inf\n")
+    assert response.status_code == 200
+    body = response.json()
+    assert "single" in body["numeric_columns"]
+    assert "mixed" in body["numeric_columns"]
+    assert "single" not in body["column_stats"]
+    assert "mixed" not in body["column_stats"]
+    assert body["column_stats"] == {}
 
 
 def test_csv_import_preview_is_limited_to_ten_rows() -> None:
