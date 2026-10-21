@@ -236,38 +236,30 @@ def _read_xlsx_rows(data: bytes) -> tuple[list[str], list[list[Any]]]:
 
 def _xlsx_frame(sheet_name: str, rows: list[list[Any]]) -> pd.DataFrame:
     normalized: list[list[Any]] = []
+    width = 0
     for row in rows:
         values = [_normalize_cell(value) for value in row]
         while values and values[-1] is None:
             values.pop()
-        if any(value is not None for value in values):
-            normalized.append(values)
-    if not normalized:
+        if not values:
+            continue
+        width = max(width, len(values))
+        normalized.append(values)
+    if not normalized or width == 0:
         raise DatasetImportError(
             f"Worksheet '{sheet_name}' contains no data rows", status_code=422
         )
 
     header, *body = normalized
-    width = len(header)
-    if width == 0:
-        raise DatasetImportError(
-            f"Worksheet '{sheet_name}' contains no data rows", status_code=422
-        )
-
+    padded_header = header + [None] * (width - len(header))
     columns = _dedupe_columns(
-        [str(value) if value is not None else f"Unnamed: {index}" for index, value in enumerate(header)]
+        [
+            str(value) if value is not None else f"Unnamed: {index}"
+            for index, value in enumerate(padded_header)
+        ]
     )
 
-    records: list[list[Any]] = []
-    for row_number, row in enumerate(body, start=2):
-        if len(row) > width:
-            raise DatasetImportError(
-                f"Malformed XLSX: row {row_number} has {len(row)} value(s) "
-                f"but the header has {width}",
-                status_code=422,
-            )
-        records.append(row + [None] * (width - len(row)))
-
+    records = [row + [None] * (width - len(row)) for row in body]
     return pd.DataFrame(records, columns=columns)
 
 

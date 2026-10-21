@@ -489,3 +489,42 @@ def test_xlsx_leading_blank_row_does_not_add_phantom_column() -> None:
     body = response.json()
     assert body["columns"] == ["x", "y"]
     assert body["preview"] == [{"x": 1, "y": 2}, {"x": 3, "y": 4}]
+
+
+@pytest.mark.parametrize(
+    ("header", "csv_header", "expected_columns"),
+    [
+        (["x", None], "x,", ["x", "Unnamed: 1"]),
+        (["x", None, None], "x,,", ["x", "Unnamed: 1", "Unnamed: 2"]),
+        (["x", "y", None], "x,y,", ["x", "y", "Unnamed: 2"]),
+    ],
+    ids=["one-blank", "two-blank", "named-then-blank"],
+)
+def test_xlsx_blank_header_columns_backed_by_data_are_preserved(
+    header: list[object],
+    csv_header: str,
+    expected_columns: list[str],
+) -> None:
+    rows: list[list[object]] = [header, [1, 2, 3][: len(header)]]
+    width = len(header)
+    rows.append([4, 5, 6][:width])
+
+    xlsx_response = upload_xlsx(build_xlsx(rows))
+    assert xlsx_response.status_code == 200
+    body = xlsx_response.json()
+    assert body["columns"] == expected_columns
+    assert len(body["columns"]) == len(set(body["columns"]))
+    assert list(body["preview"][0].keys()) == body["columns"]
+
+    csv_rows = "\n".join(",".join(str(value) for value in row) for row in rows[1:])
+    csv_response = upload((csv_header + "\n" + csv_rows + "\n").encode())
+    assert csv_response.status_code == 200
+    assert body == csv_response.json()
+
+
+def test_xlsx_trailing_all_blank_column_is_dropped() -> None:
+    response = upload_xlsx(build_xlsx([["x", None], [1, None], [3, None]]))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["columns"] == ["x"]
+    assert body["preview"] == [{"x": 1}, {"x": 3}]
