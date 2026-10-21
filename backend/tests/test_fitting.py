@@ -490,8 +490,18 @@ def test_fit_weighted_validates_only_retained_x_y_rows() -> None:
         ),
         (
             b"x,y,err\n1,2,0.1\n2,4,0.2\n3,6,0.3\n",
+            {"y_error_column": ""},
+            "blank",
+        ),
+        (
+            b"x,y,err\n1,2,0.1\n2,4,0.2\n3,6,0.3\n",
             {"y_error_column": "   "},
             "blank",
+        ),
+        (
+            b"x,y,err\n1,2,0.1\n2,4,0.2\n3,6,0.3\n",
+            {"y_error_unit": ""},
+            "requires",
         ),
         (
             b"x,y,err\n1,2,0.1\n2,4,0.2\n3,6,0.3\n",
@@ -526,6 +536,29 @@ def test_fit_rejects_invalid_y_error_inputs(
     response = post_fit(content, degree="1", **kwargs)
     assert response.status_code == 422
     assert fragment in response.json()["detail"]
+
+
+def test_fit_rejects_explicit_blank_y_error_column_instead_of_falling_back() -> None:
+    response = post_fit(WEIGHTED_CSV, degree="1", y_error_column="")
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Y error column must not be blank"
+
+
+def test_fit_rejects_explicit_blank_y_error_unit_without_error_column() -> None:
+    response = post_fit(WEIGHTED_CSV, degree="1", y_error_unit="")
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Y error unit requires a Y error column"
+
+
+def test_fit_treats_blank_y_error_unit_as_null_when_error_column_is_valid() -> None:
+    response = post_fit(
+        WEIGHTED_CSV, degree="1", y_error_column="err", y_error_unit=""
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["weighted"] is True
+    assert body["y_error_column"] == "err"
+    assert body["y_error_unit"] is None
 
 
 @pytest.mark.parametrize(

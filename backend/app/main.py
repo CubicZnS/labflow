@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Annotated
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
@@ -162,6 +162,7 @@ async def import_series(
 
 @app.post("/api/datasets/fit", response_model=DatasetFitResponse)
 async def dataset_fit(
+    request: Request,
     file: Annotated[UploadFile, File()],
     format: Annotated[str, Form()],
     x_column: Annotated[str, Form()],
@@ -172,6 +173,12 @@ async def dataset_fit(
     y_error_column: Annotated[str | None, Form()] = None,
     y_error_unit: Annotated[str | None, Form()] = None,
 ) -> DatasetFitResponse:
+    form = await request.form()
+    if y_error_column is None and "y_error_column" in form:
+        y_error_column = str(form["y_error_column"])
+    if y_error_unit is None and "y_error_unit" in form:
+        y_error_unit = str(form["y_error_unit"])
+
     format_label = format.strip().lower()
     if format_label not in SUPPORTED_SERIES_FORMATS:
         raise HTTPException(
