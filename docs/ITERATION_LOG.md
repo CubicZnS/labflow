@@ -640,7 +640,7 @@ git log --oneline --decorate dev
     - 任一步失败立即停止后续步骤，保留已成功的主系列/追加系列或拟合结果，显示包含失败步骤的中文 `role="alert"` 错误；打开按钮恢复可用，可再次打开项目重试。
     - 手动“生成配对数据”仍会清空追加系列、拟合设置与拟合结果，行为保持不变。
   - `FitPanel` 改为受控展示组件：`degree`、`errorColumn`、`errorUnit`、`fitState` 上提到 `SeriesPanel`，保留 `fit-degree-select`、`fit-error-select`、`fit-error-unit-input`、`fit-error`、拟合结果展示与“运行拟合”按钮；拟合结果仍传给 `ScatterPlot`。
-  - 同步更新中文 `README.md`：当前状态、能力、尚未完成、下一轮、测试数量、已知限制与“版本迭代记录”表（迭代 #14，推送时间 2026-10-22 05:08，新增内容完整，修复内容为“无独立修复提交”）。
+  - 同步更新中文 `README.md`：当前状态、能力、尚未完成、下一轮、测试数量、已知限制与“版本迭代记录”表（迭代 #14，推送时间 2026-10-22 05:06，新增内容完整，修复内容为“无独立修复提交”）。
 - 测试：
   - 后端：`.venv/bin/python -m pytest -q -o addopts=""` **155 passed**；`.venv/bin/ruff check app tests` 通过；本轮未改后端。
   - 前端：`pnpm typecheck` 通过；`pnpm test:run` **133 passed**；`pnpm build` 成功。
