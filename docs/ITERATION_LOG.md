@@ -676,3 +676,48 @@ git log --oneline --decorate dev
   - 合并后在 `dev` 重跑 5 个 gate：后端 `pytest -q -o addopts=""` **155 passed**、`ruff check app tests` 通过；前端 `typecheck` 通过、`test:run` **134 passed**、`build` 成功。
   - 推送核验：`git ls-remote origin refs/heads/dev` 与 `gh api` 对合并 SHA `d56f2a2a8b8db00ae183087e0ac56cca10999cb9` 返回一致；`main` 保持 `7b3c2f1153eb561241ba33fa74e06953e552e63e` 未改动；无 force push、无历史改写。
   - 阶段状态：Phase 4.1a（本地项目快照 v1）完成并合并；下一轮进入 Phase 4.1b（导出设置/项目元数据保存与版本兼容/迁移），继续不引入后端持久化与数据上传。
+
+## 迭代 #15 — Phase 4.1b 项目元数据与 PNG 导出倍率（schema v2）
+
+- 日期：2026-10-22
+- 目标：在迭代 #14 的本地项目快照 v1 之上，新增项目名称/备注与 PNG 导出倍率（1×/2×/3×）持久化，把快照升级为 schema v2，并保证 v1 项目文件可打开、严格校验后迁移为 v2；不新增后端功能、不新增依赖、不上传数据。
+- 任务选择：MAC-67（迭代 #15，Phase 4.1b）。
+- 分支：`iter/15`，基于 `dev` 的 `61287f6e9c1e4f4d802cea33436c8950fce46e92`。只在该分支提交并 push，不合并、不 force push、不改写历史。
+- 产品决策：
+  - 项目元数据只保存 `name`（≤80 字符）与 `note`（≤500 字符），保存前 trim，允许为空。
+  - 导出设置只持久化 PNG 栅格倍率 `pngScale`（1/2/3，默认 2）；导出格式（SVG/PNG）仍按次选择，不持久化；不实现 DPI、自定义尺寸或透明背景。
+  - 项目文件名继续由数据源文件名生成，不使用项目名称。
+- 已完成：
+  - `frontend/src/lib/projectSnapshot.ts`：
+    - `PROJECT_SCHEMA_VERSION = 2`，新增 `LEGACY_PROJECT_SCHEMA_VERSION = 1`、`MAX_PROJECT_NAME_LENGTH = 80`、`MAX_PROJECT_NOTE_LENGTH = 500`、`DEFAULT_PNG_SCALE = 2` 与 `PngScale = 1 | 2 | 3`。
+    - 新增 `ProjectMetadata`、`ProjectExport`、`ProjectSnapshotV2` 与 `ProjectSnapshot` 别名；保留 `ProjectSnapshotV1` 作为历史类型。
+    - `buildProjectSnapshot` 接收 `metadata` 与 `export`，名称/备注 trim 后按上限截断，非法 `pngScale` 归一为 2；输出确定性、无时间戳/随机数。
+    - 顶层字段顺序固定为 `schemaVersion, sourceFileName, metadata, dataset, series, extraSeries, fit, chart, export`；`serializeProjectSnapshot` 始终写出 schema v2、2 空格缩进、末尾换行。
+    - `parseProjectSnapshot` 对 v2 严格校验 `metadata`/`export` 类型、长度上限与 `pngScale` 仅 1/2/3；对 v1 严格校验原有字段后补齐 `metadata = { name: "", note: "" }`、`export = { pngScale: 2 }` 并迁移为 v2；其他版本返回中文“版本不支持”。
+    - 新增嵌套对象未知字段校验（dataset/series/extraSeries/fit/chart/metadata/export），继续拒绝未知顶层字段与 `__proto__` 等原型污染键；全部错误为中文 `ProjectSnapshotError`。
+    - 项目文件仍不包含原始数据行、配对点、系数、残差、警告或凭据；`readProjectFile`、`downloadProjectSnapshot`、`datasetMatchesSnapshot` 均改用 v2 类型。
+  - `frontend/src/lib/chartExport.ts`：
+    - 保留 `PNG_EXPORT_SCALE = 2` 作为默认值；新增 `PngExportScale` 与 `normalizePngScale`。
+    - `svgToPngBlob` 新增可选 `pngScale` 参数，`downloadChart` 选项新增可选 `pngScale`；输出画布为 viewBox 宽高 × 倍率，非法值回退 2；白底、revoke、错误信息、文件名逻辑与 SVG 路径保持不变。
+  - `frontend/src/components/ScatterPlot.tsx`：
+    - 新增可选 `pngScale?: 1 | 2 | 3`（默认 2）并传给 `downloadChart`；PNG 按钮文案显示当前倍率（如“导出 PNG（3×）”）；`data-testid="export-png"`、SVG 按钮、导出状态与错误行为保持不变。
+  - `frontend/src/components/SeriesPanel.tsx`：
+    - 项目区块新增项目名称输入（`project-name-input`，maxLength 80）、项目备注 textarea（`project-note-input`，maxLength 500）与 PNG 倍率 select（`png-scale-select`，1×/2×/3×），均在 `projectBusy` 时禁用。
+    - 保存项目时写入 `metadata`/`export`；打开项目时恢复三者并把 `pngScale` 传给 `ScatterPlot`；一键重跑顺序、失败可见性/重试、代次隔离与锁定逻辑保持不变，不新增 series/fit 请求。
+    - 手动“生成配对数据”仍清空追加系列与拟合结果，但保留项目名称/备注/PNG 倍率（已在测试中固定）。
+  - 文档：更新中文 `README.md` 当前状态、能力、测试命令/数量、已知限制、下一轮与“版本迭代记录”表（迭代 #15）；本记录为中文。
+- 测试：
+  - 后端：`.venv/bin/python -m pytest -q -o addopts=""` **155 passed**；`.venv/bin/ruff check app tests` 通过；本轮未改后端。
+  - 前端：`pnpm typecheck` 通过；`pnpm test:run` **147 passed**；`pnpm build` 成功。
+  - 新增/更新覆盖：schema v2 常量与固定字段顺序、确定性序列化；名称/备注 trim 与 build 截断；非法 pngScale 归一；v2 往返；v1 迁移默认值与保存写 v2；v1 严格校验与未知字段拒绝；metadata/export 类型/长度/枚举/未知字段；新增嵌套未知字段校验；PNG 1×/2×/3× 画布尺寸、默认 2 与非法值回退；ScatterPlot 倍率按钮文案与传参；SeriesPanel 保存/恢复名称/备注/倍率、旧字段清空、重新生成保留输入、重跑期间控件禁用、v1 项目打开迁移。
+- 已知限制：
+  - 仍不做后端持久化、账户、云同步或跨设备共享；项目文件完全在浏览器本地处理。
+  - 项目文件仅保存指纹、元数据、导出倍率与分析配置；打开前仍须重新导入同一份数据文件。
+  - PNG 仅 1×/2×/3×，默认 2×；不提供自定义尺寸、DPI 或透明背景；导出格式不持久化。
+  - 项目名称最长 80、备注最长 500，保存前 trim 并截断；项目文件名不使用项目名称。
+  - 仅支持读取 schema v1/v2；其他版本显示中文“版本不支持”。
+- 下一轮：Phase 4.2，评估多项目管理/项目库体验或继续完善导出（自定义尺寸/DPI）与可复现性；继续保持数据不上传、不引入后端持久化。
+- Git：
+  - `iter/15` 功能、测试与 README 提交：`c0f9e910437040b2bf5769733d86de8feda9b454`
+    https://github.com/CubicZnS/labflow/commit/c0f9e910437040b2bf5769733d86de8feda9b454
+  - `iter/15` 文档/迭代记录提交：见本轮远端 `iter/15` HEAD（由 Lead 在合并时补充合并 SHA）。
