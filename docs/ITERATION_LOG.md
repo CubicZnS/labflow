@@ -476,8 +476,18 @@ git log --oneline --decorate dev
   - 同步更新中文 README：当前状态、能力、测试数量、版本迭代表、已知限制与下一轮计划。
 - 测试：
   - 后端：`ruff check app tests` 通过；`pytest -q` **155 passed**。
-  - 前端：`pnpm typecheck` 通过；`pnpm test:run` **57 passed**（新增 4 个 ScatterPlot 测试 + 1 个 App 集成测试）；`pnpm build` 成功。
+  - 前端：`pnpm typecheck` 通过；`pnpm test:run` **60 passed**（Phase 3.3 原有新增测试 + MAC-51 的 3 个刻度标签回归测试）；`pnpm build` 成功。
   - 新增覆盖：标题显示/隐藏、居中与 XML 转义；网格默认关闭、开关后线数与刻度一致、虚线样式、位于散点/曲线/误差棒下层且坐标不变；稀疏/密集档在常规、单点、X 全同值、Y 全同值与极端有限值下的刻度数、域内约束、唯一性与有限性；三档字号改变标题/轴标签/刻度字号且域与图形坐标不变；App 层控件实时更新且 series 只请求一次。
+
+### Lead 复核修复（MAC-51）
+
+- 缺陷：`tickDensity="dense"` 在“大数值 + 小跨度”数据下，相邻刻度显示同一标签。Lead 用 4 个约 `4.8e6` 的坐标点复现，X 轴 8 个刻度出现 `4.79e6`、`4.8e6`、`4.81e6` 各重复两次。
+- 根因：`formatTick` 对 `|value| >= 1e5` 或 `< 1e-3` 固定使用 `toExponential(2)`，只有 3 位有效数字；密集档步长较小时，相邻刻度被取整到同一文本。
+- 修复：新增按 `step` 与 `|value|` 推导有效位数的自适应刻度格式化；每轴统一生成标签并校验唯一性，冲突时逐步提升精度，最终回退到可唯一表示每个有限值的精确文本。`standard` 档在旧标签唯一且可解析时优先沿用原格式，保证既有显示不回归。坐标域、点位、拟合曲线、误差棒像素坐标与后端接口均未改变。
+- 新增测试：Lead 复现的 4 点 dense 数据集 X/Y 轴标签唯一；`5e6 ± 5` 与 `1e-6 ± 1e-9` 窄跨度 dense 标签唯一且可解析为有限值；默认 `standard` 常规数据集的 X/Y 固定期望标签数组。
+- 修复提交：`4be74e399267a7c4882df82a708f9a5c89a7cf66`
+  https://github.com/CubicZnS/labflow/commit/4be74e399267a7c4882df82a708f9a5c89a7cf66
+- 修复后 gate：`pnpm typecheck`、`pnpm test:run`（60 passed）、`pnpm build`、`pytest -q`（155 passed）、`ruff check app tests` 全部通过。
 - Git：
   - `iter/11` 功能提交：`d18ba2a55970280e1f625ba2348a6ee33829e7d4`
     https://github.com/CubicZnS/labflow/commit/d18ba2a55970280e1f625ba2348a6ee33829e7d4
