@@ -166,3 +166,64 @@ Failed or blocked steps are reported honestly.
   - Parsing warnings remain verbatim English inside the Chinese UI.
 - Next iteration: Phase 1.4 — XLSX import with the same validation, preview, warnings, and
   statistics contract as CSV.
+
+## Iteration #4 — Phase 1.4 XLSX import with the CSV validation contract
+
+- Date: 2026-10-21
+- Goal: let a user import a real experimental XLSX workbook and inspect the same validated
+  preview, warnings, numeric columns, and summary statistics already available for CSV.
+- Selected backlog task: MAC-22 (Phase 1.4 — XLSX import with the CSV validation and statistics
+  contract). No Phase 1.4 task existed, so it was created from the roadmap.
+- Branch: `iter/4`, created from `dev` at `bf17768ea3970aa9cfab606a3237376f324651c0`.
+- Completed:
+  - `POST /api/datasets/xlsx` returns the existing dataset contract (`row_count`, `columns`,
+    `numeric_columns`, `column_stats`, `preview`, `warnings`) through a shared frame-building
+    pipeline, so CSV and XLSX validation, warning order, numeric detection, statistics, and
+    JSON-safe preview cannot drift.
+  - Deterministic first-worksheet policy with one warning naming the imported sheet and total
+    worksheet count; header-only or empty worksheets return 422.
+  - XLSX errors: empty bytes 400, over-10 MB 413, unsupported content type 415, corrupt or
+    no-data workbook 422; accepted types limited to XLSX OOXML plus `application/octet-stream`.
+  - Blank and duplicate headers are made unique deterministically. Header width is derived from
+    the widest populated row, so blank header cells backed by data survive, all-blank trailing
+    columns are dropped, and a wider leading all-blank row cannot add a phantom column.
+  - Added `openpyxl>=3.1,<4` to the backend dependencies; local install and CI both install from
+    `backend/pyproject.toml`.
+  - Frontend upload panel accepts `.csv` and `.xlsx`, routes by extension, rejects unsupported
+    extensions before any request, shows the parsed format, and updates the Chinese CSV-only copy.
+  - Tests build XLSX workbooks in memory with openpyxl; no binary fixtures were committed.
+- Review and QA findings:
+  - MAC-23 first QA verdict **FAIL**: duplicate headers such as `["x","x.1","x"]` produced
+    duplicate labels and HTTP 500. Fixed in `7446abbb`; the task was returned to Dev, not merged.
+  - MAC-24 second QA verdict **FAIL**: the optional phantom-column fix trimmed blank header
+    cells, so `["x", null]` with data below returned 422 instead of matching CSV. Fixed in
+    `fcf7139`; the task was returned to Dev again, not merged.
+  - MAC-25 third QA verdict **PASS** after independent worktree verification of the remote SHA,
+    diff scopes, both prior defects, the original contract, fuzzed headers, error statuses, and
+    CSV regression.
+- Tests:
+  - Backend: `ruff check app tests` passed; `pytest -q` passed (66 tests, 50 dataset tests).
+  - Frontend: `pnpm typecheck` passed; `pnpm test:run` passed (11 tests); `pnpm build` succeeded.
+  - QA live probes confirmed known-value statistics, full-dataset computation, 10-row preview,
+    missing/duplicate/non-numeric/non-finite warnings, multi-sheet policy, all documented error
+    statuses, CSV parity for pure-numeric and pure-string data, and frontend endpoint routing.
+- Independent QA: MAC-25, assigned to DeepSeek Worker QA, verdict **PASS**.
+- Git:
+  - Feature commits on `iter/4`:
+    - `f2e94cbe0186a8f1578f8801573bef37a4722a7f` — XLSX import with shared validation contract.
+    - `7446abbf5bb3940726477631f827e1997c0b5593` — collision-safe duplicate header labels.
+    - `fcf7139c1bb1268e125f8c66520f0ea9377a9235` — preserve blank header columns backed by data.
+  - Final feature commit link: https://github.com/CubicZnS/labflow/commit/fcf7139c1bb1268e125f8c66520f0ea9377a9235
+  - Merge commit on `dev`: `746d502aecdd60d6e8bf98320404a3b667ae3bf4`
+  - Merge link: https://github.com/CubicZnS/labflow/commit/746d502aecdd60d6e8bf98320404a3b667ae3bf4
+- Known issues / limits:
+  - Only the first worksheet is imported; there is no sheet picker yet.
+  - Formula cells use cached values (`data_only=True`); formulas without a cached result appear as
+    missing values.
+  - A completely blank header row is skipped, so the first data row becomes the header.
+  - Mixed-type XLSX cells may serialize numbers natively where CSV returns strings; columns,
+    statistics, and warnings still match.
+  - Manual table entry/editing and X/Y selection with units are not implemented.
+  - The 10 MB limit still applies and the file is read before the size check.
+- Next iteration: Phase 1.5 — X/Y column selection and unit labels on imported data, the bridge
+  to Phase 2 fitting and Phase 3 plotting.

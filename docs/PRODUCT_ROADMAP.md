@@ -31,7 +31,7 @@ Acceptance: both applications start; tests pass; CI is configured; the first com
 ### Phase 1 — Data import and validation (current)
 
 - [x] CSV import with validation, warnings, and preview
-- [ ] XLSX import with preview
+- [x] XLSX import with preview
 - [ ] Manual table entry/editing
 - [ ] X/Y selection and units
 - [x] Numeric column detection
