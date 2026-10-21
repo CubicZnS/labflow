@@ -66,8 +66,8 @@ Acceptance: known-value fixtures match independent numerical baselines.
 
 Planned increments:
 
-- [ ] 3.1 SVG scatter plot of the paired series with axis labels/units, automatic ranges, and empty/
-      single-point states; no new chart dependency
+- [x] 3.1 SVG scatter plot of the paired series with axis labels/units, automatic ranges, and empty/
+      single-point states; no new chart dependency (iteration #9, merge `2862994`)
 - [ ] 3.2 Fitted-curve overlay and Y-error bars, reusing the existing fit response
 - [ ] 3.3 Multiple series, title, legend, grid, font, and tick controls
 - [ ] 3.4 PNG and SVG export
