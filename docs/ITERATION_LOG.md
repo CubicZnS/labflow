@@ -720,4 +720,6 @@ git log --oneline --decorate dev
 - Git：
   - `iter/15` 功能、测试与 README 提交：`c0f9e910437040b2bf5769733d86de8feda9b454`
     https://github.com/CubicZnS/labflow/commit/c0f9e910437040b2bf5769733d86de8feda9b454
-  - `iter/15` 文档/迭代记录提交：见本轮远端 `iter/15` HEAD（由 Lead 在合并时补充合并 SHA）。
+  - `iter/15` 文档/迭代记录提交：`1a8631f233bb09d287e9989f297ef65a9139f0f0`
+    https://github.com/CubicZnS/labflow/commit/1a8631f233bb09d287e9989f297ef65a9139f0f0
+  - 合并 SHA：留给 Lead 在合并到 `dev` 时补充。
