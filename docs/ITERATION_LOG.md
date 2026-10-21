@@ -491,16 +491,23 @@ git log --oneline --decorate dev
 - Git：
   - `iter/11` 功能提交：`d18ba2a55970280e1f625ba2348a6ee33829e7d4`
     https://github.com/CubicZnS/labflow/commit/d18ba2a55970280e1f625ba2348a6ee33829e7d4
-  - 本轮文档提交与远端 SHA：见完成回报及 `git ls-remote origin refs/heads/iter/11`。
-  - 独立 QA：待 Lead 创建并执行（结论待补写）。
-  - 合并提交（dev）：待 Lead 在 QA PASS 后合并并补写。
+  - 标签修复提交：`4be74e399267a7c4882df82a708f9a5c89a7cf66`
+    https://github.com/CubicZnS/labflow/commit/4be74e399267a7c4882df82a708f9a5c89a7cf66
+  - 坐标域修复提交：`a3285fa6823456c7317852cf532d05acf45060ea`
+    https://github.com/CubicZnS/labflow/commit/a3285fa6823456c7317852cf532d05acf45060ea
+  - `iter/11` 最终 HEAD：`43e5f7e64ec4190cca4c7c204d732663d38b519d`
+    https://github.com/CubicZnS/labflow/commit/43e5f7e64ec4190cca4c7c204d732663d38b519d
+  - 独立 QA：MAC-52 首轮 **FAIL**（F1 刻度密度改变坐标域）；MAC-53 修复后 MAC-54 复核 **PASS**（远端 SHA、范围、F1 闭环、standard 无回归、中文文档与 5 个 gate 全部通过）。
+  - `dev` 合并提交：`4545a600fe0793309459e4899c5619cc96223feb`
+    https://github.com/CubicZnS/labflow/commit/4545a600fe0793309459e4899c5619cc96223feb
+  - 合并后在 `dev` 重跑：后端 `155 passed`、ruff 通过；前端 typecheck 通过、`62 passed`、build 成功。`git ls-remote` 与 `gh api` 对合并 SHA 返回一致；`main` 未改动。
 - 已知限制：
   - 样式控制仅作用于当前单系列图表；多系列叠加仍未实现。
   - 网格使用当前自动刻度位置，不提供手动坐标范围、网格颜色、线宽或图例位置编辑。
   - 稀疏/密集档在极小可表示跨度等极端输入下受 IEEE-754 可表示数限制，刻度数可能无法达到目标区间；常规与本题验收的退化输入均满足。
   - 数据量大时仍渲染全部散点；暂无抽稀或分页。PNG/SVG 导出仍未实现。
   - 继承限制：布尔列按 0/1 参与配对；混合对象列会跳过日期行；仅导入第一个 XLSX worksheet；10 MB 文件在大小检查前已被读取；手工表格录入仍未实现；中文 UI 内部分服务端校验消息/警告仍为英文。
-- 下一轮：完成 Phase 3.3 多系列叠加；随后 Phase 3.4 实现 PNG/SVG 导出，继续复用现有确定性坐标与样式控件。
+- 下一轮：Phase 3.4 多系列叠加与图例；随后 Phase 3.5 实现 PNG/SVG 导出，继续复用现有确定性坐标与样式控件。
 
 ### 独立 QA FAIL 闭环（MAC-53）
 
@@ -514,4 +521,5 @@ git log --oneline --decorate dev
 - 修复提交：`a3285fa6823456c7317852cf532d05acf45060ea`
   https://github.com/CubicZnS/labflow/commit/a3285fa6823456c7317852cf532d05acf45060ea
 - 修复后 gate：`pnpm typecheck`、`pnpm test:run`（62 passed）、`pnpm build`、`pytest -q`（155 passed）、`ruff check app tests` 全部通过。
-- 最终 HEAD / 合并 SHA：待 Lead 补写。
+- 最终 HEAD / 合并 SHA：`iter/11` HEAD `43e5f7e64ec4190cca4c7c204d732663d38b519d`，`dev` 合并提交 `4545a600fe0793309459e4899c5619cc96223feb`（链接见上）。本轮记录提交即 `dev` 分支最新中文提交，未在文件内写入自身 SHA。
+- 合并后复核：`dev` 上 5 个 gate 全部通过；`main` 保持 `7b3c2f1` 未改动；无 force push、无历史改写。

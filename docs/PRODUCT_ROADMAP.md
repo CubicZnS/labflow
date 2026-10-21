@@ -71,8 +71,11 @@ Planned increments:
 - [x] 3.2 Fitted-curve overlay and Y-error bars, reusing the existing fit response; Y range includes
       curve samples and error endpoints, stale fit responses are isolated per series
       (iteration #10, merge `f98b1c9`)
-- [ ] 3.3 Multiple series, title, legend, grid, font, and tick controls
-- [ ] 3.4 PNG and SVG export
+- [x] 3.3 Chart title, grid toggle, tick density, and font-size controls on the single-series
+      scatter plot; coordinate domain, point positions, fitted curve, and error bars are
+      independent of the selected density (iteration #11, merge `4545a60`)
+- [ ] 3.4 Multiple series overlay with legend
+- [ ] 3.5 PNG and SVG export
 
 Original scope kept for reference:
 
