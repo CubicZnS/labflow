@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   createFit,
   type DatasetFormat,
@@ -347,6 +347,14 @@ export function FitPanel({
   const [errorColumn, setErrorColumn] = useState("");
   const [errorUnit, setErrorUnit] = useState("");
   const [fitState, setFitState] = useState<FitState>({ status: "idle" });
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const isLoading = fitState.status === "loading";
   const availableErrorColumns = numericColumns.filter(
@@ -369,9 +377,15 @@ export function FitPanel({
         yErrorColumn: errorColumn || undefined,
         yErrorUnit: errorColumn ? errorUnit : undefined,
       });
+      if (!mountedRef.current) {
+        return;
+      }
       setFitState({ status: "success", result });
       onFitChange(result);
     } catch (error) {
+      if (!mountedRef.current) {
+        return;
+      }
       setFitState({
         status: "error",
         message:

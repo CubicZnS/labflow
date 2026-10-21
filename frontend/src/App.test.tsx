@@ -1,4 +1,11 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import type { CsvImportResponse, FitResponse, SeriesResponse } from "./lib/api";
@@ -757,6 +764,72 @@ describe("App", () => {
     expect(screen.getByTestId("fit-section")).toBeInTheDocument();
     expect(screen.queryByTestId("fit-result")).not.toBeInTheDocument();
     expect(screen.queryByTestId("fit-curve")).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId("error-bar")).toHaveLength(0);
+  });
+
+  it("ignores a stale fit response from a previous series", async () => {
+    const staleFitPayload: FitResponse = {
+      ...fitPayload,
+      weighted: true,
+      y_error_column: "absorbance_err",
+      y_error_unit: "mV",
+      y_errors: [0.01, 0.02],
+    };
+    const secondSeries: SeriesResponse = {
+      ...seriesPayload,
+      pair_count: 2,
+      skipped_count: 1,
+      pairs: [
+        { x: 100, y: 0.5 },
+        { x: 200, y: 0.9 },
+      ],
+    };
+    let seriesCalls = 0;
+    let fitCalls = 0;
+    let resolveStaleFit: ((response: Response) => void) | undefined;
+    installFetchMock(
+      () => jsonResponse(csvPayload),
+      () => {
+        seriesCalls += 1;
+        return jsonResponse(seriesCalls === 1 ? seriesPayload : secondSeries);
+      },
+      () => {
+        fitCalls += 1;
+        if (fitCalls === 1) {
+          return new Promise<Response>((resolve) => {
+            resolveStaleFit = resolve;
+          });
+        }
+        return jsonResponse(fitPayload);
+      },
+    );
+    render(<App />);
+
+    await generateSeries();
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+    expect(screen.getByRole("button", { name: "正在拟合…" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "生成配对数据" }));
+    await waitFor(() =>
+      expect(screen.getAllByTestId("scatter-point")[0]).toHaveAttribute(
+        "data-x",
+        "100",
+      ),
+    );
+    expect(screen.queryByTestId("fit-curve")).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveStaleFit?.(jsonResponse(staleFitPayload));
+    });
+
+    expect(screen.queryByTestId("fit-result")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("fit-curve")).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId("error-bar")).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+    expect(await screen.findByTestId("fit-result")).toBeInTheDocument();
+    expect(screen.getByTestId("fit-curve")).toBeInTheDocument();
+    expect(screen.getByTestId("fit-curve")).toHaveAttribute("data-degree", "1");
     expect(screen.queryAllByTestId("error-bar")).toHaveLength(0);
   });
 

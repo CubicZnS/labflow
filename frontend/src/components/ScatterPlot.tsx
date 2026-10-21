@@ -324,19 +324,22 @@ export function ScatterPlot({
 
   const errorBars = hasPoints ? buildErrorBars(fit) : [];
   const hasErrorBars = errorBars.length > 0;
+  const fitCurve = xDomain ? buildFitCurve(fit, xDomain) : null;
   const yValues = points.map((pair) => pair.y);
   if (hasErrorBars) {
     for (const bar of errorBars) {
       yValues.push(bar.low, bar.high);
     }
   }
+  if (fitCurve) {
+    for (const sample of fitCurve) {
+      yValues.push(sample.y);
+    }
+  }
   const yAxis = hasPoints ? buildAxis(yValues) : null;
   const yDomain = yAxis?.domain ?? null;
   const xTicks = xAxis;
   const yTicks = yAxis;
-
-  const fitCurve =
-    xDomain && yDomain ? buildFitCurve(fit, xDomain) : null;
 
   const domainAttributes = xDomain && yDomain
     ? {

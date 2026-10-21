@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   createSeries,
   type CsvImportResponse,
@@ -88,15 +88,25 @@ export function SeriesPanel({
   const [seriesState, setSeriesState] = useState<SeriesState>({ status: "idle" });
   const [seriesRun, setSeriesRun] = useState(0);
   const [fitResult, setFitResult] = useState<FitResponse | null>(null);
+  const seriesRunRef = useRef(0);
 
   const isLoading = seriesState.status === "loading";
   const sameSelection = xColumn !== "" && xColumn === yColumn;
   const canSubmit = enoughColumns && !sameSelection && !isLoading;
 
+  function handleFitChange(result: FitResponse | null) {
+    if (seriesRunRef.current !== seriesRun) {
+      return;
+    }
+    setFitResult(result);
+  }
+
   async function handleSubmit() {
     if (!canSubmit) {
       return;
     }
+    seriesRunRef.current += 1;
+    setSeriesRun(seriesRunRef.current);
     setSeriesState({ status: "loading" });
     setFitResult(null);
     try {
@@ -107,7 +117,7 @@ export function SeriesPanel({
         yUnit,
       });
       setSeriesState({ status: "success", result: series });
-      setSeriesRun((run) => run + 1);
+      setFitResult(null);
     } catch (error) {
       setSeriesState({
         status: "error",
@@ -279,7 +289,7 @@ export function SeriesPanel({
             format={format}
             series={seriesState.result}
             numericColumns={numericColumns}
-            onFitChange={setFitResult}
+            onFitChange={handleFitChange}
           />
         </div>
       ) : null}

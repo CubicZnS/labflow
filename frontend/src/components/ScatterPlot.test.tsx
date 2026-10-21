@@ -170,7 +170,7 @@ describe("ScatterPlot", () => {
         pairs={pairs}
         xColumn="time_s"
         yColumn="absorbance"
-        fit={createFit()}
+        fit={createFit({ coefficients: [0, 0.1] })}
       />,
     );
     expect(
@@ -186,6 +186,7 @@ describe("ScatterPlot", () => {
         xColumn="time_s"
         yColumn="absorbance"
         fit={createFit({
+          coefficients: [0, 0.1],
           weighted: true,
           y_error_column: "absorbance_err",
           y_errors: pairs.map(() => 0.1),
@@ -202,6 +203,64 @@ describe("ScatterPlot", () => {
     const yTicks = screen.getAllByTestId("scatter-y-tick");
     expect(yTicks.length).toBeGreaterThanOrEqual(4);
     expect(yTicks.length).toBeLessThanOrEqual(6);
+  });
+
+  it("includes out-of-range cubic samples in the Y domain so the curve stays inside the plot", () => {
+    const cubicPairs = [
+      { x: 0, y: 0.01 },
+      { x: 2.5, y: 0.02 },
+      { x: 5, y: 0.015 },
+      { x: 7.5, y: 0.025 },
+      { x: 10, y: 0.02 },
+    ];
+    const cubic = createFit({
+      pairs: cubicPairs,
+      pair_count: cubicPairs.length,
+      row_count: cubicPairs.length,
+      degree: 3,
+      coefficients: [1, -15, 75, -125],
+      equation: "y = x^3 - 15x^2 + 75x - 125",
+      fitted: cubicPairs.map((pair) => pair.y),
+      residuals: cubicPairs.map(() => 0),
+    });
+
+    render(
+      <ScatterPlot
+        pairs={cubicPairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        fit={cubic}
+      />,
+    );
+
+    const plot = screen.getByTestId("scatter-plot");
+    const yMin = numberAttribute(plot, "data-domain-y-min");
+    const yMax = numberAttribute(plot, "data-domain-y-max");
+
+    // (x - 5)^3 reaches about ±166 at the padded X edges, far beyond the data Y range.
+    expect(yMin).toBeLessThan(-160);
+    expect(yMax).toBeGreaterThan(160);
+
+    const curve = screen.getByTestId("fit-curve");
+    const coordinates = curveCoordinates(curve);
+    expect(coordinates).toHaveLength(101);
+    for (const [x, y] of coordinates) {
+      expect(Number.isFinite(x)).toBe(true);
+      expect(Number.isFinite(y)).toBe(true);
+      // The inner plot area is y ∈ [24, 296]; samples must stay inside it.
+      expect(y).toBeGreaterThanOrEqual(24 - 1e-6);
+      expect(y).toBeLessThanOrEqual(296 + 1e-6);
+    }
+
+    const yTicks = screen.getAllByTestId("scatter-y-tick");
+    expect(yTicks.length).toBeGreaterThanOrEqual(4);
+    expect(yTicks.length).toBeLessThanOrEqual(6);
+    for (const tick of yTicks) {
+      const value = Number(tick.textContent);
+      expect(Number.isFinite(value)).toBe(true);
+      expect(value).toBeGreaterThanOrEqual(yMin);
+      expect(value).toBeLessThanOrEqual(yMax);
+    }
   });
 
   it("keeps curve and error bar coordinates finite for degenerate domains", () => {
