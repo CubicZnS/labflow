@@ -28,19 +28,22 @@ students, and research labs that repeatedly perform similar data-analysis and pl
 
 Acceptance: both applications start; tests pass; CI is configured; the first commit exists on GitHub.
 
-### Phase 1 — Data import and validation (current)
+### Phase 1 — Data import and validation (core complete)
 
 - [x] CSV import with validation, warnings, and preview
 - [x] XLSX import with preview
 - [ ] Manual table entry/editing
-- [ ] X/Y selection and units
+- [x] X/Y selection and units
 - [x] Numeric column detection
 - [x] Missing/invalid/duplicate value diagnostics
 - [x] Basic statistics: mean, sample standard deviation, standard error
 
 Acceptance: a real experimental CSV/XLSX can be imported and produces correct summary statistics.
 
-### Phase 2 — Curve fitting
+### Phase 2 — Curve fitting (next)
+
+Phase 1 acceptance is met: real CSV/XLSX files import with validation, statistics, and an explicit
+paired series with units. Manual table entry/editing is deferred until after fitting/plotting.
 
 - Linear regression
 - Quadratic and cubic polynomial fits

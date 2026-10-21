@@ -227,3 +227,61 @@ Failed or blocked steps are reported honestly.
   - The 10 MB limit still applies and the file is read before the size check.
 - Next iteration: Phase 1.5 — X/Y column selection and unit labels on imported data, the bridge
   to Phase 2 fitting and Phase 3 plotting.
+
+## Iteration #5 — Phase 1.5 X/Y pairing and units
+
+- Date: 2026-10-21
+- Goal: let a user select X and Y columns from an imported CSV/XLSX, optionally label units, and get
+  an explicit paired series that fitting and plotting can consume.
+- Selected backlog task: MAC-27 (Phase 1.5 — X/Y column pairing, unit labels, and paired series
+  extraction). No Phase 1.5 task existed, so it was created from the roadmap.
+- Branch: `iter/5`, created from `dev` at `8c5aeb98d2ba743d3895f6782c21571fb698ca51`.
+- Completed:
+  - `POST /api/datasets/series` accepts multipart `file`, `format` (csv/xlsx), `x_column`,
+    `y_column`, and optional `x_unit`/`y_unit`, and returns the paired series contract:
+    `x_column`, `y_column`, trimmed units or null, `row_count`, `pair_count`, `skipped_count`,
+    every valid `pair` in file order, `x_stats`/`y_stats` over paired values, and warnings.
+  - Pairing keeps only rows where both columns coerce to finite floats; every other row is skipped
+    and counted once, with one explicit pairing warning in addition to the import warnings.
+  - CSV and XLSX share the same frame loaders, so validation, warning order, numeric detection, and
+    statistics cannot drift between formats.
+  - Errors: 422 for unknown or identical columns, non-numeric columns, fewer than two valid pairs,
+    units over 32 characters, and unsupported formats; 415/400/413/422 match the import endpoints
+    for content type, empty, oversize, and malformed files.
+  - Frontend adds `X/Y 配对与单位` after a successful import: numeric-only X/Y selects with defaults,
+    optional unit inputs (max 32), distinct-column guard, loading/disabled states, Chinese error
+    display, guidance when fewer than two numeric columns exist, and pair/skipped counts, units,
+    and a first-10-pairs preview on success.
+  - Added typed `createSeries` client and `SeriesResponse` types; no new dependencies.
+- Review and QA findings:
+  - MAC-28 first QA verdict **FAIL**: XLSX datetime columns passed `pd.to_numeric`, were converted
+    to epoch nanoseconds, and returned 200, while the equivalent CSV ISO-date column returned 422.
+    The task was returned to Dev; `dev` was not merged.
+  - Fix `ae91783` rejects datetime64/timedelta64 in the series numeric check and adds four
+    regression tests (XLSX datetime X/Y, CSV ISO-date, numeric XLSX success).
+  - MAC-29 re-QA verdict **PASS** after independent worktree verification of the new SHA, the D1
+    repro, the full adversarial suite, import-endpoint byte-parity with `dev`, and all gates.
+- Tests:
+  - Backend: `ruff check app tests` passed; `pytest -q` passed (91 tests, 24 series tests).
+  - Frontend: `pnpm typecheck` passed; `pnpm test:run` passed (15 tests, 4 pairing tests);
+    `pnpm build` succeeded.
+- Independent QA: MAC-29, assigned to DeepSeek Worker QA, verdict **PASS**.
+- Git:
+  - Feature commits on `iter/5`:
+    - `1c9541dbaff2490dbb46df0d925a73ccae2ba0f5` — X/Y pairing, units, and paired extraction.
+    - `ae917839a7cff2ba595e4d93285dd820a9795a3a` — reject datetime/timedelta columns as non-numeric.
+  - Final feature commit link: https://github.com/CubicZnS/labflow/commit/ae917839a7cff2ba595e4d93285dd820a9795a3a
+  - Merge commit on `dev`: `760a30a2071e9928c42235269fbf29bf9bcb19d3`
+  - Merge link: https://github.com/CubicZnS/labflow/commit/760a30a2071e9928c42235269fbf29bf9bcb19d3
+- Known issues / limits:
+  - Boolean columns are accepted as 0/1 by `/api/datasets/series` even though the import endpoints
+    exclude booleans from `numeric_columns`; not exposed by the frontend.
+  - Object columns mixing numbers and dates pair the numeric rows and skip the date rows rather
+    than rejecting the column wholesale.
+  - Only the first XLSX worksheet is imported; there is no sheet picker.
+  - The 10 MB limit still applies and the file is read before the size check.
+  - Manual table entry/editing remains unimplemented and is deferred until after fitting/plotting.
+  - `frontend/src/lib/api.ts` has no trailing newline (cosmetic).
+- Next iteration: Phase 2.1 — linear fit on the selected X/Y series with equation, R², and
+  residual display, built on the existing deterministic `linear_fit` implementation.
+
