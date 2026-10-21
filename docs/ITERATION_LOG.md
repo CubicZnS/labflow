@@ -396,7 +396,9 @@ git log --oneline --decorate dev
   - 独立 QA：MAC-44 判定 **PASS**（F1/F2/F3 复验通过，全量 gate 通过）。
   - 合并提交（dev）：`28629942e02db72ec7ff1fb8eeb14264ee6f9f03`
     https://github.com/CubicZnS/labflow/commit/28629942e02db72ec7ff1fb8eeb14264ee6f9f03
-  - 本迭代记录提交：dev 上紧随合并提交的中文记录提交（即包含本段内容的提交）。
+  - 迭代记录提交（dev）：`c525eac9ea5aa293caddd4fc95d74e49106e282e`
+    https://github.com/CubicZnS/labflow/commit/c525eac9ea5aa293caddd4fc95d74e49106e282e
+    （其后另有中文推送时间校准提交。）
 - 已知限制：
   - 仅绘制 X/Y 配对点；尚无拟合线叠加、Y 误差棒、多系列、样式面板或 PNG/SVG 导出（留待 3.2–3.4）。
   - 自动范围与刻度是确定性启发式，不提供手动缩放或坐标范围编辑。
@@ -410,7 +412,7 @@ git log --oneline --decorate dev
 - 修复：
   - F1：`generateTicks` 改为从 `1/2/2.5/5 × 10^n` 候选步长中选择刻度数落在 4–6 的方案；若候选步长无法直接落在边距域内，则按最小幅度向外扩展到刻度边界，确保单点和全同值轴也维持 4–6 个刻度。
   - F2：单点扩展域与极值数据钳制到可表示范围；跨度溢出时改用半区间安全比例与有限插值刻度，`Number.MAX_VALUE`/`-Number.MAX_VALUE` 不再产生 Infinity 域或 NaN 坐标。
-  - F3：README 迭代 #9 推送时间先校准为修复记录 commit 的真实时间 `2026-10-22 00:03`；合并后的最终记录提交再校准为本次记录提交时间 `2026-10-22 00:12`。
+  - F3：README 迭代 #9 推送时间先校准为修复记录 commit 的真实时间 `2026-10-22 00:03`；合并后的迭代记录提交 `c525eac` 于 `2026-10-22 00:11`，README 已按该提交时间与 SHA 标注。
   - 新增测试：单点 X/Y 刻度数、Y 全同值刻度数、极端有限值域与坐标有限性（含无 NaN/Infinity 控制台告警断言）。
 - 测试：
   - `pnpm typecheck` 通过；`pnpm test:run` **43 passed**；`pnpm build` 成功。
