@@ -62,7 +62,7 @@ error-column controls. Error-bar rendering moves to Phase 3 because it is a plot
 
 Acceptance: known-value fixtures match independent numerical baselines.
 
-### Phase 3 — Scientific plotting (in progress)
+### Phase 3 — Scientific plotting (complete)
 
 Planned increments:
 
@@ -78,7 +78,12 @@ Planned increments:
       shared X/Y domains, fixed color/shape encoding, Chinese legend, add/remove/limit/error
       handling; primary-only fit overlay and error bars
       (iteration #12, merge `227d04a`)
-- [ ] 3.5 PNG and SVG export
+- [x] 3.5 PNG and SVG export (iteration #13, merge `f00101b`)
+
+Phase 3 acceptance is met: the current chart can be exported as a deterministic SVG clone or a
+2× PNG raster with a white background, without new dependencies or re-fetching data. The HTML
+legend is intentionally excluded from the image and remains a documented limitation (iteration
+#13, merge `f00101b1910c8707e3244aa559aeb0c659b1c8a1`).
 
 Original scope kept for reference:
 
@@ -89,8 +94,10 @@ Original scope kept for reference:
 
 Acceptance: a user can go from uploaded data to an exported publication-style figure.
 
-### Phase 4 — MVP productization
+### Phase 4 — MVP productization (in progress)
 
+- 4.1 Project save/reopen and rerun: reproducible project snapshot (data reference, column
+      selection, units, fit, chart style, export settings)
 - Project save/reopen and rerun
 - Sample datasets and onboarding
 - Error handling and accessibility pass

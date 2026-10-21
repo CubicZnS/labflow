@@ -605,3 +605,13 @@ git log --oneline --decorate dev
   - `iter/13` 功能与测试提交：`307ef863fcc50b440516831d63f3824822382374`
     https://github.com/CubicZnS/labflow/commit/307ef863fcc50b440516831d63f3824822382374
   - 本文档与 README 提交、最终 HEAD 及合并 SHA 由本轮文档提交、`git ls-remote` 与 Lead 合并后补充；不编造合并 SHA。
+- Lead 文档修正提交：`3270773b53a338fc04ee5fb91202f4164a42bcc1`
+  https://github.com/CubicZnS/labflow/commit/3270773b53a338fc04ee5fb91202f4164a42bcc1
+  （合并 README 两个“当前限制”章节，删除“暂不支持图片导出”过期描述，补充导出限制并校正推送时间；仅改 README。）
+- 独立 QA：MAC-60 **PASS**。QA 独立核验远端 4 个提交、6 个改动文件、5 个 gate（后端 155 passed、前端 98 passed）、19 项验收、中文 README/版本迭代表/迭代记录、`main` 未改动；未发现阻断问题。
+- `iter/13` 最终 HEAD：`3270773b53a338fc04ee5fb91202f4164a42bcc1`（`git ls-remote origin refs/heads/iter/13` 与 `gh api` 一致）。
+- `dev` 合并提交：`f00101b1910c8707e3244aa559aeb0c659b1c8a1`
+  https://github.com/CubicZnS/labflow/commit/f00101b1910c8707e3244aa559aeb0c659b1c8a1
+- 合并后在 `dev` 重跑 5 个 gate：后端 `pytest -q -o addopts=""` **155 passed**、`ruff check app tests` 通过；前端 `typecheck` 通过、`test:run` **98 passed**、`build` 成功。
+- 推送核验：`git ls-remote origin refs/heads/dev` 与 `gh api` 对合并 SHA 返回一致；`main` 保持 `7b3c2f1153eb561241ba33fa74e06953e552e63e` 未改动；无 force push、无历史改写。
+- 阶段状态：Phase 3 科学绘图（含 3.1–3.5）完成，验收达成；下一轮进入 Phase 4.1 项目保存/重开与重跑。
