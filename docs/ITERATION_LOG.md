@@ -640,22 +640,31 @@ git log --oneline --decorate dev
     - 任一步失败立即停止后续步骤，保留已成功的主系列/追加系列或拟合结果，显示包含失败步骤的中文 `role="alert"` 错误；打开按钮恢复可用，可再次打开项目重试。
     - 手动“生成配对数据”仍会清空追加系列、拟合设置与拟合结果，行为保持不变。
   - `FitPanel` 改为受控展示组件：`degree`、`errorColumn`、`errorUnit`、`fitState` 上提到 `SeriesPanel`，保留 `fit-degree-select`、`fit-error-select`、`fit-error-unit-input`、`fit-error`、拟合结果展示与“运行拟合”按钮；拟合结果仍传给 `ScatterPlot`。
-  - 同步更新中文 `README.md`：当前状态、能力、尚未完成、下一轮、测试数量、已知限制与“版本迭代记录”表（迭代 #14，推送时间 2026-10-22 05:06，新增内容完整，修复内容为“无独立修复提交”）。
+  - 同步更新中文 `README.md`：当前状态、能力、尚未完成、下一轮、测试数量、已知限制与“版本迭代记录”表（迭代 #14，推送时间 2026-10-22 05:06，新增内容完整）。
+  - 独立 QA（MAC-63）复核后判 **FAIL**：主系列重跑失败时 `seriesState` 进入 `error`，项目区块渲染条件只覆盖 `success`、`projectOpening`、`projectRerunning`，而 `handleOpenProject` 的 `finally` 又会复位后两者，导致 `project-section`、`project-error` 与 `open-project` 被整体卸载，用户看不到失败步骤的中文错误，也无法直接重试打开项目。其余 A/B/D 项均 PASS。
+  - **QA FAIL 闭环（MAC-64，迭代 #14 补丁）**：
+    - 问题：主系列重跑失败后项目入口、中文错误与重试入口不可见；仅追加系列/拟合失败时因主系列已成功而恰好保持可见。
+    - 修复：将 `projectError !== null` 纳入项目区块渲染条件。失败后项目区块保持可见，`project-error`（中文 `role="alert"`）展示失败步骤，`open-project` 恢复可用；打开失败（非法文件/数据集不匹配）仍不改分析状态并保留原有中文错误。
+    - 语义保持：主系列失败时保留错误状态；追加系列/拟合失败时保留已完成的主系列与追加系列；失败后不再发起后续追加系列或拟合请求；冲突锁定、代次隔离、防重复打开与失败重试逻辑均未改动。
+    - 测试：`SeriesPanel.test.tsx` 新增“主系列重跑失败后项目区块与重试入口保持可见”，断言 `project-section`、`project-error`（`role="alert"`、含“主系列”与中文失败信息）、`open-project` 可见且可用、后续 `createSeries` 次数不增加、`createFit` 未调用，并验证再次打开同一项目可重跑成功。
+    - 文档：README“版本迭代记录”迭代 #14 修复内容改为真实摘要，前端测试数更新为 134；本记录补充 QA FAIL 闭环。
 - 测试：
   - 后端：`.venv/bin/python -m pytest -q -o addopts=""` **155 passed**；`.venv/bin/ruff check app tests` 通过；本轮未改后端。
-  - 前端：`pnpm typecheck` 通过；`pnpm test:run` **133 passed**；`pnpm build` 成功。
+  - 前端：`pnpm typecheck` 通过；`pnpm test:run` **134 passed**；`pnpm build` 成功。
   - 新增 `projectSnapshot.test.ts` 28 项：常量；空字节与 `abc` 的 SHA-256 已知向量、64 位小写格式、TypedArray 视图、Web Crypto 缺失中文错误；快照字段完整/固定顺序/无时间戳、fit=null、空白名称回退；确定性序列化与嵌套键顺序、不含原始行/配对点/系数/残差/警告/凭据；往返解析；版本、类型、枚举、SHA 格式、负数/小数、重复/空列、X=Y、列不在数值列、追加系列上限/冲突/名称长度、单位/标题长度、拟合次数与误差列冲突、未知顶层字段与 `__proto__`；数据集匹配成功与 hash/size/format/row/列顺序不一致；文件名后缀/非法字符/中文/空回退/80 字符/稳定性；`readProjectFile` 有效、超限、非法 JSON；`downloadProjectSnapshot` 文件名、下载动作、Blob 内容与确定性文本。
-  - 新增 `SeriesPanel.test.tsx` 7 项：保存快照字段完整且不含原始数据/配对点/系数/警告，成功状态；保存失败中文 alert 且分析保留；非法文件不改状态；数据集不匹配不改状态且不请求；恢复全部设置并按主系列→温度→压力→拟合顺序各请求一次；追加系列中途失败保留主系列与已完成系列、不请求拟合、可重试；重跑中锁定保存/打开/生成配对/添加系列/运行拟合并忽略重复打开，完成后恢复。
+  - 新增 `SeriesPanel.test.tsx` 8 项：保存快照字段完整且不含原始数据/配对点/系数/警告，成功状态；保存失败中文 alert 且分析保留；非法文件不改状态；数据集不匹配不改状态且不请求；恢复全部设置并按主系列→温度→压力→拟合顺序各请求一次；追加系列中途失败保留主系列与已完成系列、不请求拟合、可重试；主系列重跑失败后项目区块、中文 `role="alert"`、失败步骤与重试入口保持可见且不继续追加系列/拟合，再次打开可恢复成功；重跑中锁定保存/打开/生成配对/添加系列/运行拟合并忽略重复打开，完成后恢复。
   - 现有 `App.test.tsx` 45 项、`ScatterPlot.test.tsx` 37 项、`chartExport.test.ts` 16 项全部保持通过，未削弱既有 data-testid 与交互断言。
 - 已知限制：
   - 不做后端持久化、SQLite、账户、云同步或跨设备共享；项目文件完全在浏览器本地处理，不上传后端。
   - 项目文件只保存数据指纹与分析配置，不保存原始数据行、配对点、拟合系数/残差或警告详情；打开前必须重新导入保存时同一份数据文件，SHA-256、格式、字节数、行数或数值列任一不一致即拒绝。
   - 项目文件上限 256 KB，仅支持 schema v1；SHA-256 依赖浏览器 Web Crypto，不支持时显示中文错误。
   - 不保存导出尺寸/DPI、图例布局、手动坐标范围或颜色编辑；不新增 npm/pip 依赖，不改变既有统计、配对、拟合、绘图、导出算法与后端契约。
-  - 打开项目要求当前数据集已成功生成过配对结果（项目区块位于配对成功区域）；追加系列恢复后仍共享主系列 X 列与 X/Y 单位，不恢复独立拟合或误差棒。
+  - 打开项目要求当前数据集已成功生成过配对结果才能首次进入项目区域；主系列重跑失败后项目区块、失败步骤中文错误与重试入口保持可见。追加系列恢复后仍共享主系列 X 列与 X/Y 单位，不恢复独立拟合或误差棒。
   - 继承限制：多系列共享主系列 X 列与单位；追加系列只绘制散点；大数据量不抽稀；手工表格录入、认证与真实计费未实现。
 - 下一轮：Phase 4.1b，在本地项目快照 v1 之上评估导出设置与项目元数据保存、版本兼容/迁移策略，继续不引入后端持久化与数据上传。
 - Git：
   - `iter/14` 功能、测试与 README 提交：`6e56cadbf75343f84fc18dc94d76b75cb1a01c9c`
     https://github.com/CubicZnS/labflow/commit/6e56cadbf75343f84fc18dc94d76b75cb1a01c9c
-  - 本文档提交与 `iter/14` 最终 HEAD 在推送后以 `git ls-remote origin refs/heads/iter/14` 和 `gh api` 核验，并记录在 issue；本记录不预填尚未生成的 SHA，不编造链接。
+  - `iter/14` QA FAIL 闭环修复、测试与 README 提交：`54f67c7daf7ae61c006e7e9db63610b32bd2b31b`
+    https://github.com/CubicZnS/labflow/commit/54f67c7daf7ae61c006e7e9db63610b32bd2b31b
+  - 本文档提交与 `iter/14` 最终 HEAD 在推送后以 `git ls-remote origin refs/heads/iter/14` 和 `gh api` 核验，并记录在 issue；本记录不预填尚未生成的 SHA，不编造链接；最终合并后的 HEAD 由 Lead 补记。
