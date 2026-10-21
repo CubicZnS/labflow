@@ -73,3 +73,48 @@ Failed or blocked steps are reported honestly.
   - Upload limit is 10 MB and the whole file is read before the size check.
   - No frontend upload/preview UI yet; `numeric_columns` excludes columns with any text.
 - Next iteration: Phase 1.2 — CSV upload and preview UI (MAC-13), depending on this API.
+
+## Iteration #2 — Phase 1.2 CSV upload and preview UI
+
+- Date: 2026-10-21
+- Goal: connect the iteration 1 CSV API to the product UI so a user can upload a file and
+  inspect the parsed dataset before analysis.
+- Selected backlog task: MAC-13 (Phase 1.2 — CSV upload and preview UI).
+- Branch: `iter/2`, created from `dev` at `f989508`.
+- Completed:
+  - CSV upload panel with file picker, selected-file state (name and size), clear action, and a
+    parsing/in-flight state that disables duplicate submissions.
+  - Uploads multipart/form-data field `file` to `POST /api/datasets/csv` via a typed API helper.
+  - Success view shows row count, numeric columns, warnings or an explicit "no warnings" state,
+    and a preview table of the returned columns and first 10 rows.
+  - Missing (`null`) cells render a visible `—` placeholder with an accessible label.
+  - Failures render a readable message taken from the API JSON `detail`, with a generic
+    HTTP-status fallback for non-JSON responses; the page does not crash.
+  - Deterministic synthetic fixture `frontend/public/samples/labflow-demo.csv` (12 rows) and a
+    download link in the upload panel.
+  - Existing health-check behavior and page shell preserved; Chinese-first copy and responsive
+    layout kept.
+- Tests:
+  - Frontend: `pnpm typecheck` passed; `pnpm test:run` passed (6 tests, including upload success,
+    clean/no-warning, API error detail, and non-JSON fallback); `pnpm build` succeeded.
+  - Backend: unchanged by this iteration; QA confirmed `ruff check app tests` passed and
+    `pytest -q` passed (35 tests).
+  - Live QA: sample fixture uploaded to a local uvicorn instance returned 200 with
+    `row_count=12`, three numeric columns, 10 preview rows, and two missing-value warnings; a
+    malformed CSV returned the expected 422 detail. Server stopped after verification.
+- Independent QA: MAC-18, assigned to DeepSeek Worker QA, verdict **PASS** after verifying the
+  remote SHA, the exact five-file diff, all acceptance criteria, frontend/backend suites, and
+  live endpoint behavior.
+- Git:
+  - Feature commit on `iter/2`: `80895d170df4b7efadbfe02cf6e3380232bf842e` — CSV upload and
+    preview UI.
+  - Feature commit link: https://github.com/CubicZnS/labflow/commit/80895d170df4b7efadbfe02cf6e3380232bf842e
+  - Merge commit on `dev`: `6ed7e07f4eb3ebaafb3452522cfcac8a17b7a074`
+  - Merge link: https://github.com/CubicZnS/labflow/commit/6ed7e07f4eb3ebaafb3452522cfcac8a17b7a074
+- Known issues / limits:
+  - CSV only; XLSX import, manual table editing, and column/unit selection are not implemented.
+  - Statistics are not calculated yet; the UI stops at validated preview.
+  - The 10 MB limit and UTF-8/comma-only parsing constraints from iteration 1 still apply.
+  - Warnings are shown verbatim from the API in English inside the Chinese UI.
+- Next iteration: Phase 1.3 — numeric column selection and basic statistics (mean, sample
+  standard deviation, standard error) on imported data.
