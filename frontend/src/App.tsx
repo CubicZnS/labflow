@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { CsvImportPanel } from "./components/CsvImportPanel";
 import { fetchHealth } from "./lib/api";
 
 type ApiState = "loading" | "online" | "offline";
@@ -72,13 +73,14 @@ function App() {
             <span className="text-lg font-semibold tracking-tight text-ink">LabFlow</span>
           </a>
           <nav className="hidden items-center gap-7 text-sm text-slate-600 md:flex">
+            <a className="hover:text-ink" href="#import">导入数据</a>
             <a className="hover:text-ink" href="#workflow">工作流</a>
             <a className="hover:text-ink" href="#roadmap">路线图</a>
             <a className="hover:text-ink" href="#trust">数据与隐私</a>
           </nav>
           <a
             className="rounded-xl bg-ink px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-            href="#workflow"
+            href="#import"
           >
             开始分析
           </a>
@@ -90,7 +92,7 @@ function App() {
           <div>
             <span className="pill border-cyan/20 bg-cyan/5 text-cyan">
               <span className="h-1.5 w-1.5 rounded-full bg-cyan" />
-              Phase 0 · 可运行骨架
+              Phase 1 · 数据导入
             </span>
             <h1 className="mt-6 max-w-2xl text-4xl font-semibold leading-tight tracking-tight text-ink sm:text-5xl">
               从原始实验数据，
@@ -103,9 +105,9 @@ function App() {
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <a
                 className="rounded-xl bg-cyan px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan/20 transition hover:bg-cyan-800"
-                href="#workflow"
+                href="#import"
               >
-                查看分析流程
+                上传 CSV 数据
               </a>
               <a
                 className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:border-slate-400"
@@ -179,6 +181,8 @@ function App() {
           </div>
         </section>
 
+        <CsvImportPanel />
+
         <section id="workflow" className="container-page py-16">
           <div className="max-w-2xl">
             <p className="eyebrow">Workflow</p>
@@ -200,10 +204,10 @@ function App() {
           <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
             <div className="card">
               <p className="eyebrow">Current phase</p>
-              <h2 className="mt-3 text-2xl font-semibold text-ink">Phase 0 · 可运行骨架</h2>
+              <h2 className="mt-3 text-2xl font-semibold text-ink">Phase 1 · CSV 导入与预览</h2>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                前后端骨架、确定性分析核心、测试与 CI 已就位。
-                下一阶段从 CSV/XLSX 导入和基础统计开始。
+                CSV 上传、数值列识别、缺失/重复警告与数据预览已就位。
+                下一阶段从列选择、单位确认和基础统计开始。
               </p>
               <div className="mt-5 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <span className="text-sm text-slate-600">后端状态</span>
@@ -261,7 +265,7 @@ function App() {
       <footer className="border-t border-slate-200/70 py-8">
         <div className="container-page flex flex-col gap-2 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <p>LabFlow · 科研数据分析与绘图</p>
-          <p>Phase 0 bootstrap · 结果可复现优先</p>
+          <p>Phase 1 · CSV 导入与预览 · 结果可复现优先</p>
         </div>
       </footer>
     </div>
