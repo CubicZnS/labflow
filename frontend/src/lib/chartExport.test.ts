@@ -242,6 +242,40 @@ describe("svgToPngBlob", () => {
     expect(blob.type).toBe("image/png");
   });
 
+  it("renders at an explicit 1x or 3x scale", async () => {
+    for (const scale of [1, 3] as const) {
+      const { deps, calls, context } = pngDeps();
+      const blob = await svgToPngBlob("<svg/>", 640, 360, deps, scale);
+
+      expect(calls.canvasWidth).toBe(640 * scale);
+      expect(calls.canvasHeight).toBe(360 * scale);
+      expect(context.fillStyle).toBe("#ffffff");
+      expect(calls.fillRect).toEqual([[0, 0, 640 * scale, 360 * scale]]);
+      expect(calls.drawImage[0].slice(1)).toEqual([
+        0,
+        0,
+        640 * scale,
+        360 * scale,
+      ]);
+      expect(calls.revoked).toEqual(["blob:chart"]);
+      expect(blob.type).toBe("image/png");
+    }
+  });
+
+  it("falls back to 2x for an illegal scale", async () => {
+    const { deps, calls } = pngDeps();
+    await svgToPngBlob(
+      "<svg/>",
+      640,
+      360,
+      deps,
+      4 as unknown as 1,
+    );
+
+    expect(calls.canvasWidth).toBe(640 * PNG_EXPORT_SCALE);
+    expect(calls.canvasHeight).toBe(360 * PNG_EXPORT_SCALE);
+  });
+
   it("throws a Chinese error and revokes when there is no 2D context", async () => {
     const { deps, calls } = pngDeps({
       createCanvas: () => ({
@@ -329,5 +363,53 @@ describe("downloadChart", () => {
     expect(calls.canvasHeight).toBe(800);
     expect(downloads).toHaveLength(1);
     expect(downloads[0].blob.type).toBe("image/png");
+  });
+
+  it("passes an explicit PNG scale through and keeps the SVG path unchanged", async () => {
+    const svg = makeSvg("0 0 800 400");
+    const { deps, calls } = pngDeps();
+    const downloads: { blob: Blob; fileName: string }[] = [];
+
+    await downloadChart(
+      {
+        svg,
+        format: "png",
+        title: "倍率",
+        xColumn: "time_s",
+        yColumn: "absorbance",
+        pngScale: 3,
+      },
+      {
+        ...deps,
+        downloadBlob: (blob, name) => {
+          downloads.push({ blob, fileName: name });
+        },
+      },
+    );
+
+    expect(calls.canvasWidth).toBe(2400);
+    expect(calls.canvasHeight).toBe(1200);
+    expect(downloads).toHaveLength(1);
+
+    const svgDownloads: Blob[] = [];
+    await downloadChart(
+      {
+        svg,
+        format: "svg",
+        title: "倍率",
+        xColumn: "time_s",
+        yColumn: "absorbance",
+        pngScale: 3,
+      },
+      {
+        ...deps,
+        downloadBlob: (blob) => {
+          svgDownloads.push(blob);
+        },
+      },
+    );
+    expect(svgDownloads).toHaveLength(1);
+    expect(svgDownloads[0].type).toBe("image/svg+xml;charset=utf-8");
+    expect(calls.canvasWidth).toBe(2400);
   });
 });

@@ -10,6 +10,13 @@ const MAX_FILE_BODY_LENGTH = 80;
 const PNG_UNSUPPORTED_MESSAGE = "当前浏览器不支持 PNG 导出";
 
 export type ChartExportFormat = "svg" | "png";
+export type PngExportScale = 1 | 2 | 3;
+
+export function normalizePngScale(value: unknown): PngExportScale {
+  return value === 1 || value === 2 || value === 3
+    ? value
+    : PNG_EXPORT_SCALE;
+}
 
 export type ChartFileNameOptions = {
   format: ChartExportFormat;
@@ -196,14 +203,16 @@ export async function svgToPngBlob(
   width: number,
   height: number,
   deps: ChartExportDeps = {},
+  pngScale: PngExportScale = PNG_EXPORT_SCALE,
 ): Promise<Blob> {
   const createCanvas = deps.createCanvas ?? defaultCreateCanvas;
   const loadImage = deps.loadImage ?? defaultLoadImage;
   const createObjectURL = deps.createObjectURL ?? defaultCreateObjectURL;
   const revokeObjectURL = deps.revokeObjectURL ?? defaultRevokeObjectURL;
   const canvasToBlob = deps.canvasToBlob ?? defaultCanvasToBlob;
-  const pixelWidth = Math.round(width * PNG_EXPORT_SCALE);
-  const pixelHeight = Math.round(height * PNG_EXPORT_SCALE);
+  const scale = normalizePngScale(pngScale);
+  const pixelWidth = Math.round(width * scale);
+  const pixelHeight = Math.round(height * scale);
   let objectUrl: string | null = null;
 
   try {
@@ -249,6 +258,7 @@ export type DownloadChartOptions = {
   title?: string | null;
   xColumn: string;
   yColumn: string;
+  pngScale?: PngExportScale;
 };
 
 export async function downloadChart(
@@ -273,7 +283,13 @@ export async function downloadChart(
   }
 
   const { width, height } = parseViewBox(options.svg);
-  const blob = await svgToPngBlob(markup, width, height, deps);
+  const blob = await svgToPngBlob(
+    markup,
+    width,
+    height,
+    deps,
+    normalizePngScale(options.pngScale),
+  );
   downloadBlob(blob, fileName);
   return fileName;
 }

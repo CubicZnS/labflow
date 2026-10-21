@@ -1535,6 +1535,7 @@ describe("ScatterPlot export controls", () => {
       title: "吸收曲线",
       xColumn: "time_s",
       yColumn: "absorbance",
+      pngScale: 2,
     });
     await waitFor(() => {
       expect(screen.getByTestId("export-status")).toHaveTextContent(
@@ -1553,6 +1554,7 @@ describe("ScatterPlot export controls", () => {
       title: "吸收曲线",
       xColumn: "time_s",
       yColumn: "absorbance",
+      pngScale: 2,
     });
     await waitFor(() => {
       expect(screen.getByTestId("export-status")).toHaveTextContent(
@@ -1566,6 +1568,35 @@ describe("ScatterPlot export controls", () => {
       "data-point-count",
       String(pairs.length),
     );
+  });
+
+  it("shows the selected PNG scale on the button and passes it to the exporter", async () => {
+    downloadChartMock.mockResolvedValue("labflow-吸收曲线.png");
+    render(
+      <ScatterPlot
+        pairs={pairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        title="吸收曲线"
+        pngScale={3}
+      />,
+    );
+
+    expect(screen.getByTestId("export-png")).toHaveTextContent("导出 PNG（3×）");
+    expect(screen.getByTestId("export-svg")).toHaveTextContent("导出 SVG");
+
+    fireEvent.click(screen.getByTestId("export-png"));
+    await waitFor(() => {
+      expect(downloadChartMock).toHaveBeenCalledTimes(1);
+    });
+    expect(downloadChartMock).toHaveBeenLastCalledWith({
+      svg: screen.getByTestId("scatter-plot"),
+      format: "png",
+      title: "吸收曲线",
+      xColumn: "time_s",
+      yColumn: "absorbance",
+      pngScale: 3,
+    });
   });
 
   it("shows a Chinese role=alert error without clearing the chart", async () => {
