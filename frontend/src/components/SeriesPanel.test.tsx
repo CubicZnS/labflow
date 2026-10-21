@@ -487,6 +487,51 @@ describe("SeriesPanel project snapshot", () => {
     expect(screen.getByTestId("save-project")).toBeEnabled();
   });
 
+  it("keeps the project section and retry entry when the main series rerun fails", async () => {
+    createSeriesMock
+      .mockResolvedValueOnce(mainSeries)
+      .mockRejectedValueOnce(new Error("主系列列不是数值列"));
+    const snapshot = await buildSnapshot({
+      extraSeries: [{ yColumn: "temperature", name: "温度序列" }],
+      fit: { degree: 2, yErrorColumn: "err", yErrorUnit: "mV" },
+    });
+    renderPanel();
+    await generateMain();
+
+    openProject(snapshot);
+
+    expect(await screen.findByTestId("project-error")).toHaveTextContent(
+      "打开项目失败：主系列配对失败",
+    );
+    expect(screen.getByTestId("project-error")).toHaveTextContent(
+      "主系列列不是数值列",
+    );
+    expect(screen.getByTestId("project-error")).toHaveAttribute("role", "alert");
+    expect(screen.getByTestId("project-section")).toBeInTheDocument();
+    expect(screen.getByTestId("open-project")).toBeEnabled();
+    expect(screen.getByTestId("series-error")).toHaveTextContent("主系列配对失败");
+    expect(screen.queryByTestId("extra-series-item")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("fit-section")).not.toBeInTheDocument();
+    expect(createSeriesMock).toHaveBeenCalledTimes(2);
+    expect(createFitMock).not.toHaveBeenCalled();
+
+    createSeriesMock
+      .mockResolvedValueOnce(mainSeries)
+      .mockResolvedValueOnce(temperatureSeries);
+    createFitMock.mockResolvedValueOnce(fitPayload);
+
+    openProject(snapshot);
+
+    expect(
+      await screen.findByText("已打开项目：experiment.csv"),
+    ).toBeInTheDocument();
+    expect(createSeriesMock).toHaveBeenCalledTimes(4);
+    expect(createFitMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("project-error")).not.toBeInTheDocument();
+    expect(screen.getByTestId("project-section")).toBeInTheDocument();
+    expect(screen.getAllByTestId("extra-series-item")).toHaveLength(1);
+  });
+
   it("locks conflicting controls during a project rerun and ignores extra open attempts", async () => {
     let resolveRerunExtra: ((response: SeriesResponse) => void) | undefined;
     createSeriesMock

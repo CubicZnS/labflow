@@ -684,7 +684,10 @@ export function SeriesPanel({
         </div>
       ) : null}
 
-      {seriesState.status === "success" || projectOpening || projectRerunning ? (
+      {seriesState.status === "success" ||
+      projectOpening ||
+      projectRerunning ||
+      projectError !== null ? (
         <div
           className="mt-4 rounded-xl border border-slate-200 bg-white p-4"
           data-testid="project-section"
