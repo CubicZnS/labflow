@@ -418,3 +418,67 @@ Failed or blocked steps are reported honestly.
 - Next iteration: Phase 2.3 — Y-error columns, error bars, and measurement-error-aware uncertainty,
   reusing the same fit and uncertainty pipeline with explicit weighting rules and independent
   numerical baselines. Then Phase 3 scientific plotting can consume the fitted line and error data.
+
+
+## 迭代 #8 — Phase 2.3a Y 误差列与加权最小二乘拟合
+
+- 日期：2026-10-21
+- 目标：让带有测量不确定度的实验数据可以使用绝对 Y 误差列做加权拟合，并如实报告
+  加权系数、误差传播、χ² 与约化 χ²，同时保持无误差列时的既有拟合结果完全不变。
+- 任务选择：MAC-37（Phase 2.3a — Y 误差列、加权拟合与误差感知不确定度）。首次独立验收
+  MAC-38 判 **FAIL**；修复任务 MAC-39 完成后，复核任务 MAC-40 判 **PASS**。
+- 分支：`iter/8`，从 `dev` 的 `4168609ed943ea74a9cd49e24f38220d54c3feb7` 创建。
+- 已完成：
+  - `POST /api/datasets/fit` 新增可选表单字段 `y_error_column` 与 `y_error_unit`。不提交时
+    维持 Phase 2.2 的等权拟合；显式空串/空白串误差列返回 422，不会静默退化为等权；
+    只提交单位而不提交误差列返回 422。
+  - 误差列按现有 X/Y 配对规则校验：仅校验保留配对行；缺失、非有限、≤0 的 σ、
+    与 X/Y 同列、不存在或非数值列均返回 422 并给出列名与数量；`1/σ²` 非有限同样 422。
+    单位沿用现有规则：trim、空白为 `null`、超过 32 字符 422。
+  - 加权求解集中在 `app/analysis.py` 的 `_weighted_least_squares`：系数为
+    `lstsq(X·√w, y·√w)`；绝对误差协方差 `pinv(XᵀWX)`，不乘 MSE；标准误与 95% CI
+    仍用 `t.ppf(0.975, residual_dof)`；`residual_dof = n − (degree + 1)`，为 0 时
+    SE/CI 为 `null`。
+  - `χ² = Σ wᵢrᵢ²`，`reduced_chi_squared = χ² / residual_dof`（仅加权且 dof > 0）。
+    `rmse`、`max_abs_residual`、`r_squared` 保持未加权定义；条件数与
+    `ill_conditioned` 规则不变。未加权路径与 Phase 2.2 数值一致。
+  - 响应新增 `weighted`、`y_error_column`、`y_error_unit`、`y_errors`（与 `pairs`
+    同序对齐）、`chi_squared`、`reduced_chi_squared`；加权且约化 χ² 不在 `[0.1, 10]`
+    时追加一条确定性警告。JSON 不输出 NaN/Infinity。
+  - 前端 `FitPanel` 新增中文优先的 Y 误差列下拉（排除 X/Y，默认“不使用（等权拟合）”）、
+    单位输入（maxLength 32）、加权/等权标识、误差列/单位、χ²/约化 χ² 展示，以及预览表
+    “Y 误差”列；新 series 仍重置拟合结果。
+- 审查与验收发现：
+  - Lead 独立复核 diff、远端 SHA 与全部 gate，并用自建 n=30、非均匀 σ 的 fixture 对
+    `scipy.optimize.curve_fit(absolute_sigma=True)` 校验，系数与 SE 偏差 ≤ 4.5e-9。
+  - MAC-38 发现两个问题：(1) `y_error_column=""` 与单独 `y_error_unit=""` 返回 200，
+    误差列被静默丢弃；(2) 认为分支缺少中文迭代记录。代码缺陷经 Lead 复现后由 MAC-39
+    修复；中文记录项按流程由 Lead 在 QA PASS 后创建合并/记录 commit 补齐，本轮记录、
+    merge commit 与记录 commit 均为中文。
+  - MAC-40 复核确认 7 条空串/单位行为、multipart 读取、WLS 数值、回归路径与全部 gate
+    通过，无缺陷，判 **PASS**。
+- 测试：
+  - 后端：`ruff check app tests` 通过；`pytest` **155 passed**（新增加权数值基线、精确决定、
+    对齐、校验矩阵、警告阈值、CSV/XLSX 一致性及空串回归）。
+  - 前端：`pnpm typecheck` 通过；`pnpm test:run` **30 passed**；`pnpm build` 成功。
+  - 合并后在 `dev` 上重跑同一组后端与前端 gate，全部通过后才提交本记录。
+- 独立 QA：MAC-40，DeepSeek Worker QA，结论 **PASS**（MAC-38 首轮 **FAIL** 已闭环）。
+- Git：
+  - `iter/8` 功能提交：`7c47690349717fafae2465494391cbfd0b5d1080`
+    https://github.com/CubicZnS/labflow/commit/7c47690349717fafae2465494391cbfd0b5d1080
+  - `iter/8` 修复提交：`93a10139e07168357ea314348d9ae39b3bee722f`
+    https://github.com/CubicZnS/labflow/commit/93a10139e07168357ea314348d9ae39b3bee722f
+  - `dev` 合并提交：`7b2fbcb25191c1505340d8701ce9573ae543065a`
+    https://github.com/CubicZnS/labflow/commit/7b2fbcb25191c1505340d8701ce9573ae543065a
+- 已知限制：
+  - 加权拟合把提供的 σ 视为绝对值并假设误差相互独立；不估计额外方差缩放。
+  - 拟合曲线与误差棒尚未在图表中绘制（属于 Phase 3）。
+  - 更改误差列后，之前输入的单位仍会保留（仅 UX 陈旧，不影响计算）。
+  - 直接调用 `linear_fit`/`polynomial_fit` 并传入 `inf` σ 会产生 0 权重而不报错；
+    HTTP 端点会正确拒绝，因此用户不可达。
+  - 服务端校验消息与警告仍为英文（中文 UI 内），沿用历史限制。
+  - 继承限制：布尔列按 0/1 参与拟合；混合对象列会跳过日期行；仅导入第一个 XLSX
+    worksheet；10 MB 文件在大小检查前已被读取；手工表格录入仍未实现。
+- 下一轮：Phase 3.1 — 科学绘图第一步：基于已配对 X/Y 系列渲染 SVG 散点图，包含轴标签/
+  单位、自动范围与空数据/单点提示，不新增第三方图表依赖；随后 3.2 叠加拟合曲线与 Y 误差棒，
+  3.3 多系列与样式控制，3.4 PNG/SVG 导出。

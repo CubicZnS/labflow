@@ -40,7 +40,7 @@ Acceptance: both applications start; tests pass; CI is configured; the first com
 
 Acceptance: a real experimental CSV/XLSX can be imported and produces correct summary statistics.
 
-### Phase 2 — Curve fitting (in progress)
+### Phase 2 — Curve fitting (complete)
 
 Phase 1 acceptance is met: real CSV/XLSX files import with validation, statistics, and an explicit
 paired series with units. Manual table entry/editing is deferred until after fitting/plotting.
@@ -50,17 +50,29 @@ paired series with units. Manual table entry/editing is deferred until after fit
 - [x] Fit equation, R-squared, residuals
 - [x] Coefficient standard errors and 95% confidence intervals
 - [x] Ill-conditioned and exactly-determined fit warnings (underdetermined fits already return 422)
-- [ ] Y-error columns, error bars, and measurement-error propagation
+- [x] Y-error columns and measurement-error-aware weighted fits (χ², reduced χ²,
+      absolute-error covariance)
 
 Phase 2.1 (iteration 6) delivered dataset-level fits on the paired series with equation, R-squared,
 residuals, RMSE, and maximum absolute residual. Phase 2.2 (iteration 7) added coefficient standard
 errors, 95% confidence intervals, residual degrees of freedom, and explicit exactly-determined and
-ill-conditioned warnings. Next: measurement-error columns, error-bar-aware inputs, and uncertainty
-propagation.
+ill-conditioned warnings. Phase 2.3 (iteration 8) added optional absolute Y-error columns, weighted
+least-squares coefficients, `pinv(XᵀWX)` uncertainty, χ²/reduced χ² diagnostics, and Chinese-first
+error-column controls. Error-bar rendering moves to Phase 3 because it is a plotting concern.
 
 Acceptance: known-value fixtures match independent numerical baselines.
 
-### Phase 3 — Scientific plotting
+### Phase 3 — Scientific plotting (in progress)
+
+Planned increments:
+
+- [ ] 3.1 SVG scatter plot of the paired series with axis labels/units, automatic ranges, and empty/
+      single-point states; no new chart dependency
+- [ ] 3.2 Fitted-curve overlay and Y-error bars, reusing the existing fit response
+- [ ] 3.3 Multiple series, title, legend, grid, font, and tick controls
+- [ ] 3.4 PNG and SVG export
+
+Original scope kept for reference:
 
 - Scatter, line, scatter+fit, error-bar charts
 - Multiple series, axis labels/units/ranges
