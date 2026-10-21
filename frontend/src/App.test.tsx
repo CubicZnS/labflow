@@ -101,15 +101,30 @@ function jsonResponse(payload: unknown, status = 200): Response {
   } as Response;
 }
 
+function textResponse(text: string, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: async () => text,
+  } as Response;
+}
+
+const sampleCsvText =
+  "sample_id,time_s,absorbance,notes\nS-01,0,0.012,基线\nS-02,5,0.118,\n";
+
 function installFetchMock(
   upload?: (url: string) => Response | Promise<Response>,
   series?: (init?: RequestInit) => Response | Promise<Response>,
   fit?: () => Response | Promise<Response>,
+  sample?: () => Response | Promise<Response>,
 ) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
     const url = String(input);
     if (url === "/api/health") {
       return jsonResponse(healthPayload);
+    }
+    if (url === "/samples/labflow-demo.csv" && sample) {
+      return sample();
     }
     if (url === "/api/datasets/series" && series) {
       return series(_init);
@@ -175,6 +190,26 @@ describe("App", () => {
     expect(await screen.findByText(/API 已连接/)).toBeInTheDocument();
   });
 
+  it("presents Phase 4 messaging and the three-step onboarding guide", async () => {
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Phase 4 · MVP 产品化" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Phase 4 · MVP 产品化").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Phase 3 · 科学绘图")).not.toBeInTheDocument();
+    expect(screen.queryByText(/手动录入/)).not.toBeInTheDocument();
+
+    const guide = screen.getByTestId("onboarding-guide");
+    expect(guide).toHaveTextContent("载入示例数据或上传 CSV/XLSX，先检查行数、数值列与警告。");
+    expect(guide).toHaveTextContent(
+      "选择 X/Y 列与单位并生成配对，可按需追加系列与 Y 误差列。",
+    );
+    expect(guide).toHaveTextContent(
+      "运行拟合、调整图表样式并导出 SVG/PNG；需要复现时保存 .labflow.json 项目文件。",
+    );
+  });
+
   it("uploads a CSV and renders the parsed preview", async () => {
     const fetchMock = installFetchMock(() => jsonResponse(csvPayload));
     render(<App />);
@@ -202,6 +237,125 @@ describe("App", () => {
     expect(uploadCall?.[1]?.method).toBe("POST");
     expect(uploadCall?.[1]?.body).toBeInstanceOf(FormData);
     expect((uploadCall?.[1]?.body as FormData).get("file")).toBe(file);
+  });
+
+  it("loads the built-in sample CSV through the existing import flow", async () => {
+    const fetchMock = installFetchMock(
+      () => jsonResponse(csvPayload),
+      undefined,
+      undefined,
+      () => textResponse(sampleCsvText),
+    );
+    render(<App />);
+
+    fireEvent.click(screen.getByTestId("load-sample"));
+
+    expect(await screen.findByTestId("preview-table")).toBeInTheDocument();
+    expect(screen.getByTestId("selected-file")).toHaveTextContent("labflow-demo.csv");
+    expect(screen.getByTestId("row-count")).toHaveTextContent("3");
+    expect(screen.getByTestId("numeric-columns")).toHaveTextContent("time_s、absorbance");
+    expect(screen.getByTestId("warnings")).toHaveTextContent(
+      "Column 'absorbance' has 1 missing value(s)",
+    );
+    expect(screen.getByRole("button", { name: "生成配对数据" })).toBeEnabled();
+
+    const urls = fetchMock.mock.calls.map(([input]) => String(input));
+    const sampleIndex = urls.indexOf("/samples/labflow-demo.csv");
+    const uploadIndex = urls.indexOf("/api/datasets/csv");
+    expect(sampleIndex).toBeGreaterThanOrEqual(0);
+    expect(uploadIndex).toBeGreaterThan(sampleIndex);
+
+    const uploadCall = fetchMock.mock.calls[uploadIndex];
+    expect(uploadCall[1]?.method).toBe("POST");
+    const uploaded = (uploadCall[1]?.body as FormData).get("file") as File;
+    expect(uploaded.name).toBe("labflow-demo.csv");
+    expect(uploaded.type).toBe("text/csv");
+
+    expect(
+      fetchMock.mock.calls.filter(([input]) => {
+        const url = String(input);
+        return url === "/api/datasets/series" || url === "/api/datasets/fit";
+      }),
+    ).toHaveLength(0);
+  });
+
+  it("keeps the current dataset when loading the sample fails, and allows retry", async () => {
+    let sampleCalls = 0;
+    const fetchMock = installFetchMock(
+      () => jsonResponse(csvPayload),
+      undefined,
+      undefined,
+      () => {
+        sampleCalls += 1;
+        return sampleCalls === 1
+          ? textResponse("missing", 404)
+          : textResponse(sampleCsvText);
+      },
+    );
+    render(<App />);
+
+    chooseFile();
+    startUpload();
+    expect(await screen.findByTestId("preview-table")).toBeInTheDocument();
+
+    const csvCalls = () =>
+      fetchMock.mock.calls.filter(([input]) => String(input) === "/api/datasets/csv");
+
+    fireEvent.click(screen.getByTestId("load-sample"));
+
+    expect(await screen.findByTestId("sample-error")).toHaveTextContent("示例数据载入失败");
+    expect(screen.getByTestId("sample-error").closest('[role="alert"]')).not.toBeNull();
+    expect(screen.getByTestId("preview-table")).toBeInTheDocument();
+    expect(screen.getByTestId("selected-file")).toHaveTextContent("experiment.csv");
+    expect(csvCalls()).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "上传并解析" })).toBeEnabled();
+
+    fireEvent.click(screen.getByTestId("load-sample"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("selected-file")).toHaveTextContent("labflow-demo.csv"),
+    );
+    expect(await screen.findByTestId("preview-table")).toBeInTheDocument();
+    expect(screen.queryByTestId("sample-error")).not.toBeInTheDocument();
+    expect(sampleCalls).toBe(2);
+    expect(csvCalls()).toHaveLength(2);
+  });
+
+  it("shows the sample loading state and ignores a double click", async () => {
+    let resolveSample: (response: Response) => void = () => {};
+    const samplePromise = new Promise<Response>((resolve) => {
+      resolveSample = resolve;
+    });
+    const fetchMock = installFetchMock(
+      () => jsonResponse(csvPayload),
+      undefined,
+      undefined,
+      () => samplePromise,
+    );
+    render(<App />);
+
+    const sampleButton = screen.getByTestId("load-sample");
+    fireEvent.click(sampleButton);
+    fireEvent.click(sampleButton);
+
+    expect(sampleButton).toBeDisabled();
+    expect(sampleButton).toHaveTextContent("正在载入示例…");
+    expect(screen.getByRole("button", { name: "上传并解析" })).toBeDisabled();
+    expect(screen.getByLabelText("选择 CSV 或 XLSX 文件")).toBeDisabled();
+
+    await act(async () => {
+      resolveSample(textResponse(sampleCsvText));
+    });
+
+    expect(await screen.findByTestId("preview-table")).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.filter(([input]) => String(input) === "/samples/labflow-demo.csv"),
+    ).toHaveLength(1);
+    expect(
+      fetchMock.mock.calls.filter(([input]) => String(input) === "/api/datasets/csv"),
+    ).toHaveLength(1);
+    expect(screen.getByTestId("load-sample")).toHaveTextContent("载入示例数据");
+    expect(screen.getByTestId("load-sample")).toBeEnabled();
   });
 
   it("routes an xlsx file to the xlsx endpoint and renders the same result shape", async () => {

@@ -8,7 +8,7 @@ const workflow = [
   {
     step: "01",
     title: "导入数据",
-    body: "CSV、XLSX 或手动录入；自动识别数值列并预览。",
+    body: "CSV、XLSX 导入或一键载入示例数据；自动识别数值列并预览。",
   },
   {
     step: "02",
@@ -92,7 +92,7 @@ function App() {
           <div>
             <span className="pill border-cyan/20 bg-cyan/5 text-cyan">
               <span className="h-1.5 w-1.5 rounded-full bg-cyan" />
-              Phase 3 · 科学绘图
+              Phase 4 · MVP 产品化
             </span>
             <h1 className="mt-6 max-w-2xl text-4xl font-semibold leading-tight tracking-tight text-ink sm:text-5xl">
               从原始实验数据，
@@ -181,6 +181,48 @@ function App() {
           </div>
         </section>
 
+        <section
+          className="container-page pb-4"
+          aria-labelledby="onboarding-title"
+          data-testid="onboarding-guide"
+        >
+          <div className="rounded-3xl border border-cyan/20 bg-cyan/5 p-6 sm:p-8">
+            <p className="eyebrow">Getting started</p>
+            <h2 id="onboarding-title" className="mt-3 text-2xl font-semibold tracking-tight text-ink">
+              首次使用
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              按下面三步完成一次可复现的分析；每一步都会保留中文状态提示与错误说明。
+            </p>
+            <ol className="mt-6 grid gap-4 md:grid-cols-3">
+              <li className="rounded-2xl border border-slate-200 bg-white p-5">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-cyan/10 text-sm font-semibold text-cyan">
+                  1
+                </span>
+                <p className="mt-3 text-sm leading-6 text-slate-700">
+                  载入示例数据或上传 CSV/XLSX，先检查行数、数值列与警告。
+                </p>
+              </li>
+              <li className="rounded-2xl border border-slate-200 bg-white p-5">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-cyan/10 text-sm font-semibold text-cyan">
+                  2
+                </span>
+                <p className="mt-3 text-sm leading-6 text-slate-700">
+                  选择 X/Y 列与单位并生成配对，可按需追加系列与 Y 误差列。
+                </p>
+              </li>
+              <li className="rounded-2xl border border-slate-200 bg-white p-5">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-cyan/10 text-sm font-semibold text-cyan">
+                  3
+                </span>
+                <p className="mt-3 text-sm leading-6 text-slate-700">
+                  运行拟合、调整图表样式并导出 SVG/PNG；需要复现时保存 .labflow.json 项目文件。
+                </p>
+              </li>
+            </ol>
+          </div>
+        </section>
+
         <CsvImportPanel />
 
         <section id="workflow" className="container-page py-16">
@@ -204,10 +246,11 @@ function App() {
           <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
             <div className="card">
               <p className="eyebrow">Current phase</p>
-              <h2 className="mt-3 text-2xl font-semibold text-ink">Phase 3 · 科学绘图</h2>
+              <h2 className="mt-3 text-2xl font-semibold text-ink">Phase 4 · MVP 产品化</h2>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                SVG 散点图、拟合曲线叠加与 Y 误差棒已可用：基于 X/Y 配对结果自动计算坐标范围，
-                显示刻度、列名与单位，并处理空数据和单点提示。多系列、样式控制和 PNG/SVG 导出仍待完成。
+                当前已可用：导入与校验、描述统计、线性/二次/三次拟合、多系列绘图、
+                PNG/SVG 导出和本地项目快照。剩余 Phase 4 工作包括示例与引导、
+                错误处理与可访问性，以及隐私复核。
               </p>
               <div className="mt-5 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <span className="text-sm text-slate-600">后端状态</span>
@@ -265,7 +308,7 @@ function App() {
       <footer className="border-t border-slate-200/70 py-8">
         <div className="container-page flex flex-col gap-2 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <p>LabFlow · 科研数据分析与绘图</p>
-          <p>Phase 3 · 科学绘图 · 结果可复现优先</p>
+          <p>Phase 4 · MVP 产品化 · 结果可复现优先</p>
         </div>
       </footer>
     </div>
