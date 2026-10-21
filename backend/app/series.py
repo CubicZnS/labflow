@@ -40,12 +40,24 @@ def load_series_frame(format_label: str, data: bytes) -> tuple[pd.DataFrame, lis
     return frame, warnings
 
 
+def _is_temporal(series: pd.Series) -> bool:
+    """Datetime and timedelta columns are not numeric data for pairing."""
+    return bool(
+        pd.api.types.is_datetime64_any_dtype(series)
+        or pd.api.types.is_timedelta64_dtype(series)
+    )
+
+
 def _coerce(series: pd.Series) -> np.ndarray:
+    if _is_temporal(series):
+        return np.full(len(series), np.nan, dtype=float)
     return pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
 
 
 def _is_numeric_detectable(series: pd.Series) -> bool:
     """A column is usable when at least one value can be read as a number."""
+    if _is_temporal(series):
+        return False
     return bool(pd.to_numeric(series, errors="coerce").notna().any())
 
 

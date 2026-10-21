@@ -1,6 +1,7 @@
 import io
 import math
 import statistics
+from datetime import datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -151,6 +152,72 @@ def test_series_format_is_case_insensitive() -> None:
     response = post_series(b"x,y\n1,2\n2,4\n", format="CSV")
     assert response.status_code == 200
     assert response.json()["pair_count"] == 2
+
+
+def test_series_rejects_xlsx_datetime_x_column() -> None:
+    content = build_xlsx(
+        [
+            ["when", "value"],
+            [datetime(2024, 1, 1), 1],
+            [datetime(2024, 1, 2), 2],
+            [datetime(2024, 1, 3), 3],
+        ]
+    )
+    response = post_series(
+        content, format="xlsx", x_column="when", y_column="value"
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "when" in detail
+    assert "not numeric" in detail
+
+
+def test_series_rejects_xlsx_datetime_y_column() -> None:
+    content = build_xlsx(
+        [
+            ["value", "when"],
+            [1, datetime(2024, 1, 1)],
+            [2, datetime(2024, 1, 2)],
+            [3, datetime(2024, 1, 3)],
+        ]
+    )
+    response = post_series(
+        content, format="xlsx", x_column="value", y_column="when"
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "when" in detail
+    assert "not numeric" in detail
+
+
+def test_series_rejects_csv_iso_date_column() -> None:
+    content = b"when,value\n2024-01-01,1\n2024-01-02,2\n2024-01-03,3\n"
+    response = post_series(content, x_column="when", y_column="value")
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "when" in detail
+    assert "not numeric" in detail
+
+
+def test_series_accepts_numeric_xlsx_columns() -> None:
+    content = build_xlsx(
+        [
+            ["x", "y"],
+            [0, 1.5],
+            [1, 2.5],
+            [2, 3.5],
+        ]
+    )
+    response = post_series(content, format="xlsx")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["pair_count"] == 3
+    assert body["skipped_count"] == 0
+    assert body["pairs"] == [
+        {"x": 0.0, "y": 1.5},
+        {"x": 1.0, "y": 2.5},
+        {"x": 2.0, "y": 3.5},
+    ]
 
 
 def test_series_rejects_unknown_column() -> None:
