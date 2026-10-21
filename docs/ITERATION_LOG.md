@@ -716,10 +716,18 @@ git log --oneline --decorate dev
   - PNG 仅 1×/2×/3×，默认 2×；不提供自定义尺寸、DPI 或透明背景；导出格式不持久化。
   - 项目名称最长 80、备注最长 500，保存前 trim 并截断；项目文件名不使用项目名称。
   - 仅支持读取 schema v1/v2；其他版本显示中文“版本不支持”。
-- 下一轮：Phase 4.2，评估多项目管理/项目库体验或继续完善导出（自定义尺寸/DPI）与可复现性；继续保持数据不上传、不引入后端持久化。
+- 下一轮：Phase 4.2 示例数据与新手引导——一键载入内置示例 CSV、首页文案与当前 Phase 4 能力对齐、首次使用步骤提示；继续保持数据不上传、不引入后端持久化，并补足验收所需的可复现说明。
 - Git：
   - `iter/15` 功能、测试与 README 提交：`c0f9e910437040b2bf5769733d86de8feda9b454`
     https://github.com/CubicZnS/labflow/commit/c0f9e910437040b2bf5769733d86de8feda9b454
   - `iter/15` 文档/迭代记录提交：`1a8631f233bb09d287e9989f297ef65a9139f0f0`
     https://github.com/CubicZnS/labflow/commit/1a8631f233bb09d287e9989f297ef65a9139f0f0
-  - 合并 SHA：留给 Lead 在合并到 `dev` 时补充。
+  - `iter/15` 补入文档提交 SHA 的提交：`badc630e653e98c29ec1cb952427f1a734d3fac5`
+    https://github.com/CubicZnS/labflow/commit/badc630e653e98c29ec1cb952427f1a734d3fac5
+  - `iter/15` 最终 HEAD：`badc630e653e98c29ec1cb952427f1a734d3fac5`（`git ls-remote origin refs/heads/iter/15` 与 `gh api` 一致）。
+  - 独立 QA：MAC-68 **PASS**。QA 独立核验 A1–A3、B4–B9、C、D10–D13、E14–E18 共 18 项：远端 3 个提交与 `dev`/`main` 基线、10 个允许文件、v2 固定字段顺序与确定性、v1 严格迁移默认值、metadata 长度/trim、pngScale 1/2/3 与默认/非法回退、保存恢复、5 项 gate、中文 README/版本迭代表/迭代记录、项目文件隐私与主系列失败回归。无阻断问题；两条非阻断观察：`serializeProjectSnapshot` 依赖 TypeScript 类型约束、迭代记录当时未单列补 SHA 提交（本记录已补入）。
+  - `dev` 合并提交：`aeed1843950c2d43971cc14224282b6802c05872`
+    https://github.com/CubicZnS/labflow/commit/aeed1843950c2d43971cc14224282b6802c05872
+  - 合并后在 `dev` 重跑 5 个 gate：后端 `pytest -q -o addopts=""` **155 passed**、`ruff check app tests` 通过；前端 `typecheck` 通过、`test:run` **147 passed**、`build` 成功。
+  - 推送核验：`git ls-remote origin refs/heads/dev` 与 `gh api` 对合并 SHA `aeed1843950c2d43971cc14224282b6802c05872` 返回一致；`main` 保持 `7b3c2f1153eb561241ba33fa74e06953e552e63e` 未改动；无 force push、无历史改写。
+  - 阶段状态：Phase 4.1b（项目元数据、PNG 导出倍率与快照 schema v2）完成并合并；Phase 4 MVP 产品化仍在进行，下一轮进入 Phase 4.2 示例数据与新手引导。

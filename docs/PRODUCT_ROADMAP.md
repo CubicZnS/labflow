@@ -102,12 +102,15 @@ Acceptance: a user can go from uploaded data to an exported publication-style fi
       identity check, and ordered one-click rerun (main series → extras → fit) are implemented;
       the file contains no raw data rows, pairs, fit coefficients, or credentials
       (iteration #14, merge `d56f2a2`)
-- [ ] 4.1b Project metadata and export settings: decide how to persist export size/DPI and
-      project metadata, plus schema version compatibility/migration; keep the local-only,
-      no-upload boundary (next)
+- [x] 4.1b Project metadata and export settings: snapshot schema v2 adds `metadata.name`
+      (≤80), `metadata.note` (≤500), and `export.pngScale` (1/2/3, default 2); v1 project
+      files are strictly validated and migrated to v2; SVG/PNG export format stays per-click
+      and custom size/DPI is not persisted. Local-only, no-upload boundary kept
+      (iteration #15, merge `aeed184`)
 - [x] Project save/reopen and rerun (local config snapshot; the same data file must be
       re-imported and is verified by SHA-256 before rerun)
-- Sample datasets and onboarding
+- [ ] 4.2 Sample datasets and onboarding: one-click load of the built-in demo CSV, landing
+      page copy aligned with current Phase 4 capabilities, and a first-run step guide (next)
 - Error handling and accessibility pass
 - Data privacy and security review
 
