@@ -773,6 +773,7 @@ git log --oneline --decorate dev
 - Git：
   - `iter/16` 功能、测试与页面提交：`22b1774a63fb25fb12bddce2a7d390946c2ffbfc`
     https://github.com/CubicZnS/labflow/commit/22b1774a63fb25fb12bddce2a7d390946c2ffbfc
-  - `iter/16` 文档/迭代记录提交：待本轮文档提交后补记。
-  - `iter/16` 最终 HEAD：待补记（文档提交后核验 `git ls-remote origin refs/heads/iter/16`）。
+  - `iter/16` 文档/迭代记录提交：`a755e43f4125273306dec24b4dc8388721c74df8`
+    https://github.com/CubicZnS/labflow/commit/a755e43f4125273306dec24b4dc8388721c74df8
+  - `iter/16` 最终 HEAD：本轮补记提交（以 `git ls-remote origin refs/heads/iter/16` 为准，推送后在任务报告中记录实际 SHA）。
   - `dev` 合并提交：留给 Lead，不在此编造。
