@@ -568,3 +568,40 @@ git log --oneline --decorate dev
     https://github.com/CubicZnS/labflow/commit/227d04a3f7c7318d25b38efd3630ad6b907c93e8
   - 合并后在 `dev` 重跑：后端 `pytest -q` 通过（155 个测试，exit 0）、`ruff check app tests` 通过；前端 `typecheck` 通过、`test:run` **77 passed**、`build` 成功。
   - 推送核验：`git ls-remote origin refs/heads/dev` 与 `gh api` 对合并 SHA 返回一致；`main` 保持 `7b3c2f1153eb561241ba33fa74e06953e552e63e` 未改动；无 force push、无历史改写。
+
+
+## 迭代 #13 — Phase 3.5 PNG/SVG 导出
+
+- 日期：2026-10-22
+- 目标：在迭代 #12 的确定性 SVG 散点图（单/多系列、标题、网格、三档刻度密度、三档字号、拟合曲线、Y 误差棒）之上，提供纯前端、确定性、无新增第三方依赖的 SVG 与 PNG 导出；不改后端契约、不重新请求数据、不改变当前坐标域或点位。
+- 任务选择：MAC-59（Phase 3.5 PNG/SVG 导出）。
+- 分支：`iter/13`，基于 `dev` 的 `eb89325`（迭代 #12 合并与记录）。
+- 已完成：
+  - 新增 `frontend/src/lib/chartExport.ts`：
+    - `SVG_NAMESPACE`、`XLINK_NAMESPACE`、`PNG_EXPORT_SCALE = 2`。
+    - `buildChartFileName`：标题优先，空标题回退 `X列-Y列`，统一 `labflow-` 前缀与 `.svg`/`.png` 扩展名；清洗 `/ \ : * ? " < > |`、控制字符、换行/制表符；空白折叠为 `-`；去掉首尾 `.`、`-`、空格；保留中文、字母、数字与下划线；清洗后为空回退 `labflow-chart`；主体最长 80 字符，不截断前缀与扩展名；无时间戳/随机数。
+    - `serializeChartSvg`：基于 `cloneNode(true)`，不修改实时 SVG；输出根元素包含 `xmlns`、`xmlns:xlink`，`width`/`height` 取 `viewBox` 宽高（缺省 640×360）并保留 `viewBox`；在克隆体最前插入覆盖整个 viewBox 的不透明白色 `<rect>`；移除全部 `class`；标题、坐标轴、刻度、点、拟合曲线、误差棒与多系列形状原样保留；相同输入输出稳定。
+    - `svgToPngBlob`：通过 `<canvas>` 以 2 倍尺寸（640×360 → 1280×720）先填白底再绘制，输出 `image/png`；`createCanvas`/`loadImage`/`createObjectURL`/`revokeObjectURL`/`canvasToBlob` 均可注入；无 2D context 或 `toBlob` 返回 null 时抛出“当前浏览器不支持 PNG 导出”；无论成功、加载失败或缺 context，已创建的 object URL 都会 revoke。
+    - `downloadChart`：按格式生成文件名、序列化、生成 Blob 并触发下载，返回实际文件名；下载 DOM 操作可经 `downloadBlob` 注入/隔离。
+  - `ScatterPlot` 在 `figcaption` 新增 `导出 SVG` / `导出 PNG` 按钮（`data-testid` 为 `export-svg` / `export-png`，均为 `type="button"`）：
+    - 有可绘制点时启用；`pointCount === 0` 时禁用并显示“暂无可导出的数据”。
+    - 导出中两个按钮均禁用，对应按钮与 `export-status` 显示“正在导出…”，并用同步 ref 阻止并发重复导出。
+    - 成功显示 `export-status`：“已导出 <实际文件名>”。
+    - 失败显示中文 `role="alert"` 错误，图表与点位保持不变，可再次导出。
+    - 导出传入当前实时 `scatter-plot` SVG、当前列名与标题；不改变标题/网格/刻度/字号状态，不触发新的 series/fit 请求。
+- 测试：
+  - 后端：`.venv/bin/python -m pytest -q` **155 passed**；`.venv/bin/ruff check app tests` 通过；本轮未改后端。
+  - 前端：`pnpm typecheck` 通过；`pnpm test:run` **98 passed**；`pnpm build` 成功。
+  - 新增 `chartExport.test.ts` 16 项：文件名标题优先/列回退/非法字符/空白与首尾标点/空值回退/80 字符/稳定性/中文保留；序列化命名空间、显式尺寸、viewBox（含非零原点）、白底为首子元素、去 class、实时 SVG 不变、重复稳定；PNG 2 倍画布、白底、绘制、`image/png`、revoke、缺 context/toBlob null/图片加载失败的中文错误与 revoke；`downloadChart` 两种格式文件名与下载。
+  - `ScatterPlot.test.tsx` 新增 5 项导出交互测试：有数据启用、无数据禁用并提示、SVG/PNG 传参正确、成功状态文件名、失败 alert 且图表保留并可重试、导出中禁用与并发点击只调用一次。现有全部回归测试保留通过。
+- 已知限制：
+  - 导出的 SVG/PNG 不包含 HTML 图例；多系列仍可在图内通过颜色与形状区分。
+  - 导出的 SVG 依赖查看器/系统字体，未内嵌字体。
+  - 暂不支持自定义导出尺寸、DPI 或透明背景；PNG 固定 2 倍栅格。
+  - PNG 依赖浏览器 canvas 能力；不支持时返回中文错误，不生成图片。
+  - 继承限制：追加系列无独立拟合/误差棒；多系列共享主系列 X 列与单位；大数据量不抽稀；手工录入、项目持久化、认证与真实计费未实现。
+- 下一轮：Phase 4.1 项目保存/重开方向，设计可复现的项目快照（数据引用、列选择、单位、拟合、图表样式与导出设置），本轮不实现。
+- Git：
+  - `iter/13` 功能与测试提交：`307ef863fcc50b440516831d63f3824822382374`
+    https://github.com/CubicZnS/labflow/commit/307ef863fcc50b440516831d63f3824822382374
+  - 本文档与 README 提交、最终 HEAD 及合并 SHA 由本轮文档提交、`git ls-remote` 与 Lead 合并后补充；不编造合并 SHA。

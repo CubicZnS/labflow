@@ -1,7 +1,15 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FitResponse } from "../lib/api";
+import { downloadChart } from "../lib/chartExport";
 import { ScatterPlot, type TickDensity } from "./ScatterPlot";
+
+vi.mock("../lib/chartExport", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/chartExport")>();
+  return { ...actual, downloadChart: vi.fn() };
+});
+
+const downloadChartMock = vi.mocked(downloadChart);
 
 const pairs = [
   { x: 0, y: 0.012 },
@@ -1465,5 +1473,160 @@ describe("ScatterPlot multi-series", () => {
     expect(screen.getAllByTestId("series-legend-item")[2]).toHaveTextContent(
       "0 个数据点",
     );
+  });
+});
+
+describe("ScatterPlot export controls", () => {
+  beforeEach(() => {
+    downloadChartMock.mockReset();
+  });
+
+  it("enables both export buttons when data is present", () => {
+    render(
+      <ScatterPlot
+        pairs={pairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        title="吸收曲线"
+      />,
+    );
+
+    expect(screen.getByTestId("export-svg")).toBeEnabled();
+    expect(screen.getByTestId("export-png")).toBeEnabled();
+    expect(screen.queryByTestId("export-empty-hint")).not.toBeInTheDocument();
+    expect(screen.getByTestId("export-status")).toBeEmptyDOMElement();
+  });
+
+  it("disables export and shows a Chinese hint when there are no points", () => {
+    render(<ScatterPlot pairs={[]} xColumn="time_s" yColumn="absorbance" />);
+
+    expect(screen.getByTestId("export-svg")).toBeDisabled();
+    expect(screen.getByTestId("export-png")).toBeDisabled();
+    expect(screen.getByTestId("export-empty-hint")).toHaveTextContent(
+      "暂无可导出的数据",
+    );
+    expect(downloadChartMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("scatter-empty")).toBeInTheDocument();
+  });
+
+  it("exports the live SVG with the current columns and title in both formats", async () => {
+    downloadChartMock.mockResolvedValue("labflow-吸收曲线.svg");
+    render(
+      <ScatterPlot
+        pairs={pairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        title="吸收曲线"
+        showGrid
+        tickDensity="dense"
+        fontScale="large"
+      />,
+    );
+
+    const plot = screen.getByTestId("scatter-plot");
+    fireEvent.click(screen.getByTestId("export-svg"));
+
+    await waitFor(() => {
+      expect(downloadChartMock).toHaveBeenCalledTimes(1);
+    });
+    expect(downloadChartMock).toHaveBeenLastCalledWith({
+      svg: plot,
+      format: "svg",
+      title: "吸收曲线",
+      xColumn: "time_s",
+      yColumn: "absorbance",
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("export-status")).toHaveTextContent(
+        "已导出 labflow-吸收曲线.svg",
+      );
+    });
+
+    downloadChartMock.mockResolvedValue("labflow-吸收曲线.png");
+    fireEvent.click(screen.getByTestId("export-png"));
+    await waitFor(() => {
+      expect(downloadChartMock).toHaveBeenCalledTimes(2);
+    });
+    expect(downloadChartMock).toHaveBeenLastCalledWith({
+      svg: plot,
+      format: "png",
+      title: "吸收曲线",
+      xColumn: "time_s",
+      yColumn: "absorbance",
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("export-status")).toHaveTextContent(
+        "已导出 labflow-吸收曲线.png",
+      );
+    });
+
+    expect(screen.getByTestId("chart-title")).toHaveTextContent("吸收曲线");
+    expect(screen.getAllByTestId("grid-line").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("scatter-plot")).toHaveAttribute(
+      "data-point-count",
+      String(pairs.length),
+    );
+  });
+
+  it("shows a Chinese role=alert error without clearing the chart", async () => {
+    downloadChartMock.mockRejectedValue(new Error("PNG 导出失败：浏览器拒绝"));
+    render(
+      <ScatterPlot pairs={pairs} xColumn="time_s" yColumn="absorbance" />,
+    );
+
+    fireEvent.click(screen.getByTestId("export-png"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "PNG 导出失败：浏览器拒绝",
+      );
+    });
+    expect(screen.getByTestId("scatter-plot")).toBeInTheDocument();
+    expect(screen.getAllByTestId("scatter-point")).toHaveLength(pairs.length);
+    expect(screen.getByTestId("export-png")).toBeEnabled();
+    expect(screen.getByTestId("export-svg")).toBeEnabled();
+
+    downloadChartMock.mockResolvedValue("labflow-retry.png");
+    fireEvent.click(screen.getByTestId("export-png"));
+    await waitFor(() => {
+      expect(screen.getByTestId("export-status")).toHaveTextContent(
+        "已导出 labflow-retry.png",
+      );
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("disables both buttons, shows the progress text, and ignores concurrent clicks", async () => {
+    let resolveExport: (fileName: string) => void = () => {};
+    downloadChartMock.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveExport = resolve;
+      }),
+    );
+    render(
+      <ScatterPlot pairs={pairs} xColumn="time_s" yColumn="absorbance" />,
+    );
+
+    fireEvent.click(screen.getByTestId("export-svg"));
+
+    expect(downloadChartMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("export-svg")).toBeDisabled();
+    expect(screen.getByTestId("export-png")).toBeDisabled();
+    expect(screen.getByTestId("export-svg")).toHaveTextContent("正在导出…");
+    expect(screen.getByTestId("export-status")).toHaveTextContent("正在导出…");
+
+    fireEvent.click(screen.getByTestId("export-png"));
+    fireEvent.click(screen.getByTestId("export-svg"));
+    expect(downloadChartMock).toHaveBeenCalledTimes(1);
+
+    resolveExport("labflow-done.svg");
+    await waitFor(() => {
+      expect(screen.getByTestId("export-status")).toHaveTextContent(
+        "已导出 labflow-done.svg",
+      );
+    });
+    expect(screen.getByTestId("export-svg")).toBeEnabled();
+    expect(screen.getByTestId("export-png")).toBeEnabled();
+    expect(screen.getByTestId("export-svg")).toHaveTextContent("导出 SVG");
   });
 });
