@@ -1,13 +1,11 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useId } from "react";
 import {
-  createFit,
-  type DatasetFormat,
   type FitDegree,
   type FitResponse,
   type SeriesResponse,
 } from "../lib/api";
 
-type FitState =
+export type FitState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "success"; result: FitResponse }
@@ -328,72 +326,37 @@ function FitResult({ result }: { result: FitResponse }) {
 }
 
 export function FitPanel({
-  file,
-  format,
   series,
   numericColumns,
-  onFitChange,
+  degree,
+  onDegreeChange,
+  errorColumn,
+  onErrorColumnChange,
+  errorUnit,
+  onErrorUnitChange,
+  fitState,
+  onRun,
+  runDisabled = false,
 }: {
-  file: File;
-  format: DatasetFormat;
   series: SeriesResponse;
   numericColumns: string[];
-  onFitChange: (result: FitResponse | null) => void;
+  degree: FitDegree;
+  onDegreeChange: (degree: FitDegree) => void;
+  errorColumn: string;
+  onErrorColumnChange: (column: string) => void;
+  errorUnit: string;
+  onErrorUnitChange: (unit: string) => void;
+  fitState: FitState;
+  onRun: () => void;
+  runDisabled?: boolean;
 }) {
   const degreeId = useId();
   const errorColumnId = useId();
   const errorUnitId = useId();
-  const [degree, setDegree] = useState<FitDegree>(1);
-  const [errorColumn, setErrorColumn] = useState("");
-  const [errorUnit, setErrorUnit] = useState("");
-  const [fitState, setFitState] = useState<FitState>({ status: "idle" });
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
   const isLoading = fitState.status === "loading";
   const availableErrorColumns = numericColumns.filter(
     (column) => column !== series.x_column && column !== series.y_column,
   );
-
-  async function handleRun() {
-    if (isLoading) {
-      return;
-    }
-    setFitState({ status: "loading" });
-    onFitChange(null);
-    try {
-      const result = await createFit(file, format, {
-        xColumn: series.x_column,
-        yColumn: series.y_column,
-        xUnit: series.x_unit ?? undefined,
-        yUnit: series.y_unit ?? undefined,
-        degree,
-        yErrorColumn: errorColumn || undefined,
-        yErrorUnit: errorColumn ? errorUnit : undefined,
-      });
-      if (!mountedRef.current) {
-        return;
-      }
-      setFitState({ status: "success", result });
-      onFitChange(result);
-    } catch (error) {
-      if (!mountedRef.current) {
-        return;
-      }
-      setFitState({
-        status: "error",
-        message:
-          error instanceof Error ? error.message : "拟合失败，请稍后重试。",
-      });
-      onFitChange(null);
-    }
-  }
 
   return (
     <div
@@ -419,7 +382,7 @@ export function FitPanel({
             value={degree}
             disabled={isLoading}
             onChange={(event) =>
-              setDegree(Number(event.target.value) as FitDegree)
+              onDegreeChange(Number(event.target.value) as FitDegree)
             }
             className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-ink focus:border-cyan focus:outline-none focus:ring-2 focus:ring-cyan/20 disabled:cursor-not-allowed disabled:bg-slate-100"
             data-testid="fit-degree-select"
@@ -440,7 +403,7 @@ export function FitPanel({
             id={errorColumnId}
             value={errorColumn}
             disabled={isLoading}
-            onChange={(event) => setErrorColumn(event.target.value)}
+            onChange={(event) => onErrorColumnChange(event.target.value)}
             className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-ink focus:border-cyan focus:outline-none focus:ring-2 focus:ring-cyan/20 disabled:cursor-not-allowed disabled:bg-slate-100"
             data-testid="fit-error-select"
           >
@@ -464,7 +427,7 @@ export function FitPanel({
               value={errorUnit}
               maxLength={32}
               disabled={isLoading}
-              onChange={(event) => setErrorUnit(event.target.value)}
+              onChange={(event) => onErrorUnitChange(event.target.value)}
               placeholder="例如 µV"
               className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-ink focus:border-cyan focus:outline-none focus:ring-2 focus:ring-cyan/20 disabled:cursor-not-allowed disabled:bg-slate-100"
               data-testid="fit-error-unit-input"
@@ -474,8 +437,8 @@ export function FitPanel({
 
         <button
           type="button"
-          onClick={handleRun}
-          disabled={isLoading}
+          onClick={onRun}
+          disabled={isLoading || runDisabled}
           className="w-full rounded-xl bg-cyan px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan/20 transition hover:bg-cyan-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none sm:w-auto"
         >
           {isLoading ? "正在拟合…" : "运行拟合"}
