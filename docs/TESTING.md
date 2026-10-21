@@ -49,5 +49,6 @@ A red CI run blocks a successful iteration.
 - The project builds.
 - No new severe regression.
 - Documentation matches behavior.
+- `README.md` is updated for this iteration and written in Chinese.
+- `docs/ITERATION_LOG.md` is updated in Chinese with real evidence and the commit SHA.
 - A real commit exists and is pushed to the remote.
-- The commit SHA is recorded in `docs/ITERATION_LOG.md`.
