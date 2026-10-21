@@ -15,7 +15,8 @@ import {
   readFileBytes,
   readProjectFile,
   sha256Hex,
-  type ProjectSnapshotV1,
+  type PngScale,
+  type ProjectSnapshotV2,
 } from "../lib/projectSnapshot";
 import { FitPanel, type FitState } from "./FitPanel";
 import {
@@ -38,6 +39,8 @@ type ExtraSeries = {
 
 const UNIT_MAX_LENGTH = 32;
 const TITLE_MAX_LENGTH = 80;
+const PROJECT_NAME_MAX_LENGTH = 80;
+const PROJECT_NOTE_MAX_LENGTH = 500;
 const SERIES_NAME_MAX_LENGTH = 40;
 const MAX_SERIES = 4;
 const PREVIEW_LIMIT = 10;
@@ -113,6 +116,9 @@ export function SeriesPanel({
   const extraYSelectId = useId();
   const extraNameId = useId();
   const projectFileInputId = useId();
+  const projectNameId = useId();
+  const projectNoteId = useId();
+  const pngScaleId = useId();
 
   const numericColumns = result.numeric_columns;
   const enoughColumns = numericColumns.length >= 2;
@@ -142,6 +148,9 @@ export function SeriesPanel({
   const [projectRerunning, setProjectRerunning] = useState(false);
   const [projectStatus, setProjectStatus] = useState("");
   const [projectError, setProjectError] = useState<string | null>(null);
+  const [projectName, setProjectName] = useState("");
+  const [projectNote, setProjectNote] = useState("");
+  const [pngScale, setPngScale] = useState<PngScale>(2);
   const seriesRunRef = useRef(0);
   const extraCounterRef = useRef(0);
   const extraLoadingRef = useRef(false);
@@ -374,6 +383,13 @@ export function SeriesPanel({
           tickDensity,
           fontScale,
         },
+        metadata: {
+          name: projectName,
+          note: projectNote,
+        },
+        export: {
+          pngScale,
+        },
       });
       const fileName = downloadProjectSnapshot(snapshot);
       setProjectStatus(`已保存 ${fileName}`);
@@ -388,7 +404,7 @@ export function SeriesPanel({
   }
 
   async function rerunProject(
-    snapshot: ProjectSnapshotV1,
+    snapshot: ProjectSnapshotV2,
     runId: number,
   ): Promise<void> {
     setXColumn(snapshot.series.xColumn);
@@ -399,6 +415,9 @@ export function SeriesPanel({
     setShowGrid(snapshot.chart.showGrid);
     setTickDensity(snapshot.chart.tickDensity);
     setFontScale(snapshot.chart.fontScale);
+    setProjectName(snapshot.metadata.name);
+    setProjectNote(snapshot.metadata.note);
+    setPngScale(snapshot.export.pngScale);
     setFitDegree(snapshot.fit?.degree ?? 1);
     setFitErrorColumn(snapshot.fit?.yErrorColumn ?? "");
     setFitErrorUnit(snapshot.fit?.yErrorUnit ?? "");
@@ -514,7 +533,7 @@ export function SeriesPanel({
     setProjectStatus("正在读取项目…");
     setProjectError(null);
     try {
-      let snapshot: ProjectSnapshotV1;
+      let snapshot: ProjectSnapshotV2;
       try {
         snapshot = await readProjectFile(selected);
       } catch (error) {
@@ -695,9 +714,71 @@ export function SeriesPanel({
           <h5 className="text-sm font-semibold text-ink">项目</h5>
           <p className="mt-1 text-xs leading-5 text-slate-500">
             将当前列选择、单位、追加系列、拟合设置与图表样式保存为本地
-            .labflow.json 项目文件。项目文件只包含数据指纹与分析配置，不包含原始数据行、
-            配对点、拟合系数、警告详情或任何凭据；重新导入同一数据集后可打开项目并一键重跑。
+            .labflow.json 项目文件。项目文件只包含数据指纹、项目元数据与导出设置，
+            不包含原始数据行、配对点、拟合系数、警告详情或任何凭据；重新导入同一数据集后可打开项目并一键重跑。
           </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor={projectNameId}
+                className="block text-xs text-slate-500"
+              >
+                项目名称（最多 {PROJECT_NAME_MAX_LENGTH} 个字符）
+              </label>
+              <input
+                id={projectNameId}
+                type="text"
+                value={projectName}
+                maxLength={PROJECT_NAME_MAX_LENGTH}
+                disabled={projectBusy}
+                onChange={(event) => setProjectName(event.target.value)}
+                placeholder="可选，仅保存到项目文件"
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-ink focus:border-cyan focus:outline-none focus:ring-2 focus:ring-cyan/20 disabled:cursor-not-allowed disabled:bg-slate-100"
+                data-testid="project-name-input"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor={pngScaleId}
+                className="block text-xs text-slate-500"
+              >
+                PNG 导出倍率
+              </label>
+              <select
+                id={pngScaleId}
+                value={pngScale}
+                disabled={projectBusy}
+                onChange={(event) =>
+                  setPngScale(Number(event.target.value) as PngScale)
+                }
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-ink focus:border-cyan focus:outline-none focus:ring-2 focus:ring-cyan/20 disabled:cursor-not-allowed disabled:bg-slate-100"
+                data-testid="png-scale-select"
+              >
+                <option value="1">1×</option>
+                <option value="2">2×</option>
+                <option value="3">3×</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label
+                htmlFor={projectNoteId}
+                className="block text-xs text-slate-500"
+              >
+                项目备注（最多 {PROJECT_NOTE_MAX_LENGTH} 个字符）
+              </label>
+              <textarea
+                id={projectNoteId}
+                value={projectNote}
+                maxLength={PROJECT_NOTE_MAX_LENGTH}
+                disabled={projectBusy}
+                onChange={(event) => setProjectNote(event.target.value)}
+                rows={3}
+                placeholder="可选，仅保存到项目文件"
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-ink focus:border-cyan focus:outline-none focus:ring-2 focus:ring-cyan/20 disabled:cursor-not-allowed disabled:bg-slate-100"
+                data-testid="project-note-input"
+              />
+            </div>
+          </div>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
@@ -1013,6 +1094,7 @@ export function SeriesPanel({
             showGrid={showGrid}
             tickDensity={tickDensity}
             fontScale={fontScale}
+            pngScale={pngScale}
           />
           <PairPreview result={seriesState.result} />
           <FitPanel

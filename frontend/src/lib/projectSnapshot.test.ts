@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  LEGACY_PROJECT_SCHEMA_VERSION,
   MAX_PROJECT_FILE_BYTES,
   PROJECT_FILE_EXTENSION,
   PROJECT_SCHEMA_VERSION,
@@ -13,7 +14,7 @@ import {
   serializeProjectSnapshot,
   sha256Hex,
   type ProjectSnapshotContext,
-  type ProjectSnapshotV1,
+  type ProjectSnapshotV2,
 } from "./projectSnapshot";
 
 const encoder = new TextEncoder();
@@ -31,6 +32,7 @@ function baseContext(
 ): ProjectSnapshotContext {
   return {
     sourceFileName: "experiment.csv",
+    metadata: { name: "  实验项目  ", note: "  第一轮备注  " },
     format: "csv",
     data: datasetBytes,
     rowCount: 2,
@@ -49,11 +51,12 @@ function baseContext(
       tickDensity: "dense",
       fontScale: "large",
     },
+    export: { pngScale: 3 },
     ...overrides,
   };
 }
 
-async function validSnapshot(): Promise<ProjectSnapshotV1> {
+async function validSnapshot(): Promise<ProjectSnapshotV2> {
   return buildProjectSnapshot(baseContext());
 }
 
@@ -83,8 +86,9 @@ beforeEach(async () => {
 });
 
 describe("project constants", () => {
-  it("exports the v1 schema constants", () => {
-    expect(PROJECT_SCHEMA_VERSION).toBe(1);
+  it("exports the v2 schema constants and the legacy v1 marker", () => {
+    expect(PROJECT_SCHEMA_VERSION).toBe(2);
+    expect(LEGACY_PROJECT_SCHEMA_VERSION).toBe(1);
     expect(PROJECT_FILE_EXTENSION).toBe(".labflow.json");
     expect(MAX_PROJECT_FILE_BYTES).toBe(262144);
   });
@@ -116,8 +120,9 @@ describe("buildProjectSnapshot", () => {
   it("builds a complete snapshot with stable field order and byte size", async () => {
     const snapshot = await buildProjectSnapshot(baseContext());
     expect(snapshot).toEqual({
-      schemaVersion: 1,
+      schemaVersion: 2,
       sourceFileName: "experiment.csv",
+      metadata: { name: "实验项目", note: "第一轮备注" },
       dataset: {
         format: "csv",
         sizeBytes: datasetBytes.byteLength,
@@ -139,15 +144,18 @@ describe("buildProjectSnapshot", () => {
         tickDensity: "dense",
         fontScale: "large",
       },
+      export: { pngScale: 3 },
     });
     expect(Object.keys(snapshot)).toEqual([
       "schemaVersion",
       "sourceFileName",
+      "metadata",
       "dataset",
       "series",
       "extraSeries",
       "fit",
       "chart",
+      "export",
     ]);
   });
 
@@ -190,11 +198,20 @@ describe("serializeProjectSnapshot", () => {
     expect(Object.keys(parsed)).toEqual([
       "schemaVersion",
       "sourceFileName",
+      "metadata",
       "dataset",
       "series",
       "extraSeries",
       "fit",
       "chart",
+      "export",
+    ]);
+    expect(Object.keys(parsed.metadata as Record<string, unknown>)).toEqual([
+      "name",
+      "note",
+    ]);
+    expect(Object.keys(parsed.export as Record<string, unknown>)).toEqual([
+      "pngScale",
     ]);
     expect(Object.keys(parsed.dataset as Record<string, unknown>)).toEqual([
       "format",
@@ -252,7 +269,7 @@ describe("parseProjectSnapshot", () => {
 
   it("rejects unsupported schema versions", async () => {
     const snapshot = clone(await validSnapshot());
-    snapshot.schemaVersion = 2 as 1;
+    snapshot.schemaVersion = 3 as 2;
     expectInvalid(JSON.stringify(snapshot), "不支持的项目文件版本。");
 
     const stringVersion = clone(await validSnapshot()) as unknown as Record<
@@ -261,6 +278,153 @@ describe("parseProjectSnapshot", () => {
     >;
     stringVersion.schemaVersion = "1";
     expectInvalid(JSON.stringify(stringVersion), "不支持的项目文件版本。");
+  });
+
+  it("trims project metadata and truncates overlong build input", async () => {
+    const snapshot = await buildProjectSnapshot(
+      baseContext({
+        metadata: {
+          name: `  ${"名".repeat(100)}  `,
+          note: `  ${"注".repeat(600)}  `,
+        },
+      }),
+    );
+    expect(snapshot.metadata.name).toHaveLength(80);
+    expect(snapshot.metadata.name).toBe("名".repeat(80));
+    expect(snapshot.metadata.note).toHaveLength(500);
+    expect(snapshot.metadata.note).toBe("注".repeat(500));
+  });
+
+  it("normalizes an illegal png scale to the default", async () => {
+    const snapshot = await buildProjectSnapshot(
+      baseContext({
+        export: { pngScale: 5 as 2 },
+      }),
+    );
+    expect(snapshot.export).toEqual({ pngScale: 2 });
+  });
+
+  it("migrates a v1 project file to v2 with empty metadata and the default scale", async () => {
+    const v2 = await validSnapshot();
+    const legacy = {
+      ...clone(v2),
+      schemaVersion: LEGACY_PROJECT_SCHEMA_VERSION,
+    } as Record<string, unknown>;
+    delete legacy.metadata;
+    delete legacy.export;
+
+    const parsed = parseProjectSnapshot(JSON.stringify(legacy));
+    expect(parsed.schemaVersion).toBe(2);
+    expect(parsed.metadata).toEqual({ name: "", note: "" });
+    expect(parsed.export).toEqual({ pngScale: 2 });
+    expect(parsed.dataset).toEqual(v2.dataset);
+    expect(parsed.series).toEqual(v2.series);
+    expect(parsed.extraSeries).toEqual(v2.extraSeries);
+    expect(parsed.fit).toEqual(v2.fit);
+    expect(parsed.chart).toEqual(v2.chart);
+
+    const saved = JSON.parse(serializeProjectSnapshot(parsed)) as Record<
+      string,
+      unknown
+    >;
+    expect(saved.schemaVersion).toBe(2);
+    expect(saved.metadata).toEqual({ name: "", note: "" });
+    expect(saved.export).toEqual({ pngScale: 2 });
+  });
+
+  it("keeps v1 validation strict and rejects metadata or unknown fields", async () => {
+    const v2 = await validSnapshot();
+    const legacy = {
+      ...clone(v2),
+      schemaVersion: LEGACY_PROJECT_SCHEMA_VERSION,
+    } as Record<string, unknown>;
+    delete legacy.export;
+
+    expectInvalid(JSON.stringify(legacy), "未知字段");
+
+    const withoutMetadata = clone(legacy);
+    delete withoutMetadata.metadata;
+    const migrated = parseProjectSnapshot(JSON.stringify(withoutMetadata));
+    expect(migrated.metadata).toEqual({ name: "", note: "" });
+
+    const broken = clone(withoutMetadata);
+    (broken.series as Record<string, unknown>).yUnit = "u".repeat(33);
+    expectInvalid(JSON.stringify(broken), "不能超过 32");
+  });
+
+  it("validates v2 metadata and export settings", async () => {
+    const base = await validSnapshot();
+
+    let value = clone(base);
+    (value.metadata as unknown as Record<string, unknown>).name = 7;
+    expectInvalid(JSON.stringify(value), "metadata.name 必须是字符串");
+
+    value = clone(base);
+    value.metadata.name = "名".repeat(81);
+    expectInvalid(JSON.stringify(value), "不能超过 80");
+
+    value = clone(base);
+    value.metadata.note = "注".repeat(501);
+    expectInvalid(JSON.stringify(value), "不能超过 500");
+
+    value = clone(base);
+    (value.metadata as unknown as Record<string, unknown>).extra = true;
+    expectInvalid(JSON.stringify(value), "metadata包含未知字段");
+
+    value = clone(base);
+    (value.export as unknown as Record<string, unknown>).pngScale = 0;
+    expectInvalid(JSON.stringify(value), "pngScale 必须是 1、2 或 3");
+
+    value = clone(base);
+    (value.export as unknown as Record<string, unknown>).pngScale = 4;
+    expectInvalid(JSON.stringify(value), "pngScale 必须是 1、2 或 3");
+
+    value = clone(base);
+    (value.export as unknown as Record<string, unknown>).pngScale = "2";
+    expectInvalid(JSON.stringify(value), "pngScale 必须是 1、2 或 3");
+
+    value = clone(base);
+    (value.export as unknown as Record<string, unknown>).dpi = 600;
+    expectInvalid(JSON.stringify(value), "export包含未知字段");
+
+    value = clone(base);
+    (value as unknown as Record<string, unknown>).export = null;
+    expectInvalid(JSON.stringify(value), "export 必须是对象");
+
+    value = clone(base);
+    (value as unknown as Record<string, unknown>).metadata = null;
+    expectInvalid(JSON.stringify(value), "metadata 必须是对象");
+  });
+
+  it("trims stored metadata when parsing v2", async () => {
+    const snapshot = clone(await validSnapshot());
+    snapshot.metadata = { name: "  实验 A  ", note: "  备注 B  " };
+    const parsed = parseProjectSnapshot(JSON.stringify(snapshot));
+    expect(parsed.metadata).toEqual({ name: "实验 A", note: "备注 B" });
+  });
+
+  it("rejects unknown nested fields", async () => {
+    const base = await validSnapshot();
+
+    let value = clone(base);
+    (value.dataset as unknown as Record<string, unknown>).raw = "x";
+    expectInvalid(JSON.stringify(value), "dataset包含未知字段");
+
+    value = clone(base);
+    (value.series as unknown as Record<string, unknown>).color = "red";
+    expectInvalid(JSON.stringify(value), "series包含未知字段");
+
+    value = clone(base);
+    (value.chart as unknown as Record<string, unknown>).legend = true;
+    expectInvalid(JSON.stringify(value), "chart包含未知字段");
+
+    value = clone(base);
+    (value.extraSeries[0] as unknown as Record<string, unknown>).color = "red";
+    expectInvalid(JSON.stringify(value), "extraSeries[0]包含未知字段");
+
+    value = clone(base);
+    (value.fit as unknown as Record<string, unknown>).weighted = true;
+    expectInvalid(JSON.stringify(value), "fit包含未知字段");
   });
 
   it("rejects invalid dataset fields", async () => {

@@ -3,6 +3,7 @@ import type { FitResponse, SeriesPair } from "../lib/api";
 import {
   downloadChart,
   type ChartExportFormat,
+  type PngExportScale,
 } from "../lib/chartExport";
 
 const VIEW_WIDTH = 640;
@@ -538,6 +539,7 @@ export function ScatterPlot({
   showGrid = false,
   tickDensity = "standard",
   fontScale = "medium",
+  pngScale = 2,
 }: {
   pairs: SeriesPair[];
   extraSeries?: ScatterExtraSeries[];
@@ -550,6 +552,7 @@ export function ScatterPlot({
   showGrid?: boolean;
   tickDensity?: TickDensity;
   fontScale?: FontScale;
+  pngScale?: PngExportScale;
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const exportInFlight = useRef(false);
@@ -675,6 +678,7 @@ export function ScatterPlot({
         title: trimmedTitle,
         xColumn,
         yColumn,
+        pngScale,
       });
       setExportStatus(`已导出 ${fileName}`);
     } catch (error) {
@@ -721,7 +725,7 @@ export function ScatterPlot({
             onClick={() => void handleExport("png")}
             className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {exporting === "png" ? "正在导出…" : "导出 PNG"}
+            {exporting === "png" ? "正在导出…" : `导出 PNG（${pngScale}×）`}
           </button>
           {!hasPoints ? (
             <span className="text-slate-500" data-testid="export-empty-hint">

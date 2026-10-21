@@ -12,7 +12,7 @@ import {
   downloadProjectSnapshot,
   serializeProjectSnapshot,
   sha256Hex,
-  type ProjectSnapshotV1,
+  type ProjectSnapshotV2,
 } from "../lib/projectSnapshot";
 import { SeriesPanel } from "./SeriesPanel";
 
@@ -129,13 +129,13 @@ async function generateMain() {
   await screen.findByTestId("fit-section");
 }
 
-function projectFile(snapshot: ProjectSnapshotV1): File {
+function projectFile(snapshot: ProjectSnapshotV2): File {
   return new File([serializeProjectSnapshot(snapshot)], "saved.labflow.json", {
     type: "application/json",
   });
 }
 
-function openProject(snapshot: ProjectSnapshotV1) {
+function openProject(snapshot: ProjectSnapshotV2) {
   fireEvent.change(screen.getByTestId("open-project"), {
     target: { files: [projectFile(snapshot)] },
   });
@@ -143,9 +143,10 @@ function openProject(snapshot: ProjectSnapshotV1) {
 
 async function buildSnapshot(
   overrides: Partial<Parameters<typeof buildProjectSnapshot>[0]> = {},
-): Promise<ProjectSnapshotV1> {
+): Promise<ProjectSnapshotV2> {
   return buildProjectSnapshot({
     sourceFileName: "experiment.csv",
+    metadata: { name: "", note: "" },
     format: "csv",
     data: fileBytes,
     rowCount: 3,
@@ -164,6 +165,7 @@ async function buildSnapshot(
       tickDensity: "standard",
       fontScale: "medium",
     },
+    export: { pngScale: 2 },
     ...overrides,
   });
 }
@@ -183,7 +185,7 @@ beforeEach(async () => {
 
 describe("SeriesPanel project snapshot", () => {
   it("saves the current configuration without any raw data or fit output", async () => {
-    let savedSnapshot: ProjectSnapshotV1 | null = null;
+    let savedSnapshot: ProjectSnapshotV2 | null = null;
     downloadProjectSnapshotMock.mockImplementation((snapshot) => {
       savedSnapshot = snapshot;
       return "labflow-experiment.labflow.json";
@@ -212,6 +214,15 @@ describe("SeriesPanel project snapshot", () => {
     });
     fireEvent.change(screen.getByTestId("chart-font-size"), {
       target: { value: "large" },
+    });
+    fireEvent.change(screen.getByTestId("project-name-input"), {
+      target: { value: "  实验项目 A  " },
+    });
+    fireEvent.change(screen.getByTestId("project-note-input"), {
+      target: { value: "  复核备注  " },
+    });
+    fireEvent.change(screen.getByTestId("png-scale-select"), {
+      target: { value: "3" },
     });
 
     fireEvent.change(screen.getByTestId("extra-series-name"), {
@@ -243,9 +254,14 @@ describe("SeriesPanel project snapshot", () => {
     );
     expect(downloadProjectSnapshotMock).toHaveBeenCalledTimes(1);
     expect(savedSnapshot).not.toBeNull();
-    const snapshot = savedSnapshot as unknown as ProjectSnapshotV1;
-    expect(snapshot.schemaVersion).toBe(1);
+    const snapshot = savedSnapshot as unknown as ProjectSnapshotV2;
+    expect(snapshot.schemaVersion).toBe(2);
     expect(snapshot.sourceFileName).toBe("experiment.csv");
+    expect(snapshot.metadata).toEqual({
+      name: "实验项目 A",
+      note: "复核备注",
+    });
+    expect(snapshot.export).toEqual({ pngScale: 3 });
     expect(snapshot.dataset.sizeBytes).toBe(fileBytes.byteLength);
     expect(snapshot.dataset.sha256).toBe(await sha256Hex(fileBytes));
     expect(snapshot.dataset.rowCount).toBe(3);
@@ -331,6 +347,7 @@ describe("SeriesPanel project snapshot", () => {
     await generateMain();
     const otherSnapshot = await buildProjectSnapshot({
       sourceFileName: "experiment.csv",
+      metadata: { name: "", note: "" },
       format: "csv",
       data: encoder.encode("different dataset"),
       rowCount: 3,
@@ -349,6 +366,7 @@ describe("SeriesPanel project snapshot", () => {
         tickDensity: "standard",
         fontScale: "medium",
       },
+      export: { pngScale: 2 },
     });
 
     openProject(otherSnapshot);
@@ -372,6 +390,7 @@ describe("SeriesPanel project snapshot", () => {
       .mockResolvedValueOnce(pressureSeries);
     createFitMock.mockResolvedValueOnce(fitPayload);
     const snapshot = await buildSnapshot({
+      metadata: { name: "项目 A", note: "保存的备注" },
       extraSeries: [
         { yColumn: "temperature", name: "温度序列" },
         { yColumn: "pressure", name: "压力" },
@@ -383,6 +402,7 @@ describe("SeriesPanel project snapshot", () => {
         tickDensity: "dense",
         fontScale: "large",
       },
+      export: { pngScale: 3 },
     });
     renderPanel();
     await generateMain();
@@ -430,6 +450,10 @@ describe("SeriesPanel project snapshot", () => {
     expect(screen.getByTestId("chart-show-grid")).toBeChecked();
     expect(screen.getByTestId("chart-tick-density")).toHaveValue("dense");
     expect(screen.getByTestId("chart-font-size")).toHaveValue("large");
+    expect(screen.getByTestId("project-name-input")).toHaveValue("项目 A");
+    expect(screen.getByTestId("project-note-input")).toHaveValue("保存的备注");
+    expect(screen.getByTestId("png-scale-select")).toHaveValue("3");
+    expect(screen.getByTestId("export-png")).toHaveTextContent("导出 PNG（3×）");
     expect(screen.getByTestId("fit-degree-select")).toHaveValue("2");
     expect(screen.getByTestId("fit-error-select")).toHaveValue("err");
     expect(screen.getByTestId("fit-error-unit-input")).toHaveValue("mV");
@@ -560,6 +584,9 @@ describe("SeriesPanel project snapshot", () => {
       screen.getByRole("button", { name: /配对数据/ }),
     ).toBeDisabled();
     expect(screen.getByTestId("add-extra-series")).toBeDisabled();
+    expect(screen.getByTestId("project-name-input")).toBeDisabled();
+    expect(screen.getByTestId("project-note-input")).toBeDisabled();
+    expect(screen.getByTestId("png-scale-select")).toBeDisabled();
     expect(screen.getByRole("button", { name: "运行拟合" })).toBeDisabled();
 
     fireEvent.click(screen.getByRole("button", { name: /配对数据/ }));
@@ -577,5 +604,68 @@ describe("SeriesPanel project snapshot", () => {
     expect(createSeriesMock).toHaveBeenCalledTimes(3);
     expect(createFitMock).not.toHaveBeenCalled();
     expect(screen.getByTestId("save-project")).toBeEnabled();
+    expect(screen.getByTestId("project-name-input")).toBeEnabled();
+    expect(screen.getByTestId("project-note-input")).toBeEnabled();
+    expect(screen.getByTestId("png-scale-select")).toBeEnabled();
+  });
+
+  it("keeps project metadata and PNG scale when regenerating pairs", async () => {
+    createSeriesMock.mockResolvedValue(mainSeries);
+    renderPanel();
+    await generateMain();
+
+    fireEvent.change(screen.getByTestId("project-name-input"), {
+      target: { value: "保留名称" },
+    });
+    fireEvent.change(screen.getByTestId("project-note-input"), {
+      target: { value: "保留备注" },
+    });
+    fireEvent.change(screen.getByTestId("png-scale-select"), {
+      target: { value: "1" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "生成配对数据" }));
+    await waitFor(() => expect(createSeriesMock).toHaveBeenCalledTimes(2));
+    await screen.findByTestId("project-section");
+
+    expect(screen.getByTestId("project-name-input")).toHaveValue("保留名称");
+    expect(screen.getByTestId("project-note-input")).toHaveValue("保留备注");
+    expect(screen.getByTestId("png-scale-select")).toHaveValue("1");
+    expect(screen.getByTestId("export-png")).toHaveTextContent("导出 PNG（1×）");
+  });
+
+  it("opens a legacy v1 project and applies the default metadata and 2x scale", async () => {
+    createSeriesMock
+      .mockResolvedValueOnce(mainSeries)
+      .mockResolvedValueOnce(mainSeries);
+    const snapshot = await buildSnapshot();
+    const legacy = JSON.parse(
+      serializeProjectSnapshot(snapshot),
+    ) as Record<string, unknown>;
+    legacy.schemaVersion = 1;
+    delete legacy.metadata;
+    delete legacy.export;
+    const legacyFile = new File([JSON.stringify(legacy)], "legacy.labflow.json", {
+      type: "application/json",
+    });
+    renderPanel();
+    await generateMain();
+
+    fireEvent.change(screen.getByTestId("project-name-input"), {
+      target: { value: "旧字段应被清空" },
+    });
+    fireEvent.change(screen.getByTestId("open-project"), {
+      target: { files: [legacyFile] },
+    });
+
+    expect(
+      await screen.findByText("已打开项目：experiment.csv"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("project-name-input")).toHaveValue("");
+    expect(screen.getByTestId("project-note-input")).toHaveValue("");
+    expect(screen.getByTestId("png-scale-select")).toHaveValue("2");
+    expect(screen.getByTestId("export-png")).toHaveTextContent("导出 PNG（2×）");
+    expect(createSeriesMock).toHaveBeenCalledTimes(2);
+    expect(createFitMock).not.toHaveBeenCalled();
   });
 });
