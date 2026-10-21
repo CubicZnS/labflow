@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ScatterPlot } from "./ScatterPlot";
 
 const pairs = [
@@ -201,5 +201,74 @@ describe("ScatterPlot", () => {
     const svg = screen.getByTestId("scatter-plot").outerHTML;
     expect(svg).not.toContain("NaN");
     expect(svg).not.toContain("Infinity");
+  });
+
+  it("keeps four to six ticks on both axes for a single point", () => {
+    render(
+      <ScatterPlot
+        pairs={[{ x: 4, y: 9 }]}
+        xColumn="time_s"
+        yColumn="absorbance"
+      />,
+    );
+
+    const xTicks = screen.getAllByTestId("scatter-x-tick");
+    const yTicks = screen.getAllByTestId("scatter-y-tick");
+    expect(xTicks.length).toBeGreaterThanOrEqual(4);
+    expect(xTicks.length).toBeLessThanOrEqual(6);
+    expect(yTicks.length).toBeGreaterThanOrEqual(4);
+    expect(yTicks.length).toBeLessThanOrEqual(6);
+  });
+
+  it("keeps four to six Y ticks when every Y value is identical", () => {
+    render(
+      <ScatterPlot
+        pairs={[
+          { x: 1, y: 7 },
+          { x: 2, y: 7 },
+          { x: 3, y: 7 },
+        ]}
+        xColumn="time_s"
+        yColumn="absorbance"
+      />,
+    );
+
+    const xTicks = screen.getAllByTestId("scatter-x-tick");
+    const yTicks = screen.getAllByTestId("scatter-y-tick");
+    expect(xTicks.length).toBeGreaterThanOrEqual(4);
+    expect(xTicks.length).toBeLessThanOrEqual(6);
+    expect(yTicks.length).toBeGreaterThanOrEqual(4);
+    expect(yTicks.length).toBeLessThanOrEqual(6);
+  });
+
+  it("keeps domains and coordinates finite for extreme finite values", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(
+      <ScatterPlot
+        pairs={[{ x: Number.MAX_VALUE, y: -Number.MAX_VALUE }]}
+        xColumn="time_s"
+        yColumn="absorbance"
+      />,
+    );
+
+    const plot = screen.getByTestId("scatter-plot");
+    for (const name of [
+      "data-domain-x-min",
+      "data-domain-x-max",
+      "data-domain-y-min",
+      "data-domain-y-max",
+    ]) {
+      const value = Number(plot.getAttribute(name));
+      expect(Number.isFinite(value)).toBe(true);
+    }
+
+    for (const point of screen.getAllByTestId("scatter-point")) {
+      expect(Number.isFinite(Number(point.getAttribute("cx")))).toBe(true);
+      expect(Number.isFinite(Number(point.getAttribute("cy")))).toBe(true);
+    }
+    expect(plot.outerHTML).not.toContain("NaN");
+    expect(plot.outerHTML).not.toContain("Infinity");
+    expect(errorSpy.mock.calls.flat().join(" ")).not.toMatch(/NaN|Infinity/);
+    errorSpy.mockRestore();
   });
 });

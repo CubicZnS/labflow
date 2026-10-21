@@ -387,9 +387,24 @@ git log --oneline --decorate dev
 - Git：
   - `iter/9` 功能提交：`94e8067f35670c40ae9234dca4f94e3703fecada`
     https://github.com/CubicZnS/labflow/commit/94e8067f35670c40ae9234dca4f94e3703fecada
+  - `iter/9` 修复提交：待本轮修复 commit 后回填。
 - 已知限制：
   - 仅绘制 X/Y 配对点；尚无拟合线叠加、Y 误差棒、多系列、样式面板或 PNG/SVG 导出（留待 3.2–3.4）。
   - 自动范围与刻度是确定性启发式，不提供手动缩放或坐标范围编辑。
   - 散点图为内联 SVG，数据量大时仍会渲染全部圆点，暂无抽稀或分页。
   - 继承限制：布尔列按 0/1 参与配对；混合对象列会跳过日期行；仅导入第一个 XLSX worksheet；10 MB 文件在大小检查前已被读取；手工表格录入仍未实现；中文 UI 内部分服务端校验消息/警告仍为英文。
 - 下一轮：Phase 3.2 — 在散点图上叠加拟合曲线与 Y 误差棒，复用已有拟合/误差数据，保持确定性坐标范围与可访问性。
+
+### 迭代 #9 修复 — 独立 QA FAIL 闭环
+
+- 触发：MAC-43 独立 QA 判 **FAIL**，发现单点/单轴全同值时刻度数不足、极端有限值域溢出，以及 README 时间与记录 commit 不一致。
+- 修复：
+  - F1：`generateTicks` 改为从 `1/2/2.5/5 × 10^n` 候选步长中选择刻度数落在 4–6 的方案；若候选步长无法直接落在边距域内，则按最小幅度向外扩展到刻度边界，确保单点和全同值轴也维持 4–6 个刻度。
+  - F2：单点扩展域与极值数据钳制到可表示范围；跨度溢出时改用半区间安全比例与有限插值刻度，`Number.MAX_VALUE`/`-Number.MAX_VALUE` 不再产生 Infinity 域或 NaN 坐标。
+  - F3：README 迭代 #9 推送时间校准为记录 commit 的真实时间 `2026-10-22 00:03`。
+  - 新增测试：单点 X/Y 刻度数、Y 全同值刻度数、极端有限值域与坐标有限性（含无 NaN/Infinity 控制台告警断言）。
+- 测试：
+  - `pnpm typecheck` 通过；`pnpm test:run` **43 passed**；`pnpm build` 成功。
+  - `pytest -q` **155 passed**；`ruff check app tests` 通过。
+- Git：
+  - `iter/9` 修复提交：待本轮修复 commit 后回填。

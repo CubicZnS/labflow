@@ -12,7 +12,7 @@ const PADDING_RATIO = 0.05;
 const POINT_COLOR = "#0e7490";
 
 type Domain = { min: number; max: number };
-type Ticks = { values: number[]; step: number };
+type Ticks = { values: number[]; step: number; domain: Domain };
 
 function axisLabel(column: string, unit?: string | null): string {
   const trimmed = unit?.trim();
@@ -25,6 +25,13 @@ function finitePairs(pairs: SeriesPair[]): SeriesPair[] {
   );
 }
 
+function clampToFinite(value: number, fallback: number): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+  return value;
+}
+
 function computeDomain(values: number[]): Domain {
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -33,14 +40,29 @@ function computeDomain(values: number[]): Domain {
   }
   if (min === max) {
     const delta = min === 0 ? 1 : Math.abs(min) * PADDING_RATIO;
-    return { min: min - delta, max: max + delta };
+    const low = clampToFinite(min - delta, -Number.MAX_VALUE);
+    const high = clampToFinite(min + delta, Number.MAX_VALUE);
+    if (low < high) {
+      return { min: low, max: high };
+    }
+    return min > 0
+      ? { min: clampToFinite(min - delta, -Number.MAX_VALUE), max: min }
+      : { min: min, max: clampToFinite(min + delta, Number.MAX_VALUE) };
   }
   const span = max - min;
   if (!Number.isFinite(span)) {
-    return { min: 0, max: 1 };
+    return {
+      min: clampToFinite(min, -Number.MAX_VALUE),
+      max: clampToFinite(max, Number.MAX_VALUE),
+    };
   }
   const padding = span * PADDING_RATIO;
-  return { min: min - padding, max: max + padding };
+  const low = clampToFinite(min - padding, min);
+  const high = clampToFinite(max + padding, max);
+  if (!Number.isFinite(high - low) || high <= low) {
+    return { min, max };
+  }
+  return { min: low, max: high };
 }
 
 function normalize(value: number, step: number): number {
@@ -50,16 +72,22 @@ function normalize(value: number, step: number): number {
   return value;
 }
 
-function niceStep(span: number, targetCount: number): number {
-  const raw = span / Math.max(1, targetCount - 1);
+function candidateSteps(span: number): number[] {
+  const raw = span / 4;
   if (!Number.isFinite(raw) || raw <= 0) {
-    return span > 0 ? span / 4 : 1;
+    return [];
   }
-  const magnitude = 10 ** Math.floor(Math.log10(raw));
-  const residual = raw / magnitude;
-  const multiplier =
-    residual <= 1 ? 1 : residual <= 2 ? 2 : residual <= 2.5 ? 2.5 : residual <= 5 ? 5 : 10;
-  return multiplier * magnitude;
+  const exponent = Math.floor(Math.log10(raw));
+  const steps: number[] = [];
+  for (let power = exponent + 2; power >= exponent - 5; power -= 1) {
+    for (const multiplier of [5, 2.5, 2, 1]) {
+      const step = multiplier * 10 ** power;
+      if (Number.isFinite(step) && step > 0) {
+        steps.push(step);
+      }
+    }
+  }
+  return steps;
 }
 
 function ticksFor(domain: Domain, step: number): number[] {
@@ -77,26 +105,77 @@ function ticksFor(domain: Domain, step: number): number[] {
 
 function generateTicks(domain: Domain): Ticks {
   const span = domain.max - domain.min;
-  let step = niceStep(span, 5);
-  let values = ticksFor(domain, step);
-
-  let guard = 0;
-  while (values.length < MIN_TICKS && guard < 8) {
-    step /= 2;
-    values = ticksFor(domain, step);
-    guard += 1;
-  }
-  guard = 0;
-  while (values.length > MAX_TICKS && guard < 8) {
-    step *= 2;
-    values = ticksFor(domain, step);
-    guard += 1;
+  if (!Number.isFinite(span) || span <= 0) {
+    const fractions = [0, 0.25, 0.5, 0.75, 1];
+    const values = fractions
+      .map((fraction) => domain.min * (1 - fraction) + domain.max * fraction)
+      .filter((value) => Number.isFinite(value));
+    const halfSpan = Math.abs(domain.max / 2 - domain.min / 2);
+    return {
+      values: values.length > 0 ? values : [domain.min, domain.max],
+      step: halfSpan > 0 ? halfSpan : 1,
+      domain,
+    };
   }
 
-  if (values.length === 0) {
-    return { values: [domain.min, domain.max], step: span };
+  const steps = candidateSteps(span);
+  let best: { values: number[]; step: number; domain: Domain; growth: number } | null =
+    null;
+
+  for (const step of steps) {
+    const inside = ticksFor(domain, step);
+    if (inside.length >= MIN_TICKS && inside.length <= MAX_TICKS) {
+      return { values: inside, step, domain };
+    }
+
+    const firstIndex = Math.floor(domain.min / step + 1e-9);
+    const lastIndex = Math.ceil(domain.max / step - 1e-9);
+    const count = lastIndex - firstIndex + 1;
+    if (count < MIN_TICKS || count > MAX_TICKS) {
+      continue;
+    }
+    const low = firstIndex * step;
+    const high = lastIndex * step;
+    if (!Number.isFinite(low) || !Number.isFinite(high) || high <= low) {
+      continue;
+    }
+    const growth = (high - low) / span - 1;
+    const values: number[] = [];
+    for (let index = firstIndex; index <= lastIndex; index += 1) {
+      values.push(normalize(index * step, step));
+    }
+    const candidate = {
+      values,
+      step,
+      domain: { min: low, max: high },
+      growth,
+    };
+    if (
+      !best ||
+      growth < best.growth - 1e-9 ||
+      (Math.abs(growth - best.growth) <= 1e-9 &&
+        Math.abs(values.length - 5) < Math.abs(best.values.length - 5))
+    ) {
+      best = candidate;
+    }
   }
-  return { values, step };
+
+  if (best) {
+    return { values: best.values, step: best.step, domain: best.domain };
+  }
+
+  const fractions = [0, 0.25, 0.5, 0.75, 1];
+  return {
+    values: fractions.map(
+      (fraction) => domain.min * (1 - fraction) + domain.max * fraction,
+    ),
+    step: span / 4,
+    domain,
+  };
+}
+
+function buildAxis(values: number[]): Ticks {
+  return generateTicks(computeDomain(values));
 }
 
 function formatTick(value: number, step: number): string {
@@ -117,12 +196,24 @@ function formatTick(value: number, step: number): string {
   return String(Number(value.toFixed(decimals)));
 }
 
+function axisRatio(value: number, domain: Domain): number {
+  const span = domain.max - domain.min;
+  if (Number.isFinite(span) && span > 0) {
+    return (value - domain.min) / span;
+  }
+  const halfSpan = domain.max / 2 - domain.min / 2;
+  if (Number.isFinite(halfSpan) && halfSpan > 0) {
+    return (value / 2 - domain.min / 2) / halfSpan;
+  }
+  return 0.5;
+}
+
 function scaleX(value: number, domain: Domain): number {
-  return MARGIN.left + ((value - domain.min) / (domain.max - domain.min)) * INNER_WIDTH;
+  return MARGIN.left + axisRatio(value, domain) * INNER_WIDTH;
 }
 
 function scaleY(value: number, domain: Domain): number {
-  return AXIS_Y - ((value - domain.min) / (domain.max - domain.min)) * INNER_HEIGHT;
+  return AXIS_Y - axisRatio(value, domain) * INNER_HEIGHT;
 }
 
 export function ScatterPlot({
@@ -144,10 +235,12 @@ export function ScatterPlot({
   const xLabel = axisLabel(xColumn, xUnit);
   const yLabel = axisLabel(yColumn, yUnit);
 
-  const xDomain = hasPoints ? computeDomain(points.map((pair) => pair.x)) : null;
-  const yDomain = hasPoints ? computeDomain(points.map((pair) => pair.y)) : null;
-  const xTicks = xDomain ? generateTicks(xDomain) : null;
-  const yTicks = yDomain ? generateTicks(yDomain) : null;
+  const xAxis = hasPoints ? buildAxis(points.map((pair) => pair.x)) : null;
+  const yAxis = hasPoints ? buildAxis(points.map((pair) => pair.y)) : null;
+  const xDomain = xAxis?.domain ?? null;
+  const yDomain = yAxis?.domain ?? null;
+  const xTicks = xAxis;
+  const yTicks = yAxis;
 
   const domainAttributes = xDomain && yDomain
     ? {
