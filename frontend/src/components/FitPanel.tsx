@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   createFit,
   type DatasetFormat,
@@ -332,11 +332,13 @@ export function FitPanel({
   format,
   series,
   numericColumns,
+  onFitChange,
 }: {
   file: File;
   format: DatasetFormat;
   series: SeriesResponse;
   numericColumns: string[];
+  onFitChange: (result: FitResponse | null) => void;
 }) {
   const degreeId = useId();
   const errorColumnId = useId();
@@ -345,6 +347,14 @@ export function FitPanel({
   const [errorColumn, setErrorColumn] = useState("");
   const [errorUnit, setErrorUnit] = useState("");
   const [fitState, setFitState] = useState<FitState>({ status: "idle" });
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const isLoading = fitState.status === "loading";
   const availableErrorColumns = numericColumns.filter(
@@ -356,6 +366,7 @@ export function FitPanel({
       return;
     }
     setFitState({ status: "loading" });
+    onFitChange(null);
     try {
       const result = await createFit(file, format, {
         xColumn: series.x_column,
@@ -366,13 +377,21 @@ export function FitPanel({
         yErrorColumn: errorColumn || undefined,
         yErrorUnit: errorColumn ? errorUnit : undefined,
       });
+      if (!mountedRef.current) {
+        return;
+      }
       setFitState({ status: "success", result });
+      onFitChange(result);
     } catch (error) {
+      if (!mountedRef.current) {
+        return;
+      }
       setFitState({
         status: "error",
         message:
           error instanceof Error ? error.message : "拟合失败，请稍后重试。",
       });
+      onFitChange(null);
     }
   }
 

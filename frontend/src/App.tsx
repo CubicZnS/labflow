@@ -31,7 +31,7 @@ const features = [
   "均值、样本标准差、标准误",
   "线性、二次、三次拟合",
   "拟合方程、R²、残差与不确定度",
-  "SVG 散点图与自动坐标范围",
+  "SVG 散点图、拟合曲线与 Y 误差棒",
   "项目保存、重开与重跑",
   "数据不离开本地，不送第三方 AI",
 ];
@@ -206,8 +206,8 @@ function App() {
               <p className="eyebrow">Current phase</p>
               <h2 className="mt-3 text-2xl font-semibold text-ink">Phase 3 · 科学绘图</h2>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                SVG 散点图已可用：基于 X/Y 配对结果自动计算坐标范围，显示刻度、列名与单位，
-                并处理空数据和单点提示。拟合线叠加、Y 误差棒、多系列和 PNG/SVG 导出仍待完成。
+                SVG 散点图、拟合曲线叠加与 Y 误差棒已可用：基于 X/Y 配对结果自动计算坐标范围，
+                显示刻度、列名与单位，并处理空数据和单点提示。多系列、样式控制和 PNG/SVG 导出仍待完成。
               </p>
               <div className="mt-5 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <span className="text-sm text-slate-600">后端状态</span>

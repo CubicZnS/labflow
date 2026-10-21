@@ -1,8 +1,9 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   createSeries,
   type CsvImportResponse,
   type DatasetFormat,
+  type FitResponse,
   type SeriesResponse,
 } from "../lib/api";
 import { FitPanel } from "./FitPanel";
@@ -86,16 +87,28 @@ export function SeriesPanel({
   const [yUnit, setYUnit] = useState("");
   const [seriesState, setSeriesState] = useState<SeriesState>({ status: "idle" });
   const [seriesRun, setSeriesRun] = useState(0);
+  const [fitResult, setFitResult] = useState<FitResponse | null>(null);
+  const seriesRunRef = useRef(0);
 
   const isLoading = seriesState.status === "loading";
   const sameSelection = xColumn !== "" && xColumn === yColumn;
   const canSubmit = enoughColumns && !sameSelection && !isLoading;
 
+  function handleFitChange(result: FitResponse | null) {
+    if (seriesRunRef.current !== seriesRun) {
+      return;
+    }
+    setFitResult(result);
+  }
+
   async function handleSubmit() {
     if (!canSubmit) {
       return;
     }
+    seriesRunRef.current += 1;
+    setSeriesRun(seriesRunRef.current);
     setSeriesState({ status: "loading" });
+    setFitResult(null);
     try {
       const series = await createSeries(file, format, {
         xColumn,
@@ -104,7 +117,7 @@ export function SeriesPanel({
         yUnit,
       });
       setSeriesState({ status: "success", result: series });
-      setSeriesRun((run) => run + 1);
+      setFitResult(null);
     } catch (error) {
       setSeriesState({
         status: "error",
@@ -267,6 +280,7 @@ export function SeriesPanel({
             yColumn={seriesState.result.y_column}
             xUnit={seriesState.result.x_unit}
             yUnit={seriesState.result.y_unit}
+            fit={fitResult}
           />
           <PairPreview result={seriesState.result} />
           <FitPanel
@@ -275,6 +289,7 @@ export function SeriesPanel({
             format={format}
             series={seriesState.result}
             numericColumns={numericColumns}
+            onFitChange={handleFitChange}
           />
         </div>
       ) : null}
