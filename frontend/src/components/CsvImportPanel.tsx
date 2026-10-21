@@ -1,4 +1,4 @@
-import { useId, useState, type ChangeEvent } from "react";
+import { useId, useRef, useState, type ChangeEvent } from "react";
 import {
   datasetFormatForFile,
   uploadDataset,
@@ -7,6 +7,7 @@ import {
   type DatasetFormat,
   type PreviewCell,
 } from "../lib/api";
+import { SeriesPanel } from "./SeriesPanel";
 
 type UploadState =
   | { status: "idle" }
@@ -16,6 +17,8 @@ type UploadState =
       fileName: string;
       format: DatasetFormat;
       result: CsvImportResponse;
+      file: File;
+      uploadId: number;
     }
   | { status: "error"; fileName: string; message: string };
 
@@ -202,11 +205,15 @@ function CsvStatistics({ result }: { result: CsvImportResponse }) {
 function CsvResult({
   fileName,
   format,
+  file,
   result,
+  uploadId,
 }: {
   fileName: string;
   format: DatasetFormat;
+  file: File;
   result: CsvImportResponse;
+  uploadId: number;
 }) {
   return (
     <div>
@@ -262,6 +269,8 @@ function CsvResult({
         result={result}
       />
 
+      <SeriesPanel key={uploadId} file={file} format={format} result={result} />
+
       <div className="mt-5">
         <div className="flex items-center justify-between gap-3">
           <h4 className="text-sm font-semibold text-ink">数据预览</h4>
@@ -299,6 +308,7 @@ function CsvResult({
 
 export function CsvImportPanel() {
   const inputId = useId();
+  const uploadIdRef = useRef(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>({ status: "idle" });
 
@@ -332,7 +342,15 @@ export function CsvImportPanel() {
     setUploadState({ status: "parsing", fileName });
     try {
       const result = await uploadDataset(selectedFile, format);
-      setUploadState({ status: "success", fileName, format, result });
+      uploadIdRef.current += 1;
+      setUploadState({
+        status: "success",
+        fileName,
+        format,
+        result,
+        file: selectedFile,
+        uploadId: uploadIdRef.current,
+      });
     } catch (error) {
       setUploadState({
         status: "error",
@@ -445,7 +463,9 @@ export function CsvImportPanel() {
             <CsvResult
               fileName={uploadState.fileName}
               format={uploadState.format}
+              file={uploadState.file}
               result={uploadState.result}
+              uploadId={uploadState.uploadId}
             />
           ) : (
             <EmptyPreview />

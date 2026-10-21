@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
-import type { CsvImportResponse } from "./lib/api";
+import type { CsvImportResponse, SeriesResponse } from "./lib/api";
 
 const healthPayload = { status: "ok", service: "labflow-api", version: "0.1.0" };
 
@@ -27,6 +27,26 @@ const csvPayload: CsvImportResponse = {
   warnings: ["Column 'absorbance' has 1 missing value(s)"],
 };
 
+const seriesPayload: SeriesResponse = {
+  x_column: "time_s",
+  y_column: "absorbance",
+  x_unit: "s",
+  y_unit: "mV",
+  row_count: 3,
+  pair_count: 2,
+  skipped_count: 1,
+  pairs: [
+    { x: 0, y: 0.012 },
+    { x: 10, y: 0.241 },
+  ],
+  x_stats: { n: 2, missing: 0, mean: 5, std: 7.0710678118654755, sem: 5 },
+  y_stats: { n: 2, missing: 0, mean: 0.1265, std: 0.1619, sem: 0.1145 },
+  warnings: [
+    "Column 'absorbance' has 1 missing value(s)",
+    "Pairing skipped 1 row(s) with missing, non-numeric, or non-finite values",
+  ],
+};
+
 function jsonResponse(payload: unknown, status = 200): Response {
   return {
     ok: status >= 200 && status < 300,
@@ -37,11 +57,15 @@ function jsonResponse(payload: unknown, status = 200): Response {
 
 function installFetchMock(
   upload?: (url: string) => Response | Promise<Response>,
+  series?: () => Response | Promise<Response>,
 ) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
     const url = String(input);
     if (url === "/api/health") {
       return jsonResponse(healthPayload);
+    }
+    if (url === "/api/datasets/series" && series) {
+      return series();
     }
     if ((url === "/api/datasets/csv" || url === "/api/datasets/xlsx") && upload) {
       return upload(url);
@@ -281,5 +305,138 @@ describe("App", () => {
     expect(await screen.findByTestId("upload-error")).toHaveTextContent(
       "CSV 上传失败（HTTP 502），请检查文件后重试。",
     );
+  });
+
+  it("renders the X/Y pairing section with defaults after a successful import", async () => {
+    installFetchMock(() => jsonResponse(csvPayload));
+    render(<App />);
+
+    chooseFile();
+    startUpload();
+
+    expect(await screen.findByTestId("series-section")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "X/Y 配对与单位" }),
+    ).toBeInTheDocument();
+
+    const xSelect = screen.getByTestId("series-x-select") as HTMLSelectElement;
+    const ySelect = screen.getByTestId("series-y-select") as HTMLSelectElement;
+    expect(xSelect.value).toBe("time_s");
+    expect(ySelect.value).toBe("absorbance");
+    expect(
+      within(xSelect)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["time_s", "absorbance"]);
+    expect(screen.getByTestId("series-x-unit")).toHaveValue("");
+    expect(screen.getByTestId("series-y-unit")).toHaveValue("");
+    expect(
+      screen.getByRole("button", { name: "生成配对数据" }),
+    ).toBeEnabled();
+    expect(screen.queryByTestId("series-insufficient")).not.toBeInTheDocument();
+  });
+
+  it("posts the selected columns, units, and file and renders the paired result", async () => {
+    const fetchMock = installFetchMock(
+      () => jsonResponse(csvPayload),
+      () =>
+        jsonResponse({
+          ...seriesPayload,
+          pairs: Array.from({ length: 12 }, (_, index) => ({
+            x: index,
+            y: index * 2,
+          })),
+        }),
+    );
+    render(<App />);
+
+    chooseFile();
+    startUpload();
+    await screen.findByTestId("series-section");
+
+    fireEvent.change(screen.getByTestId("series-x-unit"), {
+      target: { value: " s " },
+    });
+    fireEvent.change(screen.getByTestId("series-y-unit"), {
+      target: { value: "mV" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "生成配对数据" }));
+
+    expect(await screen.findByTestId("series-pair-count")).toHaveTextContent("2");
+    expect(screen.getByTestId("series-skipped-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("series-units")).toHaveTextContent("X 单位：s");
+    expect(screen.getByTestId("series-units")).toHaveTextContent("Y 单位：mV");
+    expect(
+      screen.getByRole("columnheader", { name: "X (s)" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Y (mV)" }),
+    ).toBeInTheDocument();
+
+    const table = screen.getByTestId("series-preview-table");
+    expect(within(table).getAllByRole("row")).toHaveLength(11);
+
+    const seriesCall = fetchMock.mock.calls.find(
+      ([input]) => String(input) === "/api/datasets/series",
+    );
+    expect(seriesCall).toBeDefined();
+    expect(seriesCall?.[1]?.method).toBe("POST");
+    const body = seriesCall?.[1]?.body as FormData;
+    expect(body).toBeInstanceOf(FormData);
+    expect(body.get("format")).toBe("csv");
+    expect(body.get("x_column")).toBe("time_s");
+    expect(body.get("y_column")).toBe("absorbance");
+    expect(body.get("x_unit")).toBe("s");
+    expect(body.get("y_unit")).toBe("mV");
+    expect(body.get("file")).toBeInstanceOf(File);
+  });
+
+  it("shows the server detail when pairing fails", async () => {
+    installFetchMock(
+      () => jsonResponse(csvPayload),
+      () =>
+        jsonResponse({ detail: "At least two valid X/Y pairs are required" }, 422),
+    );
+    render(<App />);
+
+    chooseFile();
+    startUpload();
+    await screen.findByTestId("series-section");
+
+    fireEvent.click(screen.getByRole("button", { name: "生成配对数据" }));
+
+    expect(await screen.findByTestId("series-error")).toHaveTextContent(
+      "At least two valid X/Y pairs are required",
+    );
+    expect(screen.queryByTestId("series-preview-table")).not.toBeInTheDocument();
+  });
+
+  it("guides the user when fewer than two numeric columns are available", async () => {
+    const fetchMock = installFetchMock(
+      () =>
+        jsonResponse({
+          ...csvPayload,
+          numeric_columns: ["time_s"],
+          column_stats: { time_s: csvPayload.column_stats.time_s },
+        }),
+      () => jsonResponse(seriesPayload),
+    );
+    render(<App />);
+
+    chooseFile();
+    startUpload();
+
+    expect(await screen.findByTestId("series-insufficient")).toHaveTextContent(
+      "至少需要两个数值列",
+    );
+    const button = screen.getByRole("button", { name: "生成配对数据" });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+
+    expect(
+      fetchMock.mock.calls.filter(
+        ([input]) => String(input) === "/api/datasets/series",
+      ),
+    ).toHaveLength(0);
   });
 });
