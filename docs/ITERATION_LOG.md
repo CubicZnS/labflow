@@ -358,3 +358,36 @@ git log --oneline --decorate dev
   - 服务端校验消息与警告仍为英文（中文 UI 内），沿用历史限制。
   - 继承限制：布尔列按 0/1 参与拟合；混合对象列会跳过日期行；仅导入第一个 XLSX worksheet；10 MB 文件在大小检查前已被读取；手工表格录入仍未实现。
 - 下一轮：Phase 3.1 — 科学绘图第一步：基于已配对 X/Y 系列渲染 SVG 散点图，包含轴标签/单位、自动范围与空数据/单点提示，不新增第三方图表依赖；随后 3.2 叠加拟合曲线与 Y 误差棒，3.3 多系列与样式控制，3.4 PNG/SVG 导出。
+## 迭代 #9 — Phase 3.1 SVG 散点图
+
+- 日期：2026-10-22
+- 目标：在既有 X/Y 配对结果上渲染确定性的 SVG 散点图，让用户第一次看到数据的图形形态；只做散点图，不引入拟合线、误差棒、多系列、导出或样式面板。
+- 任务选择：MAC-42（Phase 3.1 — SVG 散点图渲染与自动坐标范围）。
+- 分支：`iter/9`，从 `dev` 的 `8220531ad5fa501493bffd697f2ef224a25685d9` 创建。
+- 已完成：
+  - 新增 `frontend/src/components/ScatterPlot.tsx`：使用内联 SVG（`viewBox` + 100% 宽度）绘制散点，不新增依赖。
+  - 自动范围：仅基于有限数据点计算 X/Y 域并留出约 5% 边距；单点或全相同值会扩展为零宽度域，坐标始终为有限数。
+  - 刻度：确定性“nice”步长生成 4–6 个刻度，数字在常规量级使用可读小数，极大/极小值使用紧凑科学计数法，避免 `1e-17` 噪声。
+  - 轴标签：显示列名，存在单位时显示 `列名 (单位)`，无单位时只显示列名，不产生空括号。
+  - 数据点：每个有限配对点一个 `<circle data-testid="scatter-point">`，带原始 `data-x`/`data-y`；SVG 根节点暴露 `data-testid="scatter-plot"`、域属性和 `data-point-count`。
+  - 退化输入：0 点显示中文空状态且不渲染坐标轴/圆点；1 点仍绘制并提示“仅 1 个数据点，无法判断趋势”；非有限点被过滤。
+  - 可访问性：`role="img"` 与含中文说明和数据点数量的 `aria-label`，并以图例文字说明圆点含义，不只依赖颜色。
+  - `SeriesPanel` 在 series 成功后、配对预览表之前渲染散点图，直接使用 `pairs`/列名/单位；重新上传或重新生成 series 时随新结果更新。
+  - `App.tsx` 将过时的 “Phase 1 · 数据导入” 更新为 “Phase 3 · 科学绘图”，路线图如实说明散点图已可用，拟合线/误差棒/导出仍待完成。
+- 测试：
+  - 前端 `ScatterPlot.test.tsx` 覆盖：点数与 data 属性一致；轴标签含单位且无空括号；自动域含边距且刻度落在域内、数量 4–6；全相同 X/Y 时 `cx`/`cy` 有限；0 点空状态、1 点提示；非有限点过滤。
+  - 前端 `App.test.tsx` 覆盖：series 成功后散点图出现且点数等于 `pair_count`；重新选择并生成 series 后点数更新、不残留旧点；未生成 series 时不渲染散点图。
+  - 命令与结果：
+    - `cd frontend && /Users/zhangzimo/.local/bin/pnpm typecheck` 通过。
+    - `cd frontend && /Users/zhangzimo/.local/bin/pnpm test:run` **40 passed**（新增 7 个 ScatterPlot 测试 + 3 个 App 集成测试）。
+    - `cd frontend && /Users/zhangzimo/.local/bin/pnpm build` 成功。
+    - `cd backend && .venv/bin/python -m pytest -q` **155 passed**。
+    - `cd backend && .venv/bin/ruff check app tests` 通过。
+- Git：
+  - `iter/9` 功能提交：待本轮功能 commit 后回填。
+- 已知限制：
+  - 仅绘制 X/Y 配对点；尚无拟合线叠加、Y 误差棒、多系列、样式面板或 PNG/SVG 导出（留待 3.2–3.4）。
+  - 自动范围与刻度是确定性启发式，不提供手动缩放或坐标范围编辑。
+  - 散点图为内联 SVG，数据量大时仍会渲染全部圆点，暂无抽稀或分页。
+  - 继承限制：布尔列按 0/1 参与配对；混合对象列会跳过日期行；仅导入第一个 XLSX worksheet；10 MB 文件在大小检查前已被读取；手工表格录入仍未实现；中文 UI 内部分服务端校验消息/警告仍为英文。
+- 下一轮：Phase 3.2 — 在散点图上叠加拟合曲线与 Y 误差棒，复用已有拟合/误差数据，保持确定性坐标范围与可访问性。

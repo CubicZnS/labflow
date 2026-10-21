@@ -30,8 +30,8 @@ const workflow = [
 const features = [
   "均值、样本标准差、标准误",
   "线性、二次、三次拟合",
-  "拟合方程、R²、残差与误差棒",
-  "中文优先的科研级图表样式",
+  "拟合方程、R²、残差与不确定度",
+  "SVG 散点图与自动坐标范围",
   "项目保存、重开与重跑",
   "数据不离开本地，不送第三方 AI",
 ];
@@ -92,7 +92,7 @@ function App() {
           <div>
             <span className="pill border-cyan/20 bg-cyan/5 text-cyan">
               <span className="h-1.5 w-1.5 rounded-full bg-cyan" />
-              Phase 1 · 数据导入
+              Phase 3 · 科学绘图
             </span>
             <h1 className="mt-6 max-w-2xl text-4xl font-semibold leading-tight tracking-tight text-ink sm:text-5xl">
               从原始实验数据，
@@ -204,10 +204,10 @@ function App() {
           <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
             <div className="card">
               <p className="eyebrow">Current phase</p>
-              <h2 className="mt-3 text-2xl font-semibold text-ink">Phase 1 · CSV / XLSX 导入与预览</h2>
+              <h2 className="mt-3 text-2xl font-semibold text-ink">Phase 3 · 科学绘图</h2>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                CSV / XLSX 上传、数值列识别、缺失/重复警告与数据预览已就位。
-                下一阶段从列选择、单位确认和基础统计开始。
+                SVG 散点图已可用：基于 X/Y 配对结果自动计算坐标范围，显示刻度、列名与单位，
+                并处理空数据和单点提示。拟合线叠加、Y 误差棒、多系列和 PNG/SVG 导出仍待完成。
               </p>
               <div className="mt-5 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <span className="text-sm text-slate-600">后端状态</span>
@@ -265,7 +265,7 @@ function App() {
       <footer className="border-t border-slate-200/70 py-8">
         <div className="container-page flex flex-col gap-2 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <p>LabFlow · 科研数据分析与绘图</p>
-          <p>Phase 1 · CSV / XLSX 导入与预览 · 结果可复现优先</p>
+          <p>Phase 3 · 科学绘图 · 结果可复现优先</p>
         </div>
       </footer>
     </div>

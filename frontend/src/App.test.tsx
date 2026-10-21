@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import type { CsvImportResponse, FitResponse, SeriesResponse } from "./lib/api";
@@ -913,5 +913,106 @@ describe("App", () => {
     const select = screen.getByTestId("fit-error-select") as HTMLSelectElement;
     expect(select.value).toBe("");
     expect(screen.queryByTestId("fit-result")).not.toBeInTheDocument();
+  });
+
+  it("renders the scatter plot with the selected columns and units after a successful series", async () => {
+    installFetchMock(
+      () => jsonResponse(csvPayload),
+      () => jsonResponse(seriesPayload),
+    );
+    render(<App />);
+
+    await generateSeries();
+
+    const plot = screen.getByTestId("scatter-plot");
+    expect(plot).toHaveAttribute("data-point-count", String(seriesPayload.pair_count));
+    expect(screen.getAllByTestId("scatter-point")).toHaveLength(
+      seriesPayload.pair_count,
+    );
+    expect(screen.getByTestId("scatter-x-label")).toHaveTextContent("time_s (s)");
+    expect(screen.getByTestId("scatter-y-label")).toHaveTextContent(
+      "absorbance (mV)",
+    );
+    expect(screen.getByTestId("scatter-plot")).toHaveAttribute("role", "img");
+    expect(screen.getByTestId("scatter-plot")).toHaveAccessibleName(
+      /散点图.*2 个数据点/,
+    );
+  });
+
+  it("updates the plotted points when a new series is generated instead of keeping stale data", async () => {
+    const csvWithThreeColumns: CsvImportResponse = {
+      ...csvPayload,
+      numeric_columns: ["time_s", "absorbance", "temperature"],
+      column_stats: {
+        ...csvPayload.column_stats,
+        temperature: { n: 3, missing: 0, mean: 290, std: 10, sem: 5.7735 },
+      },
+    };
+    const secondSeries: SeriesResponse = {
+      ...seriesPayload,
+      x_column: "temperature",
+      x_unit: "K",
+      pair_count: 3,
+      skipped_count: 0,
+      pairs: [
+        { x: 280, y: 0.1 },
+        { x: 290, y: 0.2 },
+        { x: 300, y: 0.3 },
+      ],
+    };
+    let seriesCalls = 0;
+    installFetchMock(
+      () => jsonResponse(csvWithThreeColumns),
+      () => {
+        seriesCalls += 1;
+        return jsonResponse(seriesCalls === 1 ? seriesPayload : secondSeries);
+      },
+    );
+    render(<App />);
+
+    await generateSeries();
+    expect(screen.getByTestId("scatter-plot")).toHaveAttribute(
+      "data-point-count",
+      "2",
+    );
+    expect(
+      screen
+        .getAllByTestId("scatter-point")
+        .map((point) => point.getAttribute("data-x")),
+    ).toEqual(["0", "10"]);
+
+    fireEvent.change(screen.getByTestId("series-x-select"), {
+      target: { value: "temperature" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "生成配对数据" }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("series-pair-count")).toHaveTextContent("3"),
+    );
+    expect(screen.getByTestId("scatter-plot")).toHaveAttribute(
+      "data-point-count",
+      "3",
+    );
+    expect(screen.getByTestId("scatter-x-label")).toHaveTextContent(
+      "temperature (K)",
+    );
+    expect(
+      screen
+        .getAllByTestId("scatter-point")
+        .map((point) => point.getAttribute("data-x")),
+    ).toEqual(["280", "290", "300"]);
+  });
+
+  it("does not render the scatter plot before a series is generated", async () => {
+    installFetchMock(() => jsonResponse(csvPayload));
+    render(<App />);
+
+    expect(screen.queryByTestId("scatter-plot")).not.toBeInTheDocument();
+
+    chooseFile();
+    startUpload();
+    await screen.findByTestId("series-section");
+
+    expect(screen.queryByTestId("scatter-plot")).not.toBeInTheDocument();
   });
 });
