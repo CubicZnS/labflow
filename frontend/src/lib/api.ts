@@ -197,6 +197,12 @@ export type FitResponse = {
   max_abs_residual: number;
   warnings: string[];
   uncertainty: FitUncertainty;
+  weighted: boolean;
+  y_error_column: string | null;
+  y_error_unit: string | null;
+  y_errors: number[] | null;
+  chi_squared: number | null;
+  reduced_chi_squared: number | null;
 };
 
 export type FitSelection = {
@@ -205,6 +211,8 @@ export type FitSelection = {
   xUnit?: string;
   yUnit?: string;
   degree: FitDegree;
+  yErrorColumn?: string;
+  yErrorUnit?: string;
 };
 
 export async function createFit(
@@ -226,6 +234,14 @@ export async function createFit(
   }
   if (yUnit) {
     form.append("y_unit", yUnit);
+  }
+  const yErrorColumn = selection.yErrorColumn?.trim() ?? "";
+  if (yErrorColumn) {
+    form.append("y_error_column", yErrorColumn);
+    const yErrorUnit = selection.yErrorUnit?.trim() ?? "";
+    if (yErrorUnit) {
+      form.append("y_error_unit", yErrorUnit);
+    }
   }
 
   let response: Response;
