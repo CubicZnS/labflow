@@ -441,13 +441,18 @@ git log --oneline --decorate dev
 - 测试：
   - 后端：`ruff check app tests` 通过；`pytest -q` **155 passed**。
   - 前端：`pnpm typecheck` 通过；`pnpm test:run` **52 passed**（新增拟合曲线、误差棒、Y 域扩展、越界曲线与旧结果隔离测试）；`pnpm build` 成功。
-- 独立 QA：待指派 DeepSeek Worker QA；QA PASS 后补充结论。
+- 独立 QA：MAC-48，DeepSeek Worker QA，结论 **PASS**。5 项强制 gate 全部通过；独立核验三个远端 SHA、文件范围、中文 README/日志/版本表；独立数值探测确认三次拟合采样与闭式解最大误差 1.99e-13、误差棒端点与 `y±σ` 一致、曲线像素全部位于内绘图区。未发现缺陷，未修改被审代码或测试。
+- 合并流程：QA PASS 后才合并 `iter/10` 到 `dev`；合并 commit 与迭代记录 commit 均使用中文摘要。合并前未推送 `dev`。
 - Git：
   - `iter/10` 功能提交：`ff3b90d4b7d4e3c86913fb275f10c149c44dfc50`
     https://github.com/CubicZnS/labflow/commit/ff3b90d4b7d4e3c86913fb275f10c149c44dfc50
   - `iter/10` 修复提交：`dd836302ef7d67e58f4009942e75c7d08a322a89`
     https://github.com/CubicZnS/labflow/commit/dd836302ef7d67e58f4009942e75c7d08a322a89
-  - `dev` 合并提交：待 QA PASS 后回填，绝不提前编造。
+  - `iter/10` 中文文档提交：`06b9516542b5b1b7e36958bbae2a4a673bbd18ab`
+    https://github.com/CubicZnS/labflow/commit/06b9516542b5b1b7e36958bbae2a4a673bbd18ab
+  - `dev` 合并提交：`f98b1c91467c865214c5bbd07a483c097aa93e9c`
+    https://github.com/CubicZnS/labflow/commit/f98b1c91467c865214c5bbd07a483c097aa93e9c
+  - 推送核验：`git ls-remote origin refs/heads/dev` 与 `gh api` 对合并 SHA 返回一致；`main` 未改动。
 - 已知限制：
   - 仅支持单系列；尚无多系列、标题/图例/网格/字体/刻度样式控制，也无 PNG/SVG 导出（Phase 3.3–3.4）。
   - 拟合曲线覆盖可见 X 域（含 5% 边距），不提供手动坐标范围或采样点数控制。

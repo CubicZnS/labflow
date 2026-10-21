@@ -68,7 +68,9 @@ Planned increments:
 
 - [x] 3.1 SVG scatter plot of the paired series with axis labels/units, automatic ranges, and empty/
       single-point states; no new chart dependency (iteration #9, merge `2862994`)
-- [ ] 3.2 Fitted-curve overlay and Y-error bars, reusing the existing fit response
+- [x] 3.2 Fitted-curve overlay and Y-error bars, reusing the existing fit response; Y range includes
+      curve samples and error endpoints, stale fit responses are isolated per series
+      (iteration #10, merge `f98b1c9`)
 - [ ] 3.3 Multiple series, title, legend, grid, font, and tick controls
 - [ ] 3.4 PNG and SVG export
 
