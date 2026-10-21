@@ -6,6 +6,7 @@ import {
   type SeriesResponse,
 } from "../lib/api";
 import { FitPanel } from "./FitPanel";
+import { ScatterPlot } from "./ScatterPlot";
 
 type SeriesState =
   | { status: "idle" }
@@ -260,6 +261,13 @@ export function SeriesPanel({
             </div>
           </dl>
           <UnitSummary result={seriesState.result} />
+          <ScatterPlot
+            pairs={seriesState.result.pairs}
+            xColumn={seriesState.result.x_column}
+            yColumn={seriesState.result.y_column}
+            xUnit={seriesState.result.x_unit}
+            yUnit={seriesState.result.y_unit}
+          />
           <PairPreview result={seriesState.result} />
           <FitPanel
             key={seriesRun}
