@@ -16,7 +16,7 @@ students, and research labs that repeatedly perform similar data-analysis and pl
 
 ## Phases
 
-### Phase 0 — Bootstrap (current)
+### Phase 0 — Bootstrap (complete)
 
 - [x] Private GitHub repository and branch workflow
 - [x] FastAPI backend shell with deterministic analysis module
@@ -24,17 +24,19 @@ students, and research labs that repeatedly perform similar data-analysis and pl
 - [x] Pytest and Vitest foundations
 - [x] GitHub Actions CI
 - [x] Product, architecture, testing, business, decision, and iteration docs
-- [ ] First commit pushed and verified on the remote
+- [x] First commit pushed and verified on the remote
 
 Acceptance: both applications start; tests pass; CI is configured; the first commit exists on GitHub.
 
-### Phase 1 — Data import and validation
+### Phase 1 — Data import and validation (current)
 
-- CSV and XLSX import with preview
-- Manual table entry/editing
-- Numeric column detection, X/Y selection, units
-- Missing/invalid/duplicate value diagnostics
-- Basic statistics: mean, sample standard deviation, standard error
+- [x] CSV import with validation, warnings, and preview
+- [ ] XLSX import with preview
+- [ ] Manual table entry/editing
+- [ ] X/Y selection and units
+- [x] Numeric column detection
+- [x] Missing/invalid/duplicate value diagnostics
+- [x] Basic statistics: mean, sample standard deviation, standard error
 
 Acceptance: a real experimental CSV/XLSX can be imported and produces correct summary statistics.
 
