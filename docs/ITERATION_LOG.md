@@ -349,3 +349,72 @@ Failed or blocked steps are reported honestly.
   95% confidence intervals plus an explicit ill-conditioned-fit warning, with known-value and
   independent numerical baselines. Then Phase 2.3 adds Y-error columns and error-bar-aware inputs.
 
+
+## Iteration #7 — Phase 2.2 fit uncertainty and conditioning diagnostics
+
+- Date: 2026-10-21
+- Goal: make a fit report honest uncertainty and numerical warnings, so a user can judge whether
+  the coefficients are trustworthy instead of seeing only a point estimate and R².
+- Selected backlog task: MAC-34 (Phase 2.2 — fit coefficient standard errors, 95% CIs, and
+  ill-conditioning diagnostics). The backlog had no ready task, so it was created from the roadmap
+  and assigned to Dev. QA verification was MAC-35.
+- Branch: `iter/7`, created from `dev` at `201d2447cf30cc6b3921a1cd0eabf48152726104`.
+- Completed:
+  - `POST /api/datasets/fit` returns a typed `uncertainty` object in addition to the existing
+    fields: `residual_dof`, `standard_errors`, `confidence_intervals`, `condition_number`, and
+    `ill_conditioned`. Existing top-level fields, ordering, and error behavior are unchanged.
+  - Uncertainty uses the shared deterministic least-squares result: `mse = SSR / residual_dof`,
+    `cov = mse * pinv(XᵀX)`, coefficient standard errors from the covariance diagonal, and 95%
+    two-sided CIs with `t.ppf(0.975, residual_dof)`. The covariance math lives once in
+    `app/analysis.py` and is reused by both linear and polynomial fits.
+  - Exactly determined fits (`pair_count == degree + 1`) stay HTTP 200 and return null standard
+    errors/CIs plus one explicit warning, instead of dividing by zero or fabricating uncertainty.
+  - Conditioning uses the 2-norm condition number of the unit-scaled Vandermonde design
+    (`x / max(abs(x))`), so changing X units does not by itself trigger a warning. A non-finite or
+    `> 1e12` condition number sets `ill_conditioned` and appends a warning with the real value.
+  - `FitPanel` adds a Chinese-first coefficient uncertainty table (coefficient, standard error,
+    95% CI low/high), residual degrees of freedom, condition number, a conditioning warning, and a
+    note with em-dash cells when uncertainty cannot be estimated.
+  - No new dependencies and no change to CSV/XLSX parsing, pairing, `/api/datasets/series`, the
+    import endpoints, or the `/api/analysis/fit` response shape.
+- Review and QA findings:
+  - Lead verified the remote branch and `gh api` SHA `291864d`, reviewed the full diff
+    (`201d244..291864d`: 8 allowed files, +572/−3), and independently ran every gate plus numerical
+    probes against `scipy.stats.linregress` and t-based CIs before QA.
+  - MAC-35 QA verdict **PASS**. QA independently recomputed linear/quadratic/cubic standard errors
+    and CIs (deviations < 3e-15), the exact-fit null path, an ill-conditioned fixture
+    (condition number 1.227e17, JSON-safe), unit-scale invariance, extreme X magnitudes, a
+    rank-deficient repeated-X fit, the 14-case error matrix, endpoint regressions, and the
+    frontend rendering/reset behavior.
+  - Non-blocking observations: `backend/app/analysis.py` still lacks a trailing newline; the
+    ill-conditioned fixture produces a benign numpy `RankWarning` from `np.polyfit`; the 1e12
+    conditioning threshold is a heuristic; backend validation messages and warnings remain English
+    inside the Chinese UI. No defects were found.
+- Tests:
+  - Backend: `ruff check app tests` passed; `pytest -q` passed (126 tests, 10 new uncertainty tests).
+  - Frontend: `pnpm typecheck` passed; `pnpm test:run` passed (25 tests, 3 new uncertainty tests);
+    `pnpm build` succeeded.
+  - Post-merge gates on `dev` re-ran the same backend and frontend suites successfully before the
+    iteration record was committed.
+- Independent QA: MAC-35, assigned to DeepSeek Worker QA, verdict **PASS**.
+- Git:
+  - Feature commit on `iter/7`: `291864d0059c2edda9613a9af0ec777eb8c29b7c` — coefficient uncertainty
+    and conditioning diagnostics.
+  - Feature commit link: https://github.com/CubicZnS/labflow/commit/291864d0059c2edda9613a9af0ec777eb8c29b7c
+  - Merge commit on `dev`: `2475463c467b6c9f8ff5a4756f8db342995c5c14`
+  - Merge link: https://github.com/CubicZnS/labflow/commit/2475463c467b6c9f8ff5a4756f8db342995c5c14
+- Known issues / limits:
+  - Uncertainty is the classical ordinary-least-squares covariance assuming independent,
+    identically distributed Y errors; there are no Y-error columns, error bars, or
+    measurement-error propagation yet.
+  - Exactly determined fits expose no uncertainty by design; the UI explains this rather than
+    hiding it.
+  - The ill-conditioning threshold (1e12) is a product heuristic, not a statistical guarantee.
+  - Changing the degree after a successful fit still leaves the previous result visible until the
+    next run; server warnings remain English inside the Chinese UI.
+  - Inherited: boolean columns are accepted as 0/1 by series/fit; mixed object columns skip date
+    rows; only the first XLSX worksheet imports; the 10 MB file is read before the size check;
+    manual table entry/editing is still unimplemented.
+- Next iteration: Phase 2.3 — Y-error columns, error bars, and measurement-error-aware uncertainty,
+  reusing the same fit and uncertainty pipeline with explicit weighting rules and independent
+  numerical baselines. Then Phase 3 scientific plotting can consume the fitted line and error data.

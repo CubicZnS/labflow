@@ -48,12 +48,15 @@ paired series with units. Manual table entry/editing is deferred until after fit
 - [x] Linear regression
 - [x] Quadratic and cubic polynomial fits
 - [x] Fit equation, R-squared, residuals
-- [ ] Error bars and uncertainty propagation
-- [ ] Warnings for underdetermined or ill-conditioned fits (underdetermined fits already return 422)
+- [x] Coefficient standard errors and 95% confidence intervals
+- [x] Ill-conditioned and exactly-determined fit warnings (underdetermined fits already return 422)
+- [ ] Y-error columns, error bars, and measurement-error propagation
 
 Phase 2.1 (iteration 6) delivered dataset-level fits on the paired series with equation, R-squared,
-residuals, RMSE, and maximum absolute residual. Next: coefficient uncertainty and ill-conditioning
-diagnostics, then measurement-error columns and error bars.
+residuals, RMSE, and maximum absolute residual. Phase 2.2 (iteration 7) added coefficient standard
+errors, 95% confidence intervals, residual degrees of freedom, and explicit exactly-determined and
+ill-conditioned warnings. Next: measurement-error columns, error-bar-aware inputs, and uncertainty
+propagation.
 
 Acceptance: known-value fixtures match independent numerical baselines.
 
