@@ -108,14 +108,9 @@ def _validate_field_counts(data: bytes) -> None:
         raise DatasetImportError(f"Malformed CSV: {exc}", status_code=422) from exc
 
 
-def _build_payload(
-    frame: pd.DataFrame, format_label: str, warnings: list[str]
-) -> dict[str, Any]:
-    """Shared validation, warnings, statistics, and preview for every format."""
-    if frame.empty:
-        raise DatasetImportError(f"{format_label} contains no data rows", status_code=422)
-
-    columns = [str(column) for column in frame.columns]
+def _collect_warnings(frame: pd.DataFrame) -> list[str]:
+    """Warnings every import reports, independent of format-specific notes."""
+    warnings: list[str] = []
 
     missing_counts = frame.isna().sum()
     for column in frame.columns:
@@ -127,13 +122,28 @@ def _build_payload(
     if duplicate_rows > 0:
         warnings.append(f"Dataset contains {duplicate_rows} duplicate row(s)")
 
-    numeric_columns: list[str] = []
     for column in frame.columns:
         series = frame[column]
         _describe_non_numeric(series, str(column), warnings)
         _describe_non_finite(series, str(column), warnings)
-        if _is_numeric_column(series):
-            numeric_columns.append(str(column))
+
+    return warnings
+
+
+def _build_payload(
+    frame: pd.DataFrame, format_label: str, warnings: list[str]
+) -> dict[str, Any]:
+    """Shared validation, warnings, statistics, and preview for every format."""
+    if frame.empty:
+        raise DatasetImportError(f"{format_label} contains no data rows", status_code=422)
+
+    columns = [str(column) for column in frame.columns]
+
+    warnings.extend(_collect_warnings(frame))
+
+    numeric_columns = [
+        str(column) for column in frame.columns if _is_numeric_column(frame[column])
+    ]
 
     column_stats: dict[str, dict[str, Any]] = {}
     for column in numeric_columns:
@@ -158,8 +168,8 @@ def _build_payload(
     }
 
 
-def parse_csv_bytes(data: bytes) -> dict[str, Any]:
-    """Parse raw CSV bytes into columns, numeric columns, preview, and warnings."""
+def load_csv_frame(data: bytes) -> tuple[pd.DataFrame, list[str]]:
+    """Validate raw CSV bytes and return the parsed frame plus parser warnings."""
     if not data or not data.strip():
         raise DatasetImportError("CSV file is empty", status_code=400)
     if len(data) > MAX_UPLOAD_BYTES:
@@ -175,7 +185,13 @@ def parse_csv_bytes(data: bytes) -> dict[str, Any]:
     except (pd.errors.EmptyDataError, pd.errors.ParserError, UnicodeDecodeError, ValueError) as exc:
         raise DatasetImportError(f"Malformed CSV: {exc}", status_code=422) from exc
 
-    return _build_payload(frame, "CSV", [])
+    return frame, []
+
+
+def parse_csv_bytes(data: bytes) -> dict[str, Any]:
+    """Parse raw CSV bytes into columns, numeric columns, preview, and warnings."""
+    frame, warnings = load_csv_frame(data)
+    return _build_payload(frame, "CSV", warnings)
 
 
 def _normalize_cell(value: Any) -> Any:
@@ -263,8 +279,8 @@ def _xlsx_frame(sheet_name: str, rows: list[list[Any]]) -> pd.DataFrame:
     return pd.DataFrame(records, columns=columns)
 
 
-def parse_xlsx_bytes(data: bytes) -> dict[str, Any]:
-    """Parse the first worksheet of raw XLSX bytes with the CSV response contract."""
+def load_xlsx_frame(data: bytes) -> tuple[pd.DataFrame, list[str]]:
+    """Validate raw XLSX bytes and return the first-sheet frame plus parser warnings."""
     if not data or not data.strip():
         raise DatasetImportError("XLSX file is empty", status_code=400)
     if len(data) > MAX_UPLOAD_BYTES:
@@ -283,6 +299,12 @@ def parse_xlsx_bytes(data: bytes) -> dict[str, Any]:
             f"imported the first worksheet '{sheet_names[0]}'"
         )
 
+    return frame, warnings
+
+
+def parse_xlsx_bytes(data: bytes) -> dict[str, Any]:
+    """Parse the first worksheet of raw XLSX bytes with the CSV response contract."""
+    frame, warnings = load_xlsx_frame(data)
     return _build_payload(frame, "XLSX", warnings)
 
 

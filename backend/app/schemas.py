@@ -55,3 +55,22 @@ class CsvImportResponse(BaseModel):
     column_stats: dict[str, ColumnStats]
     preview: list[dict[str, Any]]
     warnings: list[str]
+
+
+class SeriesPair(BaseModel):
+    x: float
+    y: float
+
+
+class SeriesResponse(BaseModel):
+    x_column: str
+    y_column: str
+    x_unit: str | None
+    y_unit: str | None
+    row_count: int
+    pair_count: int
+    skipped_count: int
+    pairs: list[SeriesPair]
+    x_stats: ColumnStats | None
+    y_stats: ColumnStats | None
+    warnings: list[str]

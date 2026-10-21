@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Annotated
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
@@ -22,9 +22,11 @@ from app.schemas import (
     FitRequest,
     FitResponse,
     HealthResponse,
+    SeriesResponse,
     StatsRequest,
     StatsResponse,
 )
+from app.series import SUPPORTED_SERIES_FORMATS, build_series, load_series_frame
 
 app = FastAPI(
     title="LabFlow API",
@@ -107,3 +109,50 @@ async def import_xlsx(file: Annotated[UploadFile, File()]) -> CsvImportResponse:
     except DatasetImportError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     return CsvImportResponse(**result)
+
+
+@app.post("/api/datasets/series", response_model=SeriesResponse)
+async def import_series(
+    file: Annotated[UploadFile, File()],
+    format: Annotated[str, Form()],
+    x_column: Annotated[str, Form()],
+    y_column: Annotated[str, Form()],
+    x_unit: Annotated[str | None, Form()] = None,
+    y_unit: Annotated[str | None, Form()] = None,
+) -> SeriesResponse:
+    format_label = format.strip().lower()
+    if format_label not in SUPPORTED_SERIES_FORMATS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported format '{format}'; use 'csv' or 'xlsx'",
+        )
+
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+    if format_label == "csv":
+        allowed_types = ALLOWED_CONTENT_TYPES
+        expected = "CSV"
+    else:
+        allowed_types = ALLOWED_XLSX_CONTENT_TYPES
+        expected = "XLSX"
+    if content_type not in allowed_types:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported content type '{content_type or 'unknown'}'; "
+            f"upload a {expected} file",
+        )
+
+    data = await file.read()
+    await file.close()
+    try:
+        frame, warnings = load_series_frame(format_label, data)
+        result = build_series(
+            frame,
+            warnings,
+            x_column=x_column,
+            y_column=y_column,
+            x_unit=x_unit,
+            y_unit=y_unit,
+        )
+    except DatasetImportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return SeriesResponse(**result)
