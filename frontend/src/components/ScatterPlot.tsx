@@ -1,4 +1,4 @@
-import type { SeriesPair } from "../lib/api";
+import type { FitResponse, SeriesPair } from "../lib/api";
 
 const VIEW_WIDTH = 640;
 const VIEW_HEIGHT = 360;
@@ -10,9 +10,20 @@ const MIN_TICKS = 4;
 const MAX_TICKS = 6;
 const PADDING_RATIO = 0.05;
 const POINT_COLOR = "#0e7490";
+const FIT_COLOR = "#b45309";
+const ERROR_BAR_COLOR = "#0f766e";
+const FIT_CURVE_SAMPLE_COUNT = 101;
+const ERROR_BAR_CAP = 5;
 
 type Domain = { min: number; max: number };
 type Ticks = { values: number[]; step: number; domain: Domain };
+type ErrorBarDatum = {
+  x: number;
+  y: number;
+  sigma: number;
+  low: number;
+  high: number;
+};
 
 function axisLabel(column: string, unit?: string | null): string {
   const trimmed = unit?.trim();
@@ -23,6 +34,77 @@ function finitePairs(pairs: SeriesPair[]): SeriesPair[] {
   return pairs.filter(
     (pair) => Number.isFinite(pair.x) && Number.isFinite(pair.y),
   );
+}
+
+function evaluatePolynomial(coefficients: number[], x: number): number {
+  let value = 0;
+  for (const coefficient of coefficients) {
+    value = value * x + coefficient;
+  }
+  return value;
+}
+
+function buildFitCurve(
+  fit: FitResponse | null,
+  domain: Domain,
+): SeriesPair[] | null {
+  if (!fit) {
+    return null;
+  }
+  const { coefficients } = fit;
+  if (
+    coefficients.length === 0 ||
+    !coefficients.every((coefficient) => Number.isFinite(coefficient))
+  ) {
+    return null;
+  }
+  const span = domain.max - domain.min;
+  if (!Number.isFinite(span) || span < 0) {
+    return null;
+  }
+  const samples: SeriesPair[] = [];
+  for (let index = 0; index < FIT_CURVE_SAMPLE_COUNT; index += 1) {
+    const ratio = index / (FIT_CURVE_SAMPLE_COUNT - 1);
+    const x =
+      index === 0
+        ? domain.min
+        : index === FIT_CURVE_SAMPLE_COUNT - 1
+          ? domain.max
+          : domain.min + span * ratio;
+    const y = evaluatePolynomial(coefficients, x);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return null;
+    }
+    samples.push({ x, y });
+  }
+  return samples;
+}
+
+function buildErrorBars(fit: FitResponse | null): ErrorBarDatum[] {
+  if (!fit || !fit.weighted || !fit.y_errors || fit.y_errors.length === 0) {
+    return [];
+  }
+  const limit = Math.min(fit.pairs.length, fit.y_errors.length);
+  const bars: ErrorBarDatum[] = [];
+  for (let index = 0; index < limit; index += 1) {
+    const pair = fit.pairs[index];
+    const sigma = fit.y_errors[index];
+    if (
+      !pair ||
+      !Number.isFinite(pair.x) ||
+      !Number.isFinite(pair.y) ||
+      !Number.isFinite(sigma)
+    ) {
+      continue;
+    }
+    const low = pair.y - sigma;
+    const high = pair.y + sigma;
+    if (!Number.isFinite(low) || !Number.isFinite(high)) {
+      continue;
+    }
+    bars.push({ x: pair.x, y: pair.y, sigma, low, high });
+  }
+  return bars;
 }
 
 function clampToFinite(value: number, fallback: number): number {
@@ -222,12 +304,14 @@ export function ScatterPlot({
   yColumn,
   xUnit,
   yUnit,
+  fit = null,
 }: {
   pairs: SeriesPair[];
   xColumn: string;
   yColumn: string;
   xUnit?: string | null;
   yUnit?: string | null;
+  fit?: FitResponse | null;
 }) {
   const points = finitePairs(pairs);
   const pointCount = points.length;
@@ -236,11 +320,23 @@ export function ScatterPlot({
   const yLabel = axisLabel(yColumn, yUnit);
 
   const xAxis = hasPoints ? buildAxis(points.map((pair) => pair.x)) : null;
-  const yAxis = hasPoints ? buildAxis(points.map((pair) => pair.y)) : null;
   const xDomain = xAxis?.domain ?? null;
+
+  const errorBars = hasPoints ? buildErrorBars(fit) : [];
+  const hasErrorBars = errorBars.length > 0;
+  const yValues = points.map((pair) => pair.y);
+  if (hasErrorBars) {
+    for (const bar of errorBars) {
+      yValues.push(bar.low, bar.high);
+    }
+  }
+  const yAxis = hasPoints ? buildAxis(yValues) : null;
   const yDomain = yAxis?.domain ?? null;
   const xTicks = xAxis;
   const yTicks = yAxis;
+
+  const fitCurve =
+    xDomain && yDomain ? buildFitCurve(fit, xDomain) : null;
 
   const domainAttributes = xDomain && yDomain
     ? {
@@ -251,8 +347,18 @@ export function ScatterPlot({
       }
     : {};
 
+  const overlayLabels: string[] = [];
+  if (fitCurve) {
+    overlayLabels.push("包含拟合曲线");
+  }
+  if (hasErrorBars) {
+    overlayLabels.push(`包含 ${errorBars.length} 条 Y 误差棒（±σ）`);
+  }
+
   const ariaLabel = hasPoints
-    ? `${xLabel} 对 ${yLabel} 的散点图，共 ${pointCount} 个数据点`
+    ? `${xLabel} 对 ${yLabel} 的散点图，共 ${pointCount} 个数据点${
+        overlayLabels.length > 0 ? `，${overlayLabels.join("，")}` : ""
+      }`
     : `${xLabel} 对 ${yLabel} 的散点图，暂无可绘制的数据点`;
 
   return (
@@ -403,6 +509,71 @@ export function ScatterPlot({
               {yLabel}
             </text>
 
+            {fitCurve && fit && xDomain && yDomain ? (
+              <polyline
+                data-testid="fit-curve"
+                data-point-count={FIT_CURVE_SAMPLE_COUNT}
+                data-degree={String(fit.degree)}
+                data-x-min={String(xDomain.min)}
+                data-x-max={String(xDomain.max)}
+                points={fitCurve
+                  .map(
+                    (sample) =>
+                      `${scaleX(sample.x, xDomain)},${scaleY(sample.y, yDomain)}`,
+                  )
+                  .join(" ")}
+                fill="none"
+                stroke={FIT_COLOR}
+                strokeWidth={2.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ) : null}
+
+            {hasErrorBars && xDomain && yDomain
+              ? errorBars.map((bar, index) => {
+                  const x = scaleX(bar.x, xDomain);
+                  const top = scaleY(bar.high, yDomain);
+                  const bottom = scaleY(bar.low, yDomain);
+                  return (
+                    <g
+                      key={`error-bar-${index}`}
+                      data-testid="error-bar"
+                      data-x={String(bar.x)}
+                      data-y={String(bar.y)}
+                      data-sigma={String(bar.sigma)}
+                      data-y-low={String(bar.low)}
+                      data-y-high={String(bar.high)}
+                    >
+                      <line
+                        x1={x}
+                        y1={top}
+                        x2={x}
+                        y2={bottom}
+                        stroke={ERROR_BAR_COLOR}
+                        strokeWidth={1.5}
+                      />
+                      <line
+                        x1={x - ERROR_BAR_CAP}
+                        y1={top}
+                        x2={x + ERROR_BAR_CAP}
+                        y2={top}
+                        stroke={ERROR_BAR_COLOR}
+                        strokeWidth={1.5}
+                      />
+                      <line
+                        x1={x - ERROR_BAR_CAP}
+                        y1={bottom}
+                        x2={x + ERROR_BAR_CAP}
+                        y2={bottom}
+                        stroke={ERROR_BAR_COLOR}
+                        strokeWidth={1.5}
+                      />
+                    </g>
+                  );
+                })
+              : null}
+
             {points.map((pair, index) => (
               <circle
                 key={`point-${index}`}
@@ -441,6 +612,32 @@ export function ScatterPlot({
           />
           圆点表示一个数据点（{pointCount} 个）
         </span>
+        {fitCurve && fit ? (
+          <span
+            className="inline-flex items-center gap-2"
+            data-testid="scatter-fit-legend"
+          >
+            <span
+              aria-hidden="true"
+              className="inline-block h-0.5 w-5 rounded-full"
+              style={{ backgroundColor: FIT_COLOR }}
+            />
+            实线为拟合曲线（{fit.degree} 次多项式）
+          </span>
+        ) : null}
+        {hasErrorBars ? (
+          <span
+            className="inline-flex items-center gap-2"
+            data-testid="scatter-error-legend"
+          >
+            <span
+              aria-hidden="true"
+              className="inline-block h-3 w-0.5"
+              style={{ backgroundColor: ERROR_BAR_COLOR }}
+            />
+            竖线为 Y 误差棒（±σ）
+          </span>
+        ) : null}
         <span>自动坐标范围，含约 5% 边距</span>
       </div>
 

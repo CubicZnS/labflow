@@ -3,6 +3,7 @@ import {
   createSeries,
   type CsvImportResponse,
   type DatasetFormat,
+  type FitResponse,
   type SeriesResponse,
 } from "../lib/api";
 import { FitPanel } from "./FitPanel";
@@ -86,6 +87,7 @@ export function SeriesPanel({
   const [yUnit, setYUnit] = useState("");
   const [seriesState, setSeriesState] = useState<SeriesState>({ status: "idle" });
   const [seriesRun, setSeriesRun] = useState(0);
+  const [fitResult, setFitResult] = useState<FitResponse | null>(null);
 
   const isLoading = seriesState.status === "loading";
   const sameSelection = xColumn !== "" && xColumn === yColumn;
@@ -96,6 +98,7 @@ export function SeriesPanel({
       return;
     }
     setSeriesState({ status: "loading" });
+    setFitResult(null);
     try {
       const series = await createSeries(file, format, {
         xColumn,
@@ -267,6 +270,7 @@ export function SeriesPanel({
             yColumn={seriesState.result.y_column}
             xUnit={seriesState.result.x_unit}
             yUnit={seriesState.result.y_unit}
+            fit={fitResult}
           />
           <PairPreview result={seriesState.result} />
           <FitPanel
@@ -275,6 +279,7 @@ export function SeriesPanel({
             format={format}
             series={seriesState.result}
             numericColumns={numericColumns}
+            onFitChange={setFitResult}
           />
         </div>
       ) : null}

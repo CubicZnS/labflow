@@ -509,6 +509,92 @@ describe("App", () => {
     ).toEqual(["线性（1 次）", "二次（2 次）", "三次（3 次）"]);
     expect(screen.getByRole("button", { name: "运行拟合" })).toBeEnabled();
     expect(screen.queryByTestId("fit-result")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("fit-curve")).not.toBeInTheDocument();
+  });
+
+  it("overlays the fit curve on the scatter plot after a successful fit", async () => {
+    installFetchMock(
+      () => jsonResponse(csvPayload),
+      () => jsonResponse(seriesPayload),
+      () => jsonResponse(fitPayload),
+    );
+    render(<App />);
+
+    await generateSeries();
+    expect(screen.queryByTestId("fit-curve")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+    await screen.findByTestId("fit-result");
+
+    expect(screen.getByTestId("fit-curve")).toHaveAttribute(
+      "data-point-count",
+      "101",
+    );
+    expect(screen.getByTestId("fit-curve")).toHaveAttribute("data-degree", "1");
+    expect(screen.getByTestId("scatter-fit-legend")).toHaveTextContent(
+      "实线为拟合曲线",
+    );
+    expect(screen.queryAllByTestId("error-bar")).toHaveLength(0);
+  });
+
+  it("overlays Y error bars for a weighted fit", async () => {
+    const weightedFitPayload: FitResponse = {
+      ...fitPayload,
+      weighted: true,
+      y_error_column: "absorbance_err",
+      y_error_unit: "mV",
+      y_errors: [0.01, 0.02],
+    };
+    installFetchMock(
+      () => jsonResponse(csvPayload),
+      () => jsonResponse(seriesPayload),
+      () => jsonResponse(weightedFitPayload),
+    );
+    render(<App />);
+
+    await generateSeries();
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+    await screen.findByTestId("fit-result");
+
+    expect(screen.getByTestId("fit-curve")).toBeInTheDocument();
+    const bars = screen.getAllByTestId("error-bar");
+    expect(bars).toHaveLength(2);
+    expect(bars[0]).toHaveAttribute("data-y-low", String(0.012 - 0.01));
+    expect(bars[0]).toHaveAttribute("data-y-high", String(0.012 + 0.01));
+    expect(screen.getByTestId("scatter-error-legend")).toHaveTextContent(
+      "竖线为 Y 误差棒（±σ）",
+    );
+  });
+
+  it("clears the previous curve while a new fit is pending", async () => {
+    let fitCalls = 0;
+    let resolveSecondFit: ((response: Response) => void) | undefined;
+    installFetchMock(
+      () => jsonResponse(csvPayload),
+      () => jsonResponse(seriesPayload),
+      () => {
+        fitCalls += 1;
+        if (fitCalls === 1) {
+          return jsonResponse(fitPayload);
+        }
+        return new Promise<Response>((resolve) => {
+          resolveSecondFit = resolve;
+        });
+      },
+    );
+    render(<App />);
+
+    await generateSeries();
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+    await screen.findByTestId("fit-result");
+    expect(screen.getByTestId("fit-curve")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+    expect(screen.getByRole("button", { name: "正在拟合…" })).toBeDisabled();
+    expect(screen.queryByTestId("fit-curve")).not.toBeInTheDocument();
+
+    resolveSecondFit?.(jsonResponse(fitPayload));
+    expect(await screen.findByTestId("fit-curve")).toBeInTheDocument();
   });
 
   it("posts the fit FormData and renders equation, R², residuals, and preview", async () => {
@@ -618,6 +704,8 @@ describe("App", () => {
     );
     expect(screen.queryByTestId("fit-result")).not.toBeInTheDocument();
     expect(screen.queryByTestId("fit-preview-table")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("fit-curve")).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId("error-bar")).toHaveLength(0);
   });
 
   it("disables the run button while a fit request is pending", async () => {
@@ -643,22 +731,33 @@ describe("App", () => {
   });
 
   it("clears the previous fit result when a new series is generated", async () => {
+    const weightedFitPayload: FitResponse = {
+      ...fitPayload,
+      weighted: true,
+      y_error_column: "absorbance_err",
+      y_error_unit: "mV",
+      y_errors: [0.01, 0.02],
+    };
     installFetchMock(
       () => jsonResponse(csvPayload),
       () => jsonResponse(seriesPayload),
-      () => jsonResponse(fitPayload),
+      () => jsonResponse(weightedFitPayload),
     );
     render(<App />);
 
     await generateSeries();
     fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
     await screen.findByTestId("fit-result");
+    expect(screen.getByTestId("fit-curve")).toBeInTheDocument();
+    expect(screen.getAllByTestId("error-bar")).toHaveLength(2);
 
     fireEvent.click(screen.getByRole("button", { name: "生成配对数据" }));
     await screen.findByTestId("series-pair-count");
 
     expect(screen.getByTestId("fit-section")).toBeInTheDocument();
     expect(screen.queryByTestId("fit-result")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("fit-curve")).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId("error-bar")).toHaveLength(0);
   });
 
   it("renders coefficient standard errors, confidence intervals, and residual dof", async () => {

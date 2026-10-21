@@ -332,11 +332,13 @@ export function FitPanel({
   format,
   series,
   numericColumns,
+  onFitChange,
 }: {
   file: File;
   format: DatasetFormat;
   series: SeriesResponse;
   numericColumns: string[];
+  onFitChange: (result: FitResponse | null) => void;
 }) {
   const degreeId = useId();
   const errorColumnId = useId();
@@ -356,6 +358,7 @@ export function FitPanel({
       return;
     }
     setFitState({ status: "loading" });
+    onFitChange(null);
     try {
       const result = await createFit(file, format, {
         xColumn: series.x_column,
@@ -367,12 +370,14 @@ export function FitPanel({
         yErrorUnit: errorColumn ? errorUnit : undefined,
       });
       setFitState({ status: "success", result });
+      onFitChange(result);
     } catch (error) {
       setFitState({
         status: "error",
         message:
           error instanceof Error ? error.message : "拟合失败，请稍后重试。",
       });
+      onFitChange(null);
     }
   }
 
