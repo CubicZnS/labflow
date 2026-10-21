@@ -731,3 +731,48 @@ git log --oneline --decorate dev
   - 合并后在 `dev` 重跑 5 个 gate：后端 `pytest -q -o addopts=""` **155 passed**、`ruff check app tests` 通过；前端 `typecheck` 通过、`test:run` **147 passed**、`build` 成功。
   - 推送核验：`git ls-remote origin refs/heads/dev` 与 `gh api` 对合并 SHA `aeed1843950c2d43971cc14224282b6802c05872` 返回一致；`main` 保持 `7b3c2f1153eb561241ba33fa74e06953e552e63e` 未改动；无 force push、无历史改写。
   - 阶段状态：Phase 4.1b（项目元数据、PNG 导出倍率与快照 schema v2）完成并合并；Phase 4 MVP 产品化仍在进行，下一轮进入 Phase 4.2 示例数据与新手引导。
+
+## 迭代 #16 — Phase 4.2 示例数据与新手引导
+
+- 日期：2026-10-22
+- 目标：提供一键载入内置示例 CSV、把首页当前阶段与真实能力对齐到 Phase 4，并加入中文首次使用三步引导；纯前端增量，不新增依赖、不改后端契约、不上传用户数据、不引入后端持久化。
+- 任务选择：MAC-70（迭代 #16，Phase 4.2）。
+- 分支：`iter/16`，基于 `dev` 的 `7279e8b0e2df6c404cf1175c52e6c9599b150df1`。只在该分支提交并 push，不合并、不 force push、不改写历史。
+- 产品决策：
+  - 示例数据只有一个：仓库现有 `frontend/public/samples/labflow-demo.csv`（12 行，含 `sample_id/time_s/absorbance/temperature_c/notes`、1 个缺失读数与中文备注），不新增或改写示例文件。
+  - 一键载入必须复用现有导入链路：`GET /samples/labflow-demo.csv` → 构造同名 `File` → `uploadDataset` → 现有成功视图；成功后不自动发起 series 或 fit 请求。
+  - 示例载入失败不破坏当前已选文件、已解析结果或分析状态，错误用中文 `role="alert"` 单独展示，可重试或手动上传。
+  - 首页不再宣称 Phase 3 当前阶段或未实现的手工录入，首次使用引导只描述已落地能力。
+- 已完成：
+  - `frontend/src/components/CsvImportPanel.tsx`：
+    - “1. 选择文件”卡片新增 `载入示例数据` 按钮（`type="button"`、`data-testid="load-sample"`）；载入中显示“正在载入示例…”并禁用按钮、上传、清除和文件选择。
+    - 新增同步 `sampleLoadingRef`，双击只触发一次 GET 与一次 POST；`handleLoadSample` 先 `fetch("/samples/labflow-demo.csv")`，非 2xx 抛中文错误，成功后读取响应文本并构造 `new File([text], "labflow-demo.csv", { type: "text/csv" })`。
+    - 抽取 `runUpload(file)` 供手动上传与示例载入共用，保持成功视图、错误视图、`uploadId` 递增与 `SeriesPanel` 重置行为一致。
+    - 示例 GET 失败时展示 `data-testid="sample-error"` 的中文 `role="alert"`，不清空 `selectedFile`、已解析结果或分析状态；再次点击可重试，手动上传仍可用。保留下载链接与全部既有 `data-testid`。
+  - `frontend/src/App.tsx`：
+    - Hero 徽标、路线图标题与 Footer 当前阶段改为 `Phase 4 · MVP 产品化`；路线图正文改为导入/校验/统计/拟合/多系列绘图/PNG-SVG 导出/本地项目快照，并说明剩余 Phase 4 工作（示例与引导、错误处理与可访问性、隐私复核）。
+    - Workflow 01 去掉未实现的“手动录入”，改为 CSV/XLSX 导入或一键载入示例数据。
+    - 新增 `data-testid="onboarding-guide"` 的首次使用三步引导：检查导入结果 → 选择 X/Y 与单位并生成配对（可追加系列与 Y 误差列）→ 拟合、调整样式并导出 SVG/PNG 或保存 `.labflow.json` 项目文件。
+    - API 状态徽标、锚点导航和响应式布局保持不变。
+  - `frontend/src/App.test.tsx`：
+    - 新增示例载入成功测试：先 GET 示例文件再 POST CSV，FormData 文件名为 `labflow-demo.csv`、类型 `text/csv`，显示解析结果并可继续配对，不产生 series/fit 请求。
+    - 新增示例 GET 404 测试：中文 `sample-error` 可见、不发 POST、此前解析结果与已选文件保持不变、手动上传可用，再次点击可重试成功。
+    - 新增载入中状态与双击测试：按钮显示“正在载入示例…”且禁用，上传/文件选择禁用，完成后仅 1 次 GET 与 1 次 POST。
+    - 新增 Phase 4 首页测试：路线图标题为 `Phase 4 · MVP 产品化`，不再出现 `Phase 3 · 科学绘图` 或“手动录入”，并核验三步引导文案。
+  - 文档：更新中文 `README.md` 当前状态、能力、测试命令/数量、已知限制、下一轮与“版本迭代记录”表（迭代 #16）；本记录为中文。
+- 测试：
+  - 后端：`.venv/bin/python -m pytest -q -o addopts=""` **155 passed**；`.venv/bin/ruff check app tests` 通过；本轮未改后端。
+  - 前端：`pnpm typecheck` 通过；`pnpm test:run` **151 passed**；`pnpm build` 成功。
+  - 新增/更新覆盖：示例 GET → 同名 File → CSV POST 顺序与文件名/类型；成功视图与配对入口；无自动 series/fit 请求；GET 失败的中文 alert、无 POST、数据保留、重试成功；载入中禁用与双击防重；Phase 4 文案、移除过期 Phase 3 当前阶段与手工录入、首次使用三步引导。
+- 已知限制：
+  - 一键载入依赖前端静态资源 `/samples/labflow-demo.csv`；资源不可用或网络失败时需重试或手动上传。
+  - 示例载入成功后仅完成导入与解析，仍需用户手动选择 X/Y 与单位并生成配对。
+  - 仍不做后端持久化、账户、云同步或跨设备共享；示例文件不包含用户数据。
+  - 首页只更新文案与引导，不新增手工录入、图例自定义或云端能力。
+- 下一轮：Phase 4.3 错误处理与可访问性、隐私复核；继续保证数据不上传、确定性计算、中文优先与项目重跑结果一致。
+- Git：
+  - `iter/16` 功能、测试与页面提交：`22b1774a63fb25fb12bddce2a7d390946c2ffbfc`
+    https://github.com/CubicZnS/labflow/commit/22b1774a63fb25fb12bddce2a7d390946c2ffbfc
+  - `iter/16` 文档/迭代记录提交：待本轮文档提交后补记。
+  - `iter/16` 最终 HEAD：待补记（文档提交后核验 `git ls-remote origin refs/heads/iter/16`）。
+  - `dev` 合并提交：留给 Lead，不在此编造。
