@@ -10,6 +10,10 @@ import math
 from collections.abc import Iterable
 
 import numpy as np
+from scipy import stats
+
+CONFIDENCE_LEVEL = 0.95
+CONDITION_NUMBER_LIMIT = 1e12
 
 
 def _float_array(values: Iterable[float], name: str) -> np.ndarray:
@@ -72,6 +76,71 @@ def _format_polynomial(coefficients: np.ndarray) -> str:
     return equation
 
 
+def _design_matrix(x_array: np.ndarray, degree: int) -> np.ndarray:
+    """Vandermonde design matrix with columns ordered highest power first."""
+    return np.vander(x_array, N=degree + 1, increasing=False)
+
+
+def _condition_number(x_array: np.ndarray, degree: int) -> tuple[float | None, bool]:
+    """Return the 2-norm condition number of the unit-scaled design matrix."""
+    scale = float(np.max(np.abs(x_array)))
+    if scale == 0.0:
+        return None, True
+    scaled_design = _design_matrix(x_array / scale, degree)
+    try:
+        value = float(np.linalg.cond(scaled_design, 2))
+    except np.linalg.LinAlgError:
+        return None, True
+    if not math.isfinite(value):
+        return None, True
+    return value, value > CONDITION_NUMBER_LIMIT
+
+
+def _fit_uncertainty(
+    x_array: np.ndarray,
+    y_array: np.ndarray,
+    coefficients: np.ndarray,
+    degree: int,
+) -> dict[str, object]:
+    """Compute coefficient standard errors, 95% CIs, and conditioning diagnostics.
+
+    The covariance uses ``pinv(X^T X)`` so a rank-deficient design still yields
+    finite values instead of raising. When the data exactly determines the fit
+    there are no residual degrees of freedom, so the uncertainty is reported as
+    ``None`` rather than dividing by zero.
+    """
+    pair_count = int(x_array.size)
+    parameter_count = degree + 1
+    residual_dof = pair_count - parameter_count
+    design = _design_matrix(x_array, degree)
+    residuals = y_array - design @ coefficients
+
+    standard_errors: list[float] | None = None
+    confidence_intervals: list[dict[str, float]] | None = None
+    if residual_dof > 0:
+        mse = float(np.sum(residuals**2)) / residual_dof
+        covariance = mse * np.linalg.pinv(design.T @ design)
+        diagonal = np.maximum(np.diag(covariance), 0.0)
+        standard_errors = [float(math.sqrt(value)) for value in diagonal]
+        t_critical = float(stats.t.ppf(0.5 + CONFIDENCE_LEVEL / 2.0, residual_dof))
+        confidence_intervals = [
+            {
+                "low": float(coefficient - t_critical * error),
+                "high": float(coefficient + t_critical * error),
+            }
+            for coefficient, error in zip(coefficients, standard_errors, strict=True)
+        ]
+
+    condition_number, ill_conditioned = _condition_number(x_array, degree)
+    return {
+        "residual_dof": residual_dof,
+        "standard_errors": standard_errors,
+        "confidence_intervals": confidence_intervals,
+        "condition_number": condition_number,
+        "ill_conditioned": ill_conditioned,
+    }
+
+
 def summary_stats(values: Iterable[float]) -> dict[str, float | int]:
     """Return n, mean, sample standard deviation, and standard error of the mean."""
     array = _float_array(values, "values")
@@ -89,6 +158,7 @@ def linear_fit(x: Iterable[float], y: Iterable[float]) -> dict[str, object]:
     if float(np.ptp(x_array)) == 0.0:
         raise ValueError("x values must vary to fit a line")
     slope, intercept = np.polyfit(x_array, y_array, 1)
+    coefficients = np.asarray([slope, intercept])
     y_hat = slope * x_array + intercept
     residuals = (y_array - y_hat).tolist()
     return {
@@ -98,7 +168,8 @@ def linear_fit(x: Iterable[float], y: Iterable[float]) -> dict[str, object]:
         "intercept": float(intercept),
         "r_squared": _r_squared(y_array, y_hat),
         "residuals": [float(value) for value in residuals],
-        "equation": _format_polynomial(np.asarray([slope, intercept])),
+        "equation": _format_polynomial(coefficients),
+        "uncertainty": _fit_uncertainty(x_array, y_array, coefficients, 1),
     }
 
 
@@ -119,4 +190,5 @@ def polynomial_fit(x: Iterable[float], y: Iterable[float], degree: int = 2) -> d
         "r_squared": _r_squared(y_array, y_hat),
         "residuals": [float(value) for value in (y_array - y_hat).tolist()],
         "equation": _format_polynomial(coefficients),
+        "uncertainty": _fit_uncertainty(x_array, y_array, coefficients, int(degree)),
     }

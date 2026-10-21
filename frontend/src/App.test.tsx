@@ -71,6 +71,13 @@ const fitPayload: FitResponse = {
     "Column 'absorbance' has 1 missing value(s)",
     "Pairing skipped 1 row(s) with missing, non-numeric, or non-finite values",
   ],
+  uncertainty: {
+    residual_dof: 0,
+    standard_errors: null,
+    confidence_intervals: null,
+    condition_number: 5.196152,
+    ill_conditioned: false,
+  },
 };
 
 function jsonResponse(payload: unknown, status = 200): Response {
@@ -646,5 +653,101 @@ describe("App", () => {
 
     expect(screen.getByTestId("fit-section")).toBeInTheDocument();
     expect(screen.queryByTestId("fit-result")).not.toBeInTheDocument();
+  });
+
+  it("renders coefficient standard errors, confidence intervals, and residual dof", async () => {
+    installFetchMock(
+      () => jsonResponse(csvPayload),
+      () => jsonResponse(seriesPayload),
+      () =>
+        jsonResponse({
+          ...fitPayload,
+          uncertainty: {
+            residual_dof: 8,
+            standard_errors: [0.00123456, 0.0234567],
+            confidence_intervals: [
+              { low: 0.0208123, high: 0.0249876 },
+              { low: -0.0432109, high: 0.0671234 },
+            ],
+            condition_number: 2.5,
+            ill_conditioned: false,
+          },
+        }),
+    );
+    render(<App />);
+
+    await generateSeries();
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+
+    const table = await screen.findByTestId("fit-uncertainty-table");
+    expect(within(table).getAllByRole("row")).toHaveLength(3);
+    expect(
+      within(table).getByRole("columnheader", { name: "标准误" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("fit-uncertainty-se-0")).not.toHaveTextContent("—");
+    expect(screen.getByTestId("fit-uncertainty-ci-low-1")).not.toHaveTextContent(
+      "—",
+    );
+    expect(screen.getByTestId("fit-uncertainty-ci-high-1")).not.toHaveTextContent(
+      "—",
+    );
+    expect(screen.getByTestId("fit-residual-dof")).toHaveTextContent("8");
+    expect(screen.getByTestId("fit-condition-number")).toHaveTextContent("2.5");
+    expect(
+      screen.queryByTestId("fit-conditioning-warning"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("fit-uncertainty-note")).not.toBeInTheDocument();
+  });
+
+  it("warns when the fit design matrix is ill-conditioned", async () => {
+    installFetchMock(
+      () => jsonResponse(csvPayload),
+      () => jsonResponse(seriesPayload),
+      () =>
+        jsonResponse({
+          ...fitPayload,
+          uncertainty: {
+            residual_dof: 2,
+            standard_errors: [1.5, 0.5],
+            confidence_intervals: [
+              { low: 0.5, high: 3.5 },
+              { low: -0.5, high: 1.5 },
+            ],
+            condition_number: 1e13,
+            ill_conditioned: true,
+          },
+        }),
+    );
+    render(<App />);
+
+    await generateSeries();
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+
+    expect(await screen.findByTestId("fit-conditioning-warning")).toHaveTextContent(
+      "设计矩阵病态，系数估计可能不稳定。",
+    );
+    expect(screen.getByTestId("fit-uncertainty-table")).toBeInTheDocument();
+    expect(screen.queryByTestId("fit-uncertainty-note")).not.toBeInTheDocument();
+  });
+
+  it("shows the uncertainty note and em dashes for an exactly determined fit", async () => {
+    installFetchMock(
+      () => jsonResponse(csvPayload),
+      () => jsonResponse(seriesPayload),
+      () => jsonResponse(fitPayload),
+    );
+    render(<App />);
+
+    await generateSeries();
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+
+    expect(await screen.findByTestId("fit-uncertainty-note")).toHaveTextContent(
+      "有效数据点恰好等于参数个数，无法估计系数不确定度。",
+    );
+    expect(screen.getByTestId("fit-uncertainty-se-0")).toHaveTextContent("—");
+    expect(screen.getByTestId("fit-uncertainty-ci-low-0")).toHaveTextContent("—");
+    expect(screen.getByTestId("fit-uncertainty-ci-high-0")).toHaveTextContent("—");
+    expect(screen.getByTestId("fit-residual-dof")).toHaveTextContent("0");
+    expect(screen.queryByTestId("fit-conditioning-warning")).not.toBeInTheDocument();
   });
 });

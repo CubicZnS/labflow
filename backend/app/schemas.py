@@ -76,6 +76,19 @@ class SeriesResponse(BaseModel):
     warnings: list[str]
 
 
+class ConfidenceInterval(BaseModel):
+    low: float
+    high: float
+
+
+class FitUncertainty(BaseModel):
+    residual_dof: int
+    standard_errors: list[float] | None
+    confidence_intervals: list[ConfidenceInterval] | None
+    condition_number: float | None
+    ill_conditioned: bool
+
+
 class DatasetFitResponse(BaseModel):
     x_column: str
     y_column: str
@@ -94,3 +107,4 @@ class DatasetFitResponse(BaseModel):
     rmse: float
     max_abs_residual: float
     warnings: list[str]
+    uncertainty: FitUncertainty
