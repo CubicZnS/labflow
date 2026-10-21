@@ -39,9 +39,23 @@ function unitHeader(label: string, unit: string | null): string {
   return unit ? `${label} (${unit})` : label;
 }
 
+function termLabel(power: number): string {
+  if (power === 0) {
+    return "常数项";
+  }
+  if (power === 1) {
+    return "x";
+  }
+  return `x^${power}`;
+}
+
 function FitResult({ result }: { result: FitResponse }) {
   const previewRows = result.pairs.slice(0, PREVIEW_LIMIT);
   const limited = result.pair_count > PREVIEW_LIMIT;
+  const { uncertainty } = result;
+  const standardErrors = uncertainty.standard_errors;
+  const confidenceIntervals = uncertainty.confidence_intervals;
+  const highestPower = result.coefficients.length - 1;
 
   return (
     <div
@@ -87,6 +101,112 @@ function FitResult({ result }: { result: FitResponse }) {
           {result.coefficients.map(formatValue).join("、")}
         </span>
       </p>
+
+      <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <table
+          className="min-w-full divide-y divide-slate-200 text-left text-sm"
+          data-testid="fit-uncertainty-table"
+        >
+          <caption className="px-4 py-2 text-left text-xs text-slate-500">
+            系数不确定度（95% 置信区间）
+          </caption>
+          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <tr>
+              <th scope="col" className="whitespace-nowrap px-4 py-2 font-medium">
+                系数项
+              </th>
+              <th scope="col" className="whitespace-nowrap px-4 py-2 font-medium">
+                系数
+              </th>
+              <th scope="col" className="whitespace-nowrap px-4 py-2 font-medium">
+                标准误
+              </th>
+              <th scope="col" className="whitespace-nowrap px-4 py-2 font-medium">
+                95% CI 下限
+              </th>
+              <th scope="col" className="whitespace-nowrap px-4 py-2 font-medium">
+                95% CI 上限
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 bg-white">
+            {result.coefficients.map((coefficient, index) => {
+              const standardError = standardErrors?.[index];
+              const interval = confidenceIntervals?.[index];
+              return (
+                <tr key={index}>
+                  <td className="whitespace-nowrap px-4 py-2 text-slate-700">
+                    {termLabel(highestPower - index)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2 text-slate-700">
+                    {formatValue(coefficient)}
+                  </td>
+                  <td
+                    className="whitespace-nowrap px-4 py-2 text-slate-700"
+                    data-testid={`fit-uncertainty-se-${index}`}
+                  >
+                    {standardError === undefined ? "—" : formatValue(standardError)}
+                  </td>
+                  <td
+                    className="whitespace-nowrap px-4 py-2 text-slate-700"
+                    data-testid={`fit-uncertainty-ci-low-${index}`}
+                  >
+                    {interval ? formatValue(interval.low) : "—"}
+                  </td>
+                  <td
+                    className="whitespace-nowrap px-4 py-2 text-slate-700"
+                    data-testid={`fit-uncertainty-ci-high-${index}`}
+                  >
+                    {interval ? formatValue(interval.high) : "—"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div>
+          <dt className="text-xs text-slate-500">残差自由度</dt>
+          <dd
+            className="mt-1 text-base font-semibold text-ink"
+            data-testid="fit-residual-dof"
+          >
+            {uncertainty.residual_dof}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">条件数</dt>
+          <dd
+            className="mt-1 text-base font-semibold text-ink"
+            data-testid="fit-condition-number"
+          >
+            {uncertainty.condition_number === null
+              ? "—"
+              : formatValue(uncertainty.condition_number)}
+          </dd>
+        </div>
+      </dl>
+
+      {uncertainty.ill_conditioned ? (
+        <div
+          role="alert"
+          className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800"
+          data-testid="fit-conditioning-warning"
+        >
+          设计矩阵病态，系数估计可能不稳定。
+        </div>
+      ) : null}
+
+      {standardErrors === null ? (
+        <p
+          className="mt-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-600"
+          data-testid="fit-uncertainty-note"
+        >
+          有效数据点恰好等于参数个数，无法估计系数不确定度。
+        </p>
+      ) : null}
 
       <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table

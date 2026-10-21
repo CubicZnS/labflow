@@ -165,6 +165,19 @@ export type SeriesSelection = {
 
 export type FitDegree = 1 | 2 | 3;
 
+export type ConfidenceInterval = {
+  low: number;
+  high: number;
+};
+
+export type FitUncertainty = {
+  residual_dof: number;
+  standard_errors: number[] | null;
+  confidence_intervals: ConfidenceInterval[] | null;
+  condition_number: number | null;
+  ill_conditioned: boolean;
+};
+
 export type FitResponse = {
   x_column: string;
   y_column: string;
@@ -183,6 +196,7 @@ export type FitResponse = {
   rmse: number;
   max_abs_residual: number;
   warnings: string[];
+  uncertainty: FitUncertainty;
 };
 
 export type FitSelection = {

@@ -93,6 +93,22 @@ def build_fit(
     rmse = float(np.sqrt(np.mean(residuals**2)))
     max_abs_residual = float(np.max(np.abs(residuals))) if residuals.size else 0.0
 
+    uncertainty = analysis["uncertainty"]
+    warnings = list(series["warnings"])
+    if uncertainty["residual_dof"] == 0:
+        warnings.append(
+            "X/Y pairs exactly determine the fit; coefficient standard errors are unavailable"
+        )
+    if uncertainty["ill_conditioned"]:
+        condition_number = uncertainty["condition_number"]
+        formatted = (
+            "non-finite" if condition_number is None else f"{condition_number:.6g}"
+        )
+        warnings.append(
+            f"Fit design matrix is ill-conditioned (condition number {formatted}); "
+            "coefficient estimates may be numerically unstable"
+        )
+
     return {
         "x_column": series["x_column"],
         "y_column": series["y_column"],
@@ -110,5 +126,6 @@ def build_fit(
         "residuals": [float(value) for value in residuals.tolist()],
         "rmse": rmse,
         "max_abs_residual": max_abs_residual,
-        "warnings": series["warnings"],
+        "uncertainty": uncertainty,
+        "warnings": warnings,
     }

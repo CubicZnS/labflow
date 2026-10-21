@@ -157,6 +157,7 @@ def test_fit_keeps_series_warnings_and_skipped_count() -> None:
     assert body["warnings"] == [
         "Column 'y' has 1 missing value(s)",
         "Pairing skipped 1 row(s) with missing, non-numeric, or non-finite values",
+        "X/Y pairs exactly determine the fit; coefficient standard errors are unavailable",
     ]
 
 
@@ -265,3 +266,109 @@ def test_fit_rejects_malformed_xlsx() -> None:
     response = post_fit(b"not an xlsx workbook", format="xlsx")
     assert response.status_code == 422
     assert "malformed" in response.json()["detail"].lower()
+
+
+UNCERTAINTY_WARNING = (
+    "X/Y pairs exactly determine the fit; coefficient standard errors are unavailable"
+)
+
+
+def test_fit_two_point_line_is_determined_and_reports_no_uncertainty() -> None:
+    response = post_fit(b"x,y\n0,1\n2,5\n", degree="1")
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["pair_count"] == 2
+    assert body["uncertainty"]["residual_dof"] == 0
+    assert body["uncertainty"]["standard_errors"] is None
+    assert body["uncertainty"]["confidence_intervals"] is None
+    assert body["warnings"] == [UNCERTAINTY_WARNING]
+    assert math.isfinite(body["uncertainty"]["condition_number"])
+
+
+def test_fit_three_point_quadratic_is_determined_and_reports_no_uncertainty() -> None:
+    response = post_fit(b"x,y\n-1,1\n0,0\n1,1\n", degree="2")
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["pair_count"] == 3
+    assert body["uncertainty"]["residual_dof"] == 0
+    assert body["uncertainty"]["standard_errors"] is None
+    assert body["uncertainty"]["confidence_intervals"] is None
+    assert body["warnings"] == [UNCERTAINTY_WARNING]
+
+
+def test_fit_reports_uncertainty_for_noisy_line() -> None:
+    response = post_fit(b"x,y\n0,1\n1,3\n2,6\n3,9\n", degree="1")
+    assert response.status_code == 200
+    body = response.json()
+    uncertainty = body["uncertainty"]
+
+    assert uncertainty["residual_dof"] == 2
+    assert uncertainty["standard_errors"] is not None
+    assert len(uncertainty["standard_errors"]) == 2
+    assert len(uncertainty["confidence_intervals"]) == 2
+    for coefficient, error, interval in zip(
+        body["coefficients"],
+        uncertainty["standard_errors"],
+        uncertainty["confidence_intervals"],
+        strict=True,
+    ):
+        assert error >= 0.0
+        assert interval["low"] == pytest.approx(coefficient - interval_width(interval) / 2)
+        assert interval["high"] == pytest.approx(coefficient + interval_width(interval) / 2)
+    assert uncertainty["ill_conditioned"] is False
+    assert not any("ill-conditioned" in warning for warning in body["warnings"])
+
+
+def interval_width(interval: dict[str, float]) -> float:
+    return interval["high"] - interval["low"]
+
+
+def test_fit_flags_ill_conditioned_design_and_stays_serializable() -> None:
+    x_values = [1.0 + index * 1e-10 for index in range(5)]
+    y_values = [2.0, 3.0, 5.0, 7.0, 11.0]
+    rows = "\n".join(
+        f"{x!r},{y!r}" for x, y in zip(x_values, y_values, strict=True)
+    )
+    response = post_fit(f"x,y\n{rows}\n".encode(), degree="3")
+    assert response.status_code == 200
+    body = response.json()
+    uncertainty = body["uncertainty"]
+
+    assert uncertainty["residual_dof"] == 1
+    assert uncertainty["ill_conditioned"] is True
+    assert any("ill-conditioned" in warning for warning in body["warnings"])
+    assert "NaN" not in response.text
+    assert "Infinity" not in response.text
+    if uncertainty["condition_number"] is not None:
+        assert math.isfinite(uncertainty["condition_number"])
+        assert uncertainty["condition_number"] > 1e12
+
+
+def test_fit_csv_and_xlsx_uncertainty_fields_match() -> None:
+    rows = [
+        ["x", "y"],
+        [0, 1.2],
+        [1, 2.1],
+        [2, 2.9],
+        [3, 4.2],
+        [4, 4.8],
+        [5, 6.1],
+    ]
+    csv_rows = "\n".join(
+        f"{row[0]},{row[1]}" for row in rows[1:]
+    )
+    csv_content = f"x,y\n{csv_rows}\n".encode()
+
+    csv_response = post_fit(csv_content, degree="2")
+    xlsx_response = post_fit(build_xlsx(rows), format="xlsx", degree="2")
+
+    assert csv_response.status_code == 200
+    assert xlsx_response.status_code == 200
+    csv_body = csv_response.json()
+    xlsx_body = xlsx_response.json()
+    assert csv_body["uncertainty"] == xlsx_body["uncertainty"]
+    assert csv_body["warnings"] == xlsx_body["warnings"]
+    assert csv_body["uncertainty"]["residual_dof"] == 3
+    assert csv_body["uncertainty"]["standard_errors"] is not None
