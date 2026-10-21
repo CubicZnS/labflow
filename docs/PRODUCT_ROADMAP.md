@@ -40,16 +40,20 @@ Acceptance: both applications start; tests pass; CI is configured; the first com
 
 Acceptance: a real experimental CSV/XLSX can be imported and produces correct summary statistics.
 
-### Phase 2 — Curve fitting (next)
+### Phase 2 — Curve fitting (in progress)
 
 Phase 1 acceptance is met: real CSV/XLSX files import with validation, statistics, and an explicit
 paired series with units. Manual table entry/editing is deferred until after fitting/plotting.
 
-- Linear regression
-- Quadratic and cubic polynomial fits
-- Fit equation, R-squared, residuals
-- Error bars and uncertainty propagation
-- Warnings for underdetermined or ill-conditioned fits
+- [x] Linear regression
+- [x] Quadratic and cubic polynomial fits
+- [x] Fit equation, R-squared, residuals
+- [ ] Error bars and uncertainty propagation
+- [ ] Warnings for underdetermined or ill-conditioned fits (underdetermined fits already return 422)
+
+Phase 2.1 (iteration 6) delivered dataset-level fits on the paired series with equation, R-squared,
+residuals, RMSE, and maximum absolute residual. Next: coefficient uncertainty and ill-conditioning
+diagnostics, then measurement-error columns and error bars.
 
 Acceptance: known-value fixtures match independent numerical baselines.
 

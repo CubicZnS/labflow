@@ -285,3 +285,67 @@ Failed or blocked steps are reported honestly.
 - Next iteration: Phase 2.1 — linear fit on the selected X/Y series with equation, R², and
   residual display, built on the existing deterministic `linear_fit` implementation.
 
+## Iteration #6 — Phase 2.1 dataset fitting (linear, quadratic, cubic)
+
+- Date: 2026-10-21
+- Goal: let a user fit the selected X/Y series directly from the imported CSV/XLSX, choose degree
+  1–3, and see the equation, R², coefficients, residual diagnostics, and a residual preview.
+- Selected backlog task: MAC-31 (Phase 2.1 — dataset fit endpoint and fit panel). The backlog had
+  no ready task, so it was created from the roadmap and assigned to Dev.
+- Branch: `iter/6`, created from `dev` at `7060ed023a875df54716d59bfbb4b62cc758d92f`.
+- Completed:
+  - `POST /api/datasets/fit` accepts multipart `file`, `format`, `x_column`, `y_column`, `degree`
+    (default 1, allowed 1–3), and optional `x_unit`/`y_unit`.
+  - The endpoint reuses `build_series` for parsing, column validation, temporal rejection, pairing,
+    skip counting, units, and warnings, and reuses `linear_fit`/`polynomial_fit` for least squares.
+    No least-squares logic or CSV/XLSX parsing was duplicated.
+  - Response adds `DatasetFitResponse`: column names, units, row/pair/skipped counts, degree,
+    coefficients (highest power first), equation, R², pairs, fitted values, residuals, RMSE, maximum
+    absolute residual, and warnings. `fitted`, `residuals`, and `pairs` stay aligned in file order.
+  - Validation: invalid/non-integer/out-of-range degree 422, underdetermined `pair_count <= degree`
+    422, constant X 422, unknown/identical/non-numeric columns 422, unit over 32 characters 422,
+    unsupported format 422; content type 415, empty file 400, over-10 MB 413, malformed file 422,
+    matching the existing import/series endpoints.
+  - Frontend adds a typed `createFit` client and `FitPanel` rendered only after a successful series
+    result. It offers linear/quadratic/cubic selection, loading/disabled states, Chinese error
+    display with server detail, equation, R² at four decimals, coefficients, RMSE, maximum absolute
+    residual, and a first-10-row preview (X, Y, fitted, residual) with a row-count caption.
+  - A successful new series remounts the fit panel via `key`, clearing any previous fit result.
+  - No new dependencies; existing import and series behavior is unchanged.
+- Review and QA findings:
+  - Lead verified the remote branch and `gh api` SHA `a461da1`, reviewed the full diff
+    (`7060ed0..a461da1`: 8 allowed files, +1004/−1), and independently ran every gate before QC.
+  - MAC-32 QA verdict **PASS**. QA independently confirmed known-value coefficients against
+    `numpy.polyfit`/closed form, residual identity `fitted + residual == y`, noisy-fixture RMSE and
+    max residual, CSV/XLSX payload parity, warning parity with `/api/datasets/series`, the complete
+    error matrix including the 10 MB limit, byte-identical regression of import/series endpoints
+    against `dev`, source-order pairing, and the frontend FormData/rendering/reset behavior.
+  - Non-blocking observations from QA: an explicitly empty `degree` form value is treated as omitted
+    and defaults to 1 (`" "` correctly returns 422); backend 422 messages remain English inside the
+    Chinese UI; changing the degree after a successful fit leaves the old result visible until the
+    user runs the fit again.
+- Tests:
+  - Backend: `ruff check app tests` passed; `pytest -q` passed (116 tests, 25 new fitting tests).
+  - Frontend: `pnpm typecheck` passed; `pnpm test:run` passed (22 tests, 7 new fit tests);
+    `pnpm build` succeeded.
+- Independent QA: MAC-32, assigned to DeepSeek Worker QA, verdict **PASS**.
+- Git:
+  - Feature commit on `iter/6`: `a461da1d5216c15a313bf834802e43bed05d0951` — dataset polynomial fit
+    endpoint and fit panel.
+  - Feature commit link: https://github.com/CubicZnS/labflow/commit/a461da1d5216c15a313bf834802e43bed05d0951
+  - Merge commit on `dev`: `48a3440c2b010ee5dc74587076b32de3ac700841`
+  - Merge link: https://github.com/CubicZnS/labflow/commit/48a3440c2b010ee5dc74587076b32de3ac700841
+- Known issues / limits:
+  - No coefficient standard errors, confidence intervals, or measurement-error/error-bar support
+    yet; uncertainty propagation remains open.
+  - There is no ill-conditioned-fit warning; only underdetermined fits are rejected.
+  - An empty `degree` form value defaults to 1 instead of being rejected.
+  - Server validation messages are English inside the Chinese UI.
+  - Changing the degree after a fit keeps the previous result until the next run.
+  - Inherited: boolean columns are accepted as 0/1 by series/fit; mixed object columns skip date
+    rows; only the first XLSX worksheet imports; the 10 MB file is read before the size check;
+    manual table entry/editing is still unimplemented.
+- Next iteration: Phase 2.2 — fit uncertainty and conditioning: coefficient standard errors and
+  95% confidence intervals plus an explicit ill-conditioned-fit warning, with known-value and
+  independent numerical baselines. Then Phase 2.3 adds Y-error columns and error-bar-aware inputs.
+
