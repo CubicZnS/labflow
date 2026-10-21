@@ -1,4 +1,9 @@
+import { useRef, useState } from "react";
 import type { FitResponse, SeriesPair } from "../lib/api";
+import {
+  downloadChart,
+  type ChartExportFormat,
+} from "../lib/chartExport";
 
 const VIEW_WIDTH = 640;
 const VIEW_HEIGHT = 360;
@@ -546,6 +551,12 @@ export function ScatterPlot({
   tickDensity?: TickDensity;
   fontScale?: FontScale;
 }) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const exportInFlight = useRef(false);
+  const [exporting, setExporting] = useState<ChartExportFormat | null>(null);
+  const [exportStatus, setExportStatus] = useState("");
+  const [exportError, setExportError] = useState("");
+
   const resolvedSeries: ResolvedSeries[] = [
     { id: "main", name: yColumn, pairs: finitePairs(pairs) },
     ...extraSeries.map((series) => ({
@@ -641,6 +652,43 @@ export function ScatterPlot({
         trimmedTitle ? `，标题「${trimmedTitle}」` : ""
       }`;
 
+  const exportingAny = exporting !== null;
+  const exportStatusText = exportingAny ? "正在导出…" : exportStatus;
+
+  const handleExport = async (format: ChartExportFormat) => {
+    if (!hasPoints || exportInFlight.current) {
+      return;
+    }
+    const svg = svgRef.current;
+    if (!svg) {
+      setExportError("导出失败：找不到图表");
+      return;
+    }
+    exportInFlight.current = true;
+    setExporting(format);
+    setExportError("");
+    setExportStatus("");
+    try {
+      const fileName = await downloadChart({
+        svg,
+        format,
+        title: trimmedTitle,
+        xColumn,
+        yColumn,
+      });
+      setExportStatus(`已导出 ${fileName}`);
+    } catch (error) {
+      setExportError(
+        error instanceof Error && error.message.trim().length > 0
+          ? error.message
+          : "导出失败，请重试",
+      );
+    } finally {
+      exportInFlight.current = false;
+      setExporting(null);
+    }
+  };
+
   return (
     <figure
       className="mt-4 rounded-xl border border-slate-200 bg-white p-4"
@@ -653,9 +701,46 @@ export function ScatterPlot({
             ? `${seriesCount} 个系列 · ${pointCount} 个数据点`
             : `${xLabel} · ${yLabel} · ${pointCount} 个数据点`}
         </span>
+        <div
+          className="flex flex-wrap items-center gap-2 text-xs"
+          data-testid="export-controls"
+        >
+          <button
+            type="button"
+            data-testid="export-svg"
+            disabled={!hasPoints || exportingAny}
+            onClick={() => void handleExport("svg")}
+            className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {exporting === "svg" ? "正在导出…" : "导出 SVG"}
+          </button>
+          <button
+            type="button"
+            data-testid="export-png"
+            disabled={!hasPoints || exportingAny}
+            onClick={() => void handleExport("png")}
+            className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {exporting === "png" ? "正在导出…" : "导出 PNG"}
+          </button>
+          {!hasPoints ? (
+            <span className="text-slate-500" data-testid="export-empty-hint">
+              暂无可导出的数据
+            </span>
+          ) : null}
+          <span
+            className="text-slate-500"
+            role="status"
+            aria-live="polite"
+            data-testid="export-status"
+          >
+            {exportStatusText}
+          </span>
+        </div>
       </figcaption>
 
       <svg
+        ref={svgRef}
         data-testid="scatter-plot"
         role="img"
         aria-label={ariaLabel}
@@ -914,6 +999,12 @@ export function ScatterPlot({
           </text>
         )}
       </svg>
+
+      {exportError ? (
+        <p className="mt-2 text-xs text-rose-700" role="alert" data-testid="export-error">
+          {exportError}
+        </p>
+      ) : null}
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
         <div className="flex flex-wrap items-center gap-3" data-testid="series-legend">
