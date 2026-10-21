@@ -10,7 +10,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.analysis import linear_fit, polynomial_fit, summary_stats
-from app.datasets import ALLOWED_CONTENT_TYPES, CsvImportError, parse_csv_bytes
+from app.datasets import (
+    ALLOWED_CONTENT_TYPES,
+    ALLOWED_XLSX_CONTENT_TYPES,
+    DatasetImportError,
+    parse_csv_bytes,
+    parse_xlsx_bytes,
+)
 from app.schemas import (
     CsvImportResponse,
     FitRequest,
@@ -81,6 +87,23 @@ async def import_csv(file: Annotated[UploadFile, File()]) -> CsvImportResponse:
     await file.close()
     try:
         result = parse_csv_bytes(data)
-    except CsvImportError as exc:
+    except DatasetImportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return CsvImportResponse(**result)
+
+
+@app.post("/api/datasets/xlsx", response_model=CsvImportResponse)
+async def import_xlsx(file: Annotated[UploadFile, File()]) -> CsvImportResponse:
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+    if content_type not in ALLOWED_XLSX_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported content type '{content_type or 'unknown'}'; upload an XLSX file",
+        )
+    data = await file.read()
+    await file.close()
+    try:
+        result = parse_xlsx_bytes(data)
+    except DatasetImportError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     return CsvImportResponse(**result)

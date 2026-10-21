@@ -69,13 +69,35 @@ function extractErrorDetail(payload: unknown): string | null {
   return null;
 }
 
-export async function uploadCsv(file: File, signal?: AbortSignal): Promise<CsvImportResponse> {
+export type DatasetFormat = "csv" | "xlsx";
+
+const DATASET_ENDPOINTS: Record<DatasetFormat, string> = {
+  csv: "/api/datasets/csv",
+  xlsx: "/api/datasets/xlsx",
+};
+
+export function datasetFormatForFile(fileName: string): DatasetFormat | null {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".csv")) {
+    return "csv";
+  }
+  if (lower.endsWith(".xlsx")) {
+    return "xlsx";
+  }
+  return null;
+}
+
+export async function uploadDataset(
+  file: File,
+  format: DatasetFormat,
+  signal?: AbortSignal,
+): Promise<CsvImportResponse> {
   const form = new FormData();
   form.append("file", file);
 
   let response: Response;
   try {
-    response = await fetch("/api/datasets/csv", {
+    response = await fetch(DATASET_ENDPOINTS[format], {
       method: "POST",
       body: form,
       signal,
@@ -95,7 +117,7 @@ export async function uploadCsv(file: File, signal?: AbortSignal): Promise<CsvIm
       detail = null;
     }
     throw new CsvUploadError(
-      detail ?? `CSV 上传失败（HTTP ${response.status}），请检查文件后重试。`,
+      detail ?? `${format.toUpperCase()} 上传失败（HTTP ${response.status}），请检查文件后重试。`,
       response.status,
     );
   }
@@ -105,4 +127,12 @@ export async function uploadCsv(file: File, signal?: AbortSignal): Promise<CsvIm
   } catch {
     throw new CsvUploadError("服务器返回了无法解析的响应，请稍后重试。", response.status);
   }
+}
+
+export function uploadCsv(file: File, signal?: AbortSignal): Promise<CsvImportResponse> {
+  return uploadDataset(file, "csv", signal);
+}
+
+export function uploadXlsx(file: File, signal?: AbortSignal): Promise<CsvImportResponse> {
+  return uploadDataset(file, "xlsx", signal);
 }
