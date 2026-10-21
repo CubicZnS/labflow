@@ -26,6 +26,7 @@ git log --oneline --decorate dev
 
 | SHA | 日期 | 中文说明 |
 |---|---|---|
+| `94e8067` | 2026-10-22 | 迭代 #9：Phase 3.1 SVG 散点图与自动坐标范围 |
 | `00bc47b` | 2026-10-21 | 迭代 #8：记录 Phase 2.3a 中文迭代日志并更新路线图 |
 | `7b2fbcb` | 2026-10-21 | 迭代 #8：Phase 2.3a Y 误差列与加权最小二乘拟合 |
 | `93a1013` | 2026-10-21 | 修复：#8 `y_error_column` 空串返回 422 |
@@ -384,7 +385,8 @@ git log --oneline --decorate dev
     - `cd backend && .venv/bin/python -m pytest -q` **155 passed**。
     - `cd backend && .venv/bin/ruff check app tests` 通过。
 - Git：
-  - `iter/9` 功能提交：待本轮功能 commit 后回填。
+  - `iter/9` 功能提交：`94e8067f35670c40ae9234dca4f94e3703fecada`
+    https://github.com/CubicZnS/labflow/commit/94e8067f35670c40ae9234dca4f94e3703fecada
 - 已知限制：
   - 仅绘制 X/Y 配对点；尚无拟合线叠加、Y 误差棒、多系列、样式面板或 PNG/SVG 导出（留待 3.2–3.4）。
   - 自动范围与刻度是确定性启发式，不提供手动缩放或坐标范围编辑。
