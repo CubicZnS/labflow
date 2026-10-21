@@ -420,3 +420,38 @@ git log --oneline --decorate dev
 - Git：
   - `iter/9` 修复提交：`9832aa86bc815223fc8f48e91cb15e80647855fe`
     https://github.com/CubicZnS/labflow/commit/9832aa86bc815223fc8f48e91cb15e80647855fe
+
+## 迭代 #10 — Phase 3.2 拟合曲线叠加与 Y 误差棒
+
+- 日期：2026-10-22
+- 目标：在迭代 #9 的单系列 SVG 散点图上叠加拟合曲线，并在加权拟合时绘制 Y 误差棒；保持确定性坐标范围、中文优先与无新增图表依赖，不改后端契约。
+- 任务选择：MAC-46（Phase 3.2 — 散点图叠加拟合曲线与 Y 误差棒）。Lead 独立审查首版 `ff3b90d` 后发现两个阻断缺陷，创建 MAC-47 退回 Dev 修复；修复提交 `dd83630` 已推送并核验。独立 QA 任务待创建。
+- 分支：`iter/10`，从 `dev` 的 `f85a9215d5419c35308f14ec67b37611e8c562ae` 创建。
+- 已完成：
+  - `ScatterPlot` 新增可选 `fit` 属性。拟合成功后按 `coefficients` 在可见 X 域（含约 5% 边距）确定性采样 101 点，输出 `<polyline data-testid="fit-curve">`，并暴露采样数、次数与 X 域端点；不新增第三方依赖。
+  - 加权拟合（`weighted === true` 且 `y_errors` 非空）时，为每个有限配对点绘制 `y ± σ` 垂直误差棒和上下短帽（`data-testid="error-bar"`）；非有限 σ 或端点被跳过，不影响其他点。
+  - 自动 Y 范围同时纳入有限数据点、误差棒端点与拟合曲线采样值，保持约 5% 边距和 4–6 个刻度；无拟合、无误差棒时坐标域与迭代 #9 一致。高次拟合曲线不再越过坐标轴或标签。
+  - `SeriesPanel` 持有当前 series 的成功拟合结果，`FitPanel` 通过 `onFitChange` 上送；用 `seriesRun` 代次令牌隔离旧请求，新 series 开始与成功时都清空旧拟合，卸载后的异步回调被忽略。修复了“旧 series 拟合结果回写新 series”的竞态。
+  - 图例在存在拟合曲线/误差棒时显示中文说明；`aria-label` 说明叠加内容；散点、空数据、单点、轴标签与单位行为保持不变。
+  - 同步更新中文 README（当前状态、能力、测试数量、限制、下一轮与版本迭代记录表）和 Phase 3 页面文案。
+- 审查与修复发现：
+  - Lead 核验远端 `iter/10` 与 `gh api` SHA；首版 diff 仅涉及 5 个前端文件，后端未改动。
+  - 首版审查缺陷 1：拟合请求挂起时重新生成 series，旧请求返回后仍写入新 series，产生不匹配曲线/误差棒。MAC-47 用 series 代次令牌 + 卸载守卫修复，并新增 `ignores a stale fit response from a previous series` 回归测试。
+  - 首版审查缺陷 2：Y 域未包含拟合采样值，高次曲线在 X 边缘可能越过坐标轴或标签。MAC-47 将有限曲线采样纳入 Y 域，并新增三次拟合越界测试，断言曲线像素坐标始终位于内绘图区、刻度仍为 4–6 个。
+- 测试：
+  - 后端：`ruff check app tests` 通过；`pytest -q` **155 passed**。
+  - 前端：`pnpm typecheck` 通过；`pnpm test:run` **52 passed**（新增拟合曲线、误差棒、Y 域扩展、越界曲线与旧结果隔离测试）；`pnpm build` 成功。
+- 独立 QA：待指派 DeepSeek Worker QA；QA PASS 后补充结论。
+- Git：
+  - `iter/10` 功能提交：`ff3b90d4b7d4e3c86913fb275f10c149c44dfc50`
+    https://github.com/CubicZnS/labflow/commit/ff3b90d4b7d4e3c86913fb275f10c149c44dfc50
+  - `iter/10` 修复提交：`dd836302ef7d67e58f4009942e75c7d08a322a89`
+    https://github.com/CubicZnS/labflow/commit/dd836302ef7d67e58f4009942e75c7d08a322a89
+  - `dev` 合并提交：待 QA PASS 后回填，绝不提前编造。
+- 已知限制：
+  - 仅支持单系列；尚无多系列、标题/图例/网格/字体/刻度样式控制，也无 PNG/SVG 导出（Phase 3.3–3.4）。
+  - 拟合曲线覆盖可见 X 域（含 5% 边距），不提供手动坐标范围或采样点数控制。
+  - 误差棒把输入的 σ 视为绝对误差并假设误差相互独立；误差棒端点超出可表示范围时跳过。
+  - 数据量大时仍渲染全部散点；暂无抽稀或分页。
+  - 继承限制：布尔列按 0/1 参与配对；混合对象列会跳过日期行；仅导入第一个 XLSX worksheet；10 MB 文件在大小检查前已被读取；手工表格录入仍未实现；中文 UI 内部分服务端校验消息/警告仍为英文。
+- 下一轮：Phase 3.3 — 多系列叠加与基础样式控制（标题、图例、网格、字体/刻度），复用现有确定性坐标与拟合/误差渲染；随后 Phase 3.4 完成 PNG/SVG 导出。
