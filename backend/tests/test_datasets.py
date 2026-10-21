@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from openpyxl import Workbook
 
+from app.datasets import _dedupe_columns
 from app.main import app
 
 client = TestClient(app)
@@ -421,3 +422,70 @@ def test_xlsx_accepts_octet_stream() -> None:
 def test_xlsx_requires_file() -> None:
     response = client.post("/api/datasets/xlsx")
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        ["x", "x.1", "x"],
+        ["x", "x", "x.1"],
+        ["x", "x", "x"],
+        ["x.1", "x.1", "x.1"],
+    ],
+    ids=["suffix-then-duplicate", "literal-suffix-after-duplicate", "all-duplicate", "suffix-only"],
+)
+def test_xlsx_duplicate_headers_produce_unique_labels(header: list[str]) -> None:
+    rows: list[list[object]] = [header, [1, 2, 3], [4, 5, 6]]
+    xlsx_response = upload_xlsx(build_xlsx(rows))
+    assert xlsx_response.status_code == 200
+    body = xlsx_response.json()
+    assert len(body["columns"]) == len(set(body["columns"]))
+    assert list(body["preview"][0].keys()) == body["columns"]
+
+    csv_content = (",".join(header) + "\n1,2,3\n4,5,6\n").encode()
+    csv_response = upload(csv_content)
+    assert csv_response.status_code == 200
+    assert body == csv_response.json()
+
+
+def test_xlsx_duplicate_headers_match_csv_for_literal_suffix_collisions() -> None:
+    csv_response = upload(b"x,x.1,x\n1,2,3\n4,5,6\n")
+    xlsx_response = upload_xlsx(
+        build_xlsx([["x", "x.1", "x"], [1, 2, 3], [4, 5, 6]])
+    )
+    assert csv_response.status_code == 200
+    assert xlsx_response.status_code == 200
+    assert csv_response.json()["columns"] == ["x", "x.1", "x.2"]
+    assert xlsx_response.json() == csv_response.json()
+
+
+def test_xlsx_duplicate_blank_and_generated_headers_stay_unique() -> None:
+    response = upload_xlsx(build_xlsx([[None, None, "Unnamed: 0"], [1, 2, 3], [4, 5, 6]]))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["columns"] == ["Unnamed: 0", "Unnamed: 1", "Unnamed: 0.1"]
+    assert len(body["columns"]) == len(set(body["columns"]))
+    assert list(body["preview"][0].keys()) == body["columns"]
+
+
+def test_dedupe_columns_is_collision_safe() -> None:
+    assert _dedupe_columns(["x", "x", "x"]) == ["x", "x.1", "x.2"]
+    assert _dedupe_columns(["x", "x.1", "x"]) == ["x", "x.1", "x.2"]
+    assert _dedupe_columns(["x", "x", "x.1"]) == ["x", "x.2", "x.1"]
+    for columns in (
+        ["x", "x.1", "x"],
+        ["x", "x", "x.1"],
+        ["a", "a.1", "a.1", "a"],
+        ["x.2", "x", "x", "x.1"],
+    ):
+        deduped = _dedupe_columns(columns)
+        assert len(deduped) == len(set(deduped))
+
+
+def test_xlsx_leading_blank_row_does_not_add_phantom_column() -> None:
+    content = build_xlsx([[None, None, None], ["x", "y"], [1, 2], [3, 4]])
+    response = upload_xlsx(content)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["columns"] == ["x", "y"]
+    assert body["preview"] == [{"x": 1, "y": 2}, {"x": 3, "y": 4}]

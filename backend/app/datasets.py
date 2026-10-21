@@ -187,12 +187,25 @@ def _normalize_cell(value: Any) -> Any:
 
 
 def _dedupe_columns(columns: list[str]) -> list[str]:
+    originals = set(columns)
+    used: set[str] = set()
     seen: dict[str, int] = {}
     deduped: list[str] = []
     for column in columns:
-        count = seen.get(column, 0)
-        deduped.append(column if count == 0 else f"{column}.{count}")
-        seen[column] = count + 1
+        if column not in seen:
+            seen[column] = 0
+            used.add(column)
+            deduped.append(column)
+            continue
+        count = max(seen[column], 1)
+        while True:
+            candidate = f"{column}.{count}"
+            count += 1
+            if candidate not in originals and candidate not in used:
+                break
+        seen[column] = count
+        used.add(candidate)
+        deduped.append(candidate)
     return deduped
 
 
@@ -222,8 +235,13 @@ def _read_xlsx_rows(data: bytes) -> tuple[list[str], list[list[Any]]]:
 
 
 def _xlsx_frame(sheet_name: str, rows: list[list[Any]]) -> pd.DataFrame:
-    normalized = [[_normalize_cell(value) for value in row] for row in rows]
-    normalized = [row for row in normalized if any(value is not None for value in row)]
+    normalized: list[list[Any]] = []
+    for row in rows:
+        values = [_normalize_cell(value) for value in row]
+        while values and values[-1] is None:
+            values.pop()
+        if any(value is not None for value in values):
+            normalized.append(values)
     if not normalized:
         raise DatasetImportError(
             f"Worksheet '{sheet_name}' contains no data rows", status_code=422
