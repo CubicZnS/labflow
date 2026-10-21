@@ -96,9 +96,17 @@ Acceptance: a user can go from uploaded data to an exported publication-style fi
 
 ### Phase 4 — MVP productization (in progress)
 
-- 4.1 Project save/reopen and rerun: reproducible project snapshot (data reference, column
-      selection, units, fit, chart style, export settings)
-- Project save/reopen and rerun
+- [x] 4.1a Local project snapshot v1: deterministic `.labflow.json` with a SHA-256 data
+      fingerprint (format, size, row count, numeric columns) plus X/Y columns/units, ordered
+      extra series, fit settings, and chart style. Saving, strict Chinese validation, dataset
+      identity check, and ordered one-click rerun (main series → extras → fit) are implemented;
+      the file contains no raw data rows, pairs, fit coefficients, or credentials
+      (iteration #14, merge `d56f2a2`)
+- [ ] 4.1b Project metadata and export settings: decide how to persist export size/DPI and
+      project metadata, plus schema version compatibility/migration; keep the local-only,
+      no-upload boundary (next)
+- [x] Project save/reopen and rerun (local config snapshot; the same data file must be
+      re-imported and is verified by SHA-256 before rerun)
 - Sample datasets and onboarding
 - Error handling and accessibility pass
 - Data privacy and security review

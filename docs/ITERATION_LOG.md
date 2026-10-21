@@ -667,4 +667,12 @@ git log --oneline --decorate dev
     https://github.com/CubicZnS/labflow/commit/6e56cadbf75343f84fc18dc94d76b75cb1a01c9c
   - `iter/14` QA FAIL 闭环修复、测试与 README 提交：`54f67c7daf7ae61c006e7e9db63610b32bd2b31b`
     https://github.com/CubicZnS/labflow/commit/54f67c7daf7ae61c006e7e9db63610b32bd2b31b
-  - 本文档提交与 `iter/14` 最终 HEAD 在推送后以 `git ls-remote origin refs/heads/iter/14` 和 `gh api` 核验，并记录在 issue；本记录不预填尚未生成的 SHA，不编造链接；最终合并后的 HEAD 由 Lead 补记。
+  - `iter/14` 迭代记录提交：`ca1468be1f26dcd717cd155574c0e1b669683018`
+    https://github.com/CubicZnS/labflow/commit/ca1468be1f26dcd717cd155574c0e1b669683018
+  - `iter/14` 最终 HEAD：`ca1468be1f26dcd717cd155574c0e1b669683018`（`git ls-remote origin refs/heads/iter/14` 与 `gh api` 一致）。
+  - 独立 QA（第二轮）：MAC-65 **PASS**。QA 独立核验远端 SHA、5 个 gate、主系列重跑失败后的项目区块/中文错误/重试入口与再次打开恢复、追加系列/拟合失败保留、非法文件与数据集不匹配、冲突锁定与代次隔离、快照隐私；并用“还原修复前 `SeriesPanel.tsx` 后新增用例必失败”的方式验证测试有效性；中文 README/版本迭代表/迭代日志均合格。
+  - `dev` 合并提交：`d56f2a2a8b8db00ae183087e0ac56cca10999cb9`
+    https://github.com/CubicZnS/labflow/commit/d56f2a2a8b8db00ae183087e0ac56cca10999cb9
+  - 合并后在 `dev` 重跑 5 个 gate：后端 `pytest -q -o addopts=""` **155 passed**、`ruff check app tests` 通过；前端 `typecheck` 通过、`test:run` **134 passed**、`build` 成功。
+  - 推送核验：`git ls-remote origin refs/heads/dev` 与 `gh api` 对合并 SHA `d56f2a2a8b8db00ae183087e0ac56cca10999cb9` 返回一致；`main` 保持 `7b3c2f1153eb561241ba33fa74e06953e552e63e` 未改动；无 force push、无历史改写。
+  - 阶段状态：Phase 4.1a（本地项目快照 v1）完成并合并；下一轮进入 Phase 4.1b（导出设置/项目元数据保存与版本兼容/迁移），继续不引入后端持久化与数据上传。
