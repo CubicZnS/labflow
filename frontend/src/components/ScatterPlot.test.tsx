@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { FitResponse } from "../lib/api";
-import { ScatterPlot } from "./ScatterPlot";
+import { ScatterPlot, type TickDensity } from "./ScatterPlot";
 
 const pairs = [
   { x: 0, y: 0.012 },
@@ -61,6 +61,77 @@ function tickLabels(axis: "x" | "y"): string[] {
   return screen
     .getAllByTestId(`scatter-${axis}-tick`)
     .map((tick) => tick.textContent ?? "");
+}
+
+const sixPairs = [
+  { x: 0, y: 0.05 },
+  { x: 2, y: 0.1 },
+  { x: 4, y: 0.15 },
+  { x: 6, y: 0.2 },
+  { x: 8, y: 0.22 },
+  { x: 10, y: 0.25 },
+];
+
+const narrowPairs = [
+  { x: 4999995, y: 5000005 },
+  { x: 5000000, y: 5000000 },
+  { x: 5000005, y: 4999995 },
+];
+
+function weightedFit(
+  data: { x: number; y: number }[],
+  coefficients: number[] = [0.02, 0.05],
+): FitResponse {
+  return createFit({
+    pairs: data,
+    pair_count: data.length,
+    row_count: data.length,
+    coefficients,
+    weighted: true,
+    y_error_column: "err",
+    y_error_unit: "mV",
+    y_errors: data.map((_, index) => 0.01 + index * 0.002),
+  });
+}
+
+function plotSnapshot() {
+  const plot = screen.getByTestId("scatter-plot");
+  return {
+    domains: [
+      "data-domain-x-min",
+      "data-domain-x-max",
+      "data-domain-y-min",
+      "data-domain-y-max",
+    ].map((name) => plot.getAttribute(name)),
+    points: screen
+      .getAllByTestId("scatter-point")
+      .map((point) => [point.getAttribute("cx"), point.getAttribute("cy")]),
+    curve: screen.getByTestId("fit-curve").getAttribute("points"),
+    bars: screen.getAllByTestId("error-bar").map((bar) => bar.innerHTML),
+  };
+}
+
+function expectTicksInsideDomain(density: TickDensity): void {
+  const ranges: Record<TickDensity, { min: number; max: number }> = {
+    sparse: { min: 3, max: 4 },
+    standard: { min: 4, max: 6 },
+    dense: { min: 6, max: 9 },
+  };
+  const plot = screen.getByTestId("scatter-plot");
+  for (const axis of ["x", "y"] as const) {
+    const labels = tickLabels(axis);
+    expect(labels.length).toBeGreaterThanOrEqual(ranges[density].min);
+    expect(labels.length).toBeLessThanOrEqual(ranges[density].max);
+    const values = labels.map(Number);
+    expect(new Set(labels).size).toBe(labels.length);
+    const domainMin = numberAttribute(plot, `data-domain-${axis}-min`);
+    const domainMax = numberAttribute(plot, `data-domain-${axis}-max`);
+    for (const value of values) {
+      expect(Number.isFinite(value)).toBe(true);
+      expect(value).toBeGreaterThanOrEqual(domainMin);
+      expect(value).toBeLessThanOrEqual(domainMax);
+    }
+  }
 }
 
 describe("ScatterPlot", () => {
@@ -821,6 +892,105 @@ describe("ScatterPlot", () => {
         }
       }
       unmount();
+    }
+  });
+
+  it("keeps domain, points, fit curve and error bars identical across tick densities", () => {
+    const cases = [
+      { name: "small regular", data: sixPairs, coefficients: [0.02, 0.05] },
+      {
+        name: "5e6 plus or minus 5",
+        data: narrowPairs,
+        coefficients: [1, 0.001],
+      },
+    ];
+    const densities: TickDensity[] = ["sparse", "standard", "dense"];
+
+    for (const testCase of cases) {
+      const fit = weightedFit(testCase.data, testCase.coefficients);
+      let baseline: ReturnType<typeof plotSnapshot> | null = null;
+      for (const density of densities) {
+        const { unmount } = render(
+          <ScatterPlot
+            pairs={testCase.data}
+            xColumn="time_s"
+            yColumn="absorbance"
+            fit={fit}
+            tickDensity={density}
+          />,
+        );
+        const snapshot = plotSnapshot();
+        expectTicksInsideDomain(density);
+        if (!baseline) {
+          baseline = snapshot;
+        } else {
+          expect(snapshot.domains).toEqual(baseline.domains);
+          expect(snapshot.points).toEqual(baseline.points);
+          expect(snapshot.curve).toBe(baseline.curve);
+          expect(snapshot.bars).toEqual(baseline.bars);
+        }
+        unmount();
+      }
+    }
+  });
+
+  it("keeps the QA reproduction datasets on their fixed padded domains", () => {
+    const cases = [
+      {
+        name: "small regular",
+        data: sixPairs,
+        expected: { x: [-0.5, 10.5], y: [0.04, 0.26] },
+      },
+      {
+        name: "5e6 plus or minus 5",
+        data: narrowPairs,
+        expected: { x: [4999994.5, 5000005.5], y: [4999994.5, 5000005.5] },
+      },
+    ];
+    const densities: TickDensity[] = ["sparse", "standard", "dense"];
+
+    for (const testCase of cases) {
+      let baseline: [string | null, string | null][] | null = null;
+      for (const density of densities) {
+        const { unmount } = render(
+          <ScatterPlot
+            pairs={testCase.data}
+            xColumn="x"
+            yColumn="y"
+            tickDensity={density}
+          />,
+        );
+        const plot = screen.getByTestId("scatter-plot");
+        expect(
+          numberAttribute(plot, "data-domain-x-min"),
+        ).toBeCloseTo(testCase.expected.x[0], 9);
+        expect(
+          numberAttribute(plot, "data-domain-x-max"),
+        ).toBeCloseTo(testCase.expected.x[1], 9);
+        expect(
+          numberAttribute(plot, "data-domain-y-min"),
+        ).toBeCloseTo(testCase.expected.y[0], 9);
+        expect(
+          numberAttribute(plot, "data-domain-y-max"),
+        ).toBeCloseTo(testCase.expected.y[1], 9);
+
+        const coordinates = screen
+          .getAllByTestId("scatter-point")
+          .map(
+            (point) =>
+              [point.getAttribute("cx"), point.getAttribute("cy")] as [
+                string | null,
+                string | null,
+              ],
+          );
+        if (!baseline) {
+          baseline = coordinates;
+        } else {
+          expect(coordinates).toEqual(baseline);
+        }
+        expectTicksInsideDomain(density);
+        unmount();
+      }
     }
   });
 

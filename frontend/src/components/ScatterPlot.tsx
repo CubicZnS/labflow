@@ -218,60 +218,14 @@ function generateStandardTicks(domain: Domain): Ticks {
     };
   }
 
-  const steps = candidateSteps(span);
-  let best: { values: number[]; step: number; domain: Domain; growth: number } | null =
-    null;
-
-  for (const step of steps) {
-    const inside = ticksFor(domain, step);
+  for (const step of candidateSteps(span)) {
+    const inside = uniqueFinite(ticksFor(domain, step));
     if (inside.length >= MIN_TICKS && inside.length <= MAX_TICKS) {
       return { values: inside, step, domain };
     }
-
-    const firstIndex = Math.floor(domain.min / step + 1e-9);
-    const lastIndex = Math.ceil(domain.max / step - 1e-9);
-    const count = lastIndex - firstIndex + 1;
-    if (count < MIN_TICKS || count > MAX_TICKS) {
-      continue;
-    }
-    const low = firstIndex * step;
-    const high = lastIndex * step;
-    if (!Number.isFinite(low) || !Number.isFinite(high) || high <= low) {
-      continue;
-    }
-    const growth = (high - low) / span - 1;
-    const values: number[] = [];
-    for (let index = firstIndex; index <= lastIndex; index += 1) {
-      values.push(normalize(index * step, step));
-    }
-    const candidate = {
-      values,
-      step,
-      domain: { min: low, max: high },
-      growth,
-    };
-    if (
-      !best ||
-      growth < best.growth - 1e-9 ||
-      (Math.abs(growth - best.growth) <= 1e-9 &&
-        Math.abs(values.length - 5) < Math.abs(best.values.length - 5))
-    ) {
-      best = candidate;
-    }
   }
 
-  if (best) {
-    return { values: best.values, step: best.step, domain: best.domain };
-  }
-
-  const fractions = [0, 0.25, 0.5, 0.75, 1];
-  return {
-    values: fractions.map(
-      (fraction) => domain.min * (1 - fraction) + domain.max * fraction,
-    ),
-    step: span / 4,
-    domain,
-  };
+  return standardFallbackTicks(domain);
 }
 
 function uniqueFinite(values: number[]): number[] {
@@ -292,8 +246,8 @@ function fractionTicks(domain: Domain, count: number): number[] {
     return uniqueFinite([domain.min, domain.max]);
   }
   const values: number[] = [];
-  for (let index = 0; index < count; index += 1) {
-    const fraction = index / (count - 1);
+  for (let index = 1; index <= count; index += 1) {
+    const fraction = index / (count + 1);
     values.push(domain.min * (1 - fraction) + domain.max * fraction);
   }
   return uniqueFinite(values);
@@ -312,6 +266,19 @@ function fallbackTicks(domain: Domain, preferred: number): Ticks {
   };
 }
 
+function standardFallbackTicks(domain: Domain): Ticks {
+  const values = fractionTicks(domain, MIN_TICKS + 1);
+  const safeValues =
+    values.length >= 2 ? values : uniqueFinite([domain.min, domain.max]);
+  const span = (safeValues[safeValues.length - 1] ?? 0) - (safeValues[0] ?? 0);
+  const step = span / Math.max(1, (safeValues.length - 1) * 10);
+  return {
+    values: safeValues.length > 0 ? safeValues : [domain.min, domain.max],
+    step: Number.isFinite(step) && step > 0 ? step : 1,
+    domain,
+  };
+}
+
 function generateDensityTicks(
   domain: Domain,
   minTicks: number,
@@ -323,74 +290,26 @@ function generateDensityTicks(
     return fallbackTicks(domain, preferred);
   }
 
-  type Candidate = { values: number[]; step: number; domain: Domain; growth: number };
-
-  let bestInside: Candidate | null = null;
-  let bestExpanded: Candidate | null = null;
-
-  function pickBest(
-    current: Candidate | null,
-    candidate: Candidate,
-  ): Candidate | null {
-    if (candidate.values.length < minTicks || candidate.values.length > maxTicks) {
-      return current;
-    }
-    if (!current) {
-      return candidate;
-    }
-    const score = Math.abs(candidate.values.length - preferred);
-    const currentScore = Math.abs(current.values.length - preferred);
-    if (
-      score < currentScore - 1e-9 ||
-      (Math.abs(score - currentScore) <= 1e-9 &&
-        candidate.growth < current.growth - 1e-9)
-    ) {
-      return candidate;
-    }
-    return current;
-  }
+  let best: { values: number[]; step: number } | null = null;
 
   for (const step of candidateSteps(span)) {
-    const insideValues = uniqueFinite(ticksFor(domain, step));
-    if (insideValues.length > 0) {
-      bestInside = pickBest(bestInside, {
-        values: insideValues,
-        step,
-        domain,
-        growth: 0,
-      });
-    }
-
-    const firstIndex = Math.floor(domain.min / step + 1e-9);
-    const lastIndex = Math.ceil(domain.max / step - 1e-9);
-    const count = lastIndex - firstIndex + 1;
-    if (count < minTicks || count > maxTicks) {
+    const values = uniqueFinite(ticksFor(domain, step));
+    if (values.length < minTicks || values.length > maxTicks) {
       continue;
     }
-    const low = firstIndex * step;
-    const high = lastIndex * step;
-    if (!Number.isFinite(low) || !Number.isFinite(high) || high <= low) {
+    if (!best) {
+      best = { values, step };
       continue;
     }
-    const values: number[] = [];
-    for (let index = firstIndex; index <= lastIndex; index += 1) {
-      values.push(normalize(index * step, step));
+    const score = Math.abs(values.length - preferred);
+    const currentScore = Math.abs(best.values.length - preferred);
+    if (score < currentScore - 1e-9) {
+      best = { values, step };
     }
-    const uniqueValues = uniqueFinite(values);
-    if (uniqueValues.length < minTicks || uniqueValues.length > maxTicks) {
-      continue;
-    }
-    bestExpanded = pickBest(bestExpanded, {
-      values: uniqueValues,
-      step,
-      domain: { min: low, max: high },
-      growth: (high - low) / span - 1,
-    });
   }
 
-  const best = bestInside ?? bestExpanded;
   if (best) {
-    return { values: best.values, step: best.step, domain: best.domain };
+    return { values: best.values, step: best.step, domain };
   }
   return fallbackTicks(domain, preferred);
 }
@@ -398,15 +317,17 @@ function generateDensityTicks(
 function buildAxis(values: number[], density: TickDensity = "standard"): Ticks {
   const domain = computeDomain(values);
   if (density === "standard") {
-    return generateStandardTicks(domain);
+    const ticks = generateStandardTicks(domain);
+    return { values: ticks.values, step: ticks.step, domain };
   }
   const limits = TICK_LIMITS[density];
-  return generateDensityTicks(
+  const ticks = generateDensityTicks(
     domain,
     limits.minTicks,
     limits.maxTicks,
     limits.preferred,
   );
+  return { values: ticks.values, step: ticks.step, domain };
 }
 
 function trimExponential(text: string): string {
