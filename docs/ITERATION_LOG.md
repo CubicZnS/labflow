@@ -775,5 +775,12 @@ git log --oneline --decorate dev
     https://github.com/CubicZnS/labflow/commit/22b1774a63fb25fb12bddce2a7d390946c2ffbfc
   - `iter/16` 文档/迭代记录提交：`a755e43f4125273306dec24b4dc8388721c74df8`
     https://github.com/CubicZnS/labflow/commit/a755e43f4125273306dec24b4dc8388721c74df8
-  - `iter/16` 最终 HEAD：本轮补记提交（以 `git ls-remote origin refs/heads/iter/16` 为准，推送后在任务报告中记录实际 SHA）。
-  - `dev` 合并提交：留给 Lead，不在此编造。
+  - `iter/16` 最终 HEAD：`f2990d85cc784960adc1c74335e1cee8dea85077`
+    https://github.com/CubicZnS/labflow/commit/f2990d85cc784960adc1c74335e1cee8dea85077
+    （`git ls-remote origin refs/heads/iter/16` 与 `gh api` 一致）。
+  - 独立 QA：MAC-71 **PASS**。QA 独立核验 A1–A4、B5–B9、5 项 gate、D10–D13、E14–E18，并确认构建产物包含示例 CSV、工作区恢复干净；无阻断问题。4 项非阻断观察：`App.tsx` 剩余工作文案仍列“示例与引导”（本轮已完成）、迭代记录最终 HEAD 为泛称（本提交已补实）、双击测试未通过移除 ref 验证测试有效性、失败测试未逐项断言统计/配对面板。均不影响本轮验收。
+  - `dev` 合并提交：`aa5268e81cc7b4b9a4802ac81f0fa30dcec27c7f`
+    https://github.com/CubicZnS/labflow/commit/aa5268e81cc7b4b9a4802ac81f0fa30dcec27c7f
+  - 合并后在 `dev` 重跑 5 个 gate：后端 `pytest -q -o addopts=""` **155 passed**、`ruff check app tests` 通过；前端 `typecheck` 通过、`test:run` **151 passed**、`build` 成功。
+  - 推送核验：`git ls-remote origin refs/heads/dev` 与 `gh api` 对合并 SHA `aa5268e81cc7b4b9a4802ac81f0fa30dcec27c7f` 返回一致；`main` 保持 `7b3c2f1153eb561241ba33fa74e06953e552e63e` 未改动；无 force push、无历史改写。
+  - 阶段状态：Phase 4.2（示例数据与新手引导）完成并合并；Phase 4 MVP 产品化仍在进行，下一轮进入 Phase 4.3 错误处理与可访问性、隐私复核。

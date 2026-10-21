@@ -109,10 +109,10 @@ Acceptance: a user can go from uploaded data to an exported publication-style fi
       (iteration #15, merge `aeed184`)
 - [x] Project save/reopen and rerun (local config snapshot; the same data file must be
       re-imported and is verified by SHA-256 before rerun)
-- [ ] 4.2 Sample datasets and onboarding: one-click load of the built-in demo CSV, landing
-      page copy aligned with current Phase 4 capabilities, and a first-run step guide (next)
-- Error handling and accessibility pass
-- Data privacy and security review
+- [x] 4.2 Sample datasets and onboarding: one-click load of the built-in demo CSV, landing
+      page copy aligned with current Phase 4 capabilities, and a first-run step guide
+      (iteration #16, merge `aa5268e`)
+- [ ] 4.3 Error handling and accessibility pass; data privacy and security review (next)
 
 Acceptance: an external test user completes the workflow without developer help.
 
