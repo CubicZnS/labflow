@@ -409,7 +409,11 @@ function buildAxis(values: number[], density: TickDensity = "standard"): Ticks {
   );
 }
 
-function formatTick(value: number, step: number): string {
+function trimExponential(text: string): string {
+  return text.replace(/\.?0+e/, "e").replace("e+", "e");
+}
+
+function formatLegacyTick(value: number, step: number): string {
   if (!Number.isFinite(value)) {
     return "—";
   }
@@ -418,13 +422,62 @@ function formatTick(value: number, step: number): string {
   }
   const abs = Math.abs(value);
   if (abs >= 1e5 || abs < 1e-3) {
-    return value
-      .toExponential(2)
-      .replace(/\.?0+e/, "e")
-      .replace("e+", "e");
+    return trimExponential(value.toExponential(2));
   }
   const decimals = Math.min(8, Math.max(0, Math.ceil(-Math.log10(step)) + 1));
   return String(Number(value.toFixed(decimals)));
+}
+
+function formatAdaptiveTick(value: number, step: number, extra = 0): string {
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+  if (value === 0) {
+    return "0";
+  }
+  const abs = Math.abs(value);
+  if (abs >= 1e5 || abs < 1e-3) {
+    const ratio = step > 0 && Number.isFinite(step) ? abs / step : Number.NaN;
+    const significant =
+      Number.isFinite(ratio) && ratio > 0
+        ? Math.ceil(Math.log10(ratio)) + 1 + extra
+        : 2 + extra;
+    const digits = Math.min(17, Math.max(2, significant));
+    const text = trimExponential(value.toExponential(digits - 1));
+    if (Number.isFinite(Number(text))) {
+      return text;
+    }
+    return trimExponential(value.toPrecision(17));
+  }
+  const decimals = Math.min(8, Math.max(0, Math.ceil(-Math.log10(step)) + 1 + extra));
+  return String(Number(value.toFixed(decimals)));
+}
+
+function labelsAreUnique(labels: string[]): boolean {
+  return new Set(labels).size === labels.length;
+}
+
+function buildTickLabels(
+  values: number[],
+  step: number,
+  density: TickDensity,
+): string[] {
+  if (density === "standard") {
+    const legacy = values.map((value) => formatLegacyTick(value, step));
+    if (
+      labelsAreUnique(legacy) &&
+      legacy.every((label) => Number.isFinite(Number(label)))
+    ) {
+      return legacy;
+    }
+  }
+  for (let extra = 0; extra <= 12; extra += 1) {
+    const labels = values.map((value) => formatAdaptiveTick(value, step, extra));
+    if (labelsAreUnique(labels)) {
+      return labels;
+    }
+  }
+  return values.map((value) => (Number.isFinite(value) ? String(value) : "—"));
 }
 
 function axisRatio(value: number, domain: Domain): number {
@@ -499,6 +552,12 @@ export function ScatterPlot({
   const yDomain = yAxis?.domain ?? null;
   const xTicks = xAxis;
   const yTicks = yAxis;
+  const xTickLabels = xTicks
+    ? buildTickLabels(xTicks.values, xTicks.step, tickDensity)
+    : [];
+  const yTickLabels = yTicks
+    ? buildTickLabels(yTicks.values, yTicks.step, tickDensity)
+    : [];
 
   const domainAttributes = xDomain && yDomain
     ? {
@@ -619,7 +678,7 @@ export function ScatterPlot({
               strokeWidth={1}
             />
 
-            {xTicks.values.map((value) => {
+            {xTicks.values.map((value, index) => {
               const x = scaleX(value, xDomain);
               return (
                 <g key={`tick-x-${value}`}>
@@ -639,13 +698,13 @@ export function ScatterPlot({
                     fill="#64748b"
                     fontSize={fonts.tick}
                   >
-                    {formatTick(value, xTicks.step)}
+                    {xTickLabels[index]}
                   </text>
                 </g>
               );
             })}
 
-            {yTicks.values.map((value) => {
+            {yTicks.values.map((value, index) => {
               const y = scaleY(value, yDomain);
               return (
                 <g key={`tick-y-${value}`}>
@@ -665,7 +724,7 @@ export function ScatterPlot({
                     fill="#64748b"
                     fontSize={fonts.tick}
                   >
-                    {formatTick(value, yTicks.step)}
+                    {yTickLabels[index]}
                   </text>
                 </g>
               );

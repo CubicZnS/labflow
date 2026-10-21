@@ -57,6 +57,12 @@ function curveCoordinates(element: Element): number[][] {
     .map((part) => part.split(",").map(Number));
 }
 
+function tickLabels(axis: "x" | "y"): string[] {
+  return screen
+    .getAllByTestId(`scatter-${axis}-tick`)
+    .map((tick) => tick.textContent ?? "");
+}
+
 describe("ScatterPlot", () => {
   it("renders one circle and matching data attributes per finite pair", () => {
     render(
@@ -750,6 +756,79 @@ describe("ScatterPlot", () => {
         unmount();
       }
     }
+  });
+
+  it("keeps dense tick labels unique for large values with a narrow span", () => {
+    render(
+      <ScatterPlot
+        pairs={[
+          { x: 4808119.117282331, y: 4773716.589715332 },
+          { x: 4777127.455105074, y: 4840162.042528391 },
+          { x: 4810557.4819026515, y: 4796042.640064843 },
+          { x: 4817035.215464421, y: 4848784.694285132 },
+        ]}
+        xColumn="easting_m"
+        yColumn="northing_m"
+        tickDensity="dense"
+      />,
+    );
+
+    for (const axis of ["x", "y"] as const) {
+      const labels = tickLabels(axis);
+      expect(labels.length).toBeGreaterThanOrEqual(6);
+      expect(new Set(labels).size).toBe(labels.length);
+      for (const label of labels) {
+        expect(Number.isFinite(Number(label))).toBe(true);
+      }
+    }
+  });
+
+  it("keeps dense tick labels unique for narrow spans at large and small scales", () => {
+    const cases = [
+      {
+        name: "5e6 plus or minus 5",
+        data: [
+          { x: 4999995, y: 5000005 },
+          { x: 5000000, y: 5000000 },
+          { x: 5000005, y: 4999995 },
+        ],
+      },
+      {
+        name: "1e-6 plus or minus 1e-9",
+        data: [
+          { x: 9.99e-7, y: 1.001e-6 },
+          { x: 1e-6, y: 1e-6 },
+          { x: 1.001e-6, y: 9.99e-7 },
+        ],
+      },
+    ];
+
+    for (const testCase of cases) {
+      const { unmount } = render(
+        <ScatterPlot
+          pairs={testCase.data}
+          xColumn="x"
+          yColumn="y"
+          tickDensity="dense"
+        />,
+      );
+      for (const axis of ["x", "y"] as const) {
+        const labels = tickLabels(axis);
+        expect(labels.length).toBeGreaterThanOrEqual(6);
+        expect(new Set(labels).size).toBe(labels.length);
+        for (const label of labels) {
+          expect(Number.isFinite(Number(label))).toBe(true);
+        }
+      }
+      unmount();
+    }
+  });
+
+  it("keeps standard tick labels unchanged for the default regular dataset", () => {
+    render(<ScatterPlot pairs={pairs} xColumn="time_s" yColumn="absorbance" />);
+
+    expect(tickLabels("x")).toEqual(["0", "2.5", "5", "7.5", "10"]);
+    expect(tickLabels("y")).toEqual(["0.05", "0.1", "0.15", "0.2", "0.25"]);
   });
 
   it("changes title, label and tick font sizes without moving chart geometry", () => {
