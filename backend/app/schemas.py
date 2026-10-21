@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -36,3 +38,11 @@ class FitResponse(BaseModel):
     equation: str
     slope: float | None = None
     intercept: float | None = None
+
+
+class CsvImportResponse(BaseModel):
+    row_count: int
+    columns: list[str]
+    numeric_columns: list[str]
+    preview: list[dict[str, Any]]
+    warnings: list[str]
