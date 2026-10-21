@@ -569,4 +569,274 @@ describe("ScatterPlot", () => {
     expect(errorSpy.mock.calls.flat().join(" ")).not.toMatch(/NaN|Infinity/);
     errorSpy.mockRestore();
   });
+
+  it("renders a centered, escaped chart title only when it is not blank", () => {
+    const { rerender } = render(
+      <ScatterPlot pairs={pairs} xColumn="time_s" yColumn="absorbance" />,
+    );
+    const baselineCy =
+      screen.getAllByTestId("scatter-point")[0].getAttribute("cy");
+    expect(screen.queryByTestId("chart-title")).not.toBeInTheDocument();
+
+    rerender(
+      <ScatterPlot
+        pairs={pairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        title="   "
+      />,
+    );
+    expect(screen.queryByTestId("chart-title")).not.toBeInTheDocument();
+    expect(
+      screen.getAllByTestId("scatter-point")[0].getAttribute("cy"),
+    ).toBe(baselineCy);
+
+    const rawTitle = '<script>alert("x")</script> & 标题';
+    rerender(
+      <ScatterPlot
+        pairs={pairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        title={rawTitle}
+      />,
+    );
+    const title = screen.getByTestId("chart-title");
+    expect(title).toHaveTextContent(rawTitle);
+    expect(title).toHaveAttribute("text-anchor", "middle");
+    expect(Number(title.getAttribute("x"))).toBe(320);
+    expect(Number(title.getAttribute("y"))).toBeLessThan(24);
+    expect(screen.getByTestId("scatter-plot").querySelector("script")).toBeNull();
+    expect(screen.getByTestId("scatter-plot").getAttribute("aria-label")).toContain(
+      "标题「",
+    );
+  });
+
+  it("keeps grid lines off by default and draws one dashed line per tick on demand", () => {
+    const weighted = createFit({
+      weighted: true,
+      y_error_column: "absorbance_err",
+      y_error_unit: "mV",
+      y_errors: [0.01, 0.02, 0.03, 0.04],
+    });
+    const { rerender } = render(
+      <ScatterPlot
+        pairs={pairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        fit={weighted}
+      />,
+    );
+    expect(screen.queryAllByTestId("grid-line")).toHaveLength(0);
+    expect(screen.queryByTestId("scatter-grid-legend")).not.toBeInTheDocument();
+    const before = screen
+      .getAllByTestId("scatter-point")
+      .map((point) => `${point.getAttribute("cx")},${point.getAttribute("cy")}`);
+    const curveBefore = screen.getByTestId("fit-curve").getAttribute("points");
+    const barsBefore = screen
+      .getAllByTestId("error-bar")
+      .map((bar) => bar.innerHTML);
+
+    rerender(
+      <ScatterPlot
+        pairs={pairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        fit={weighted}
+        showGrid
+      />,
+    );
+
+    const xTicks = screen.getAllByTestId("scatter-x-tick");
+    const yTicks = screen.getAllByTestId("scatter-y-tick");
+    const lines = screen.getAllByTestId("grid-line");
+    expect(lines).toHaveLength(xTicks.length + yTicks.length);
+    expect(lines.filter((line) => line.getAttribute("data-axis") === "x")).toHaveLength(
+      xTicks.length,
+    );
+    expect(lines.filter((line) => line.getAttribute("data-axis") === "y")).toHaveLength(
+      yTicks.length,
+    );
+    for (const line of lines) {
+      expect(line).toHaveAttribute("stroke-dasharray", "4 4");
+      expect(line.getAttribute("stroke")).toBe("#e2e8f0");
+    }
+
+    const after = screen
+      .getAllByTestId("scatter-point")
+      .map((point) => `${point.getAttribute("cx")},${point.getAttribute("cy")}`);
+    expect(after).toEqual(before);
+    expect(screen.getByTestId("fit-curve").getAttribute("points")).toBe(curveBefore);
+    expect(
+      screen.getAllByTestId("error-bar").map((bar) => bar.innerHTML),
+    ).toEqual(barsBefore);
+
+    const gridGroup = screen.getByTestId("grid-group");
+    const lowerLayers = [
+      screen.getAllByTestId("scatter-point")[0],
+      screen.getByTestId("fit-curve"),
+      screen.getAllByTestId("error-bar")[0],
+    ];
+    for (const layer of lowerLayers) {
+      expect(
+        gridGroup.compareDocumentPosition(layer) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+    expect(screen.getByTestId("scatter-grid-legend")).toHaveTextContent(
+      "虚线段为网格参考线",
+    );
+  });
+
+  it("keeps sparse and dense tick counts unique, finite and inside the domain", () => {
+    const cases = [
+      { name: "regular", data: pairs },
+      { name: "single point", data: [{ x: 4, y: 9 }] },
+      {
+        name: "identical X",
+        data: [
+          { x: 5, y: 1 },
+          { x: 5, y: 2 },
+          { x: 5, y: 3 },
+        ],
+      },
+      {
+        name: "identical Y",
+        data: [
+          { x: 1, y: 7 },
+          { x: 2, y: 7 },
+          { x: 3, y: 7 },
+        ],
+      },
+      {
+        name: "extreme finite",
+        data: [{ x: Number.MAX_VALUE, y: -Number.MAX_VALUE }],
+      },
+    ];
+    const configs = [
+      { density: "sparse" as const, min: 3, max: 4 },
+      { density: "dense" as const, min: 6, max: 9 },
+    ];
+
+    for (const config of configs) {
+      for (const testCase of cases) {
+        const { unmount } = render(
+          <ScatterPlot
+            pairs={testCase.data}
+            xColumn="time_s"
+            yColumn="absorbance"
+            tickDensity={config.density}
+          />,
+        );
+        const plot = screen.getByTestId("scatter-plot");
+        for (const axis of ["x", "y"] as const) {
+          const ticks = screen.getAllByTestId(`scatter-${axis}-tick`);
+          expect(ticks.length).toBeGreaterThanOrEqual(config.min);
+          expect(ticks.length).toBeLessThanOrEqual(config.max);
+          const values = ticks.map((tick) => Number(tick.textContent));
+          expect(new Set(values).size).toBe(values.length);
+          const domainMin = numberAttribute(plot, `data-domain-${axis}-min`);
+          const domainMax = numberAttribute(plot, `data-domain-${axis}-max`);
+          for (const value of values) {
+            expect(Number.isFinite(value)).toBe(true);
+            expect(value).toBeGreaterThanOrEqual(domainMin);
+            expect(value).toBeLessThanOrEqual(domainMax);
+          }
+        }
+        for (const point of screen.getAllByTestId("scatter-point")) {
+          expect(Number.isFinite(Number(point.getAttribute("cx")))).toBe(true);
+          expect(Number.isFinite(Number(point.getAttribute("cy")))).toBe(true);
+        }
+        expect(plot.outerHTML).not.toContain("NaN");
+        expect(plot.outerHTML).not.toContain("Infinity");
+        unmount();
+      }
+    }
+  });
+
+  it("changes title, label and tick font sizes without moving chart geometry", () => {
+    const weighted = createFit({
+      weighted: true,
+      y_error_column: "absorbance_err",
+      y_error_unit: "mV",
+      y_errors: [0.01, 0.02, 0.03, 0.04],
+    });
+    const { rerender } = render(
+      <ScatterPlot
+        pairs={pairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        fit={weighted}
+        title="滴定曲线"
+      />,
+    );
+
+    const snapshot = () => ({
+      domains: [
+        "data-domain-x-min",
+        "data-domain-x-max",
+        "data-domain-y-min",
+        "data-domain-y-max",
+      ].map((name) => screen.getByTestId("scatter-plot").getAttribute(name)),
+      points: screen
+        .getAllByTestId("scatter-point")
+        .map((point) => `${point.getAttribute("cx")},${point.getAttribute("cy")}`),
+      curve: screen.getByTestId("fit-curve").getAttribute("points"),
+      bars: screen.getAllByTestId("error-bar").map((bar) => bar.innerHTML),
+    });
+
+    expect(
+      Number(screen.getAllByTestId("scatter-x-tick")[0].getAttribute("font-size")),
+    ).toBe(11);
+    expect(
+      Number(screen.getByTestId("scatter-x-label").getAttribute("font-size")),
+    ).toBe(12);
+    expect(Number(screen.getByTestId("chart-title").getAttribute("font-size"))).toBe(
+      15,
+    );
+    const medium = snapshot();
+
+    rerender(
+      <ScatterPlot
+        pairs={pairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        fit={weighted}
+        title="滴定曲线"
+        fontScale="large"
+      />,
+    );
+    expect(
+      Number(screen.getAllByTestId("scatter-x-tick")[0].getAttribute("font-size")),
+    ).toBe(14);
+    expect(
+      Number(screen.getAllByTestId("scatter-y-tick")[0].getAttribute("font-size")),
+    ).toBe(14);
+    expect(
+      Number(screen.getByTestId("scatter-y-label").getAttribute("font-size")),
+    ).toBe(15);
+    expect(Number(screen.getByTestId("chart-title").getAttribute("font-size"))).toBe(
+      18,
+    );
+    expect(snapshot()).toEqual(medium);
+
+    rerender(
+      <ScatterPlot
+        pairs={pairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        fit={weighted}
+        title="滴定曲线"
+        fontScale="small"
+      />,
+    );
+    expect(
+      Number(screen.getAllByTestId("scatter-x-tick")[0].getAttribute("font-size")),
+    ).toBe(9);
+    expect(
+      Number(screen.getByTestId("scatter-x-label").getAttribute("font-size")),
+    ).toBe(10);
+    expect(Number(screen.getByTestId("chart-title").getAttribute("font-size"))).toBe(
+      13,
+    );
+    expect(snapshot()).toEqual(medium);
+  });
 });

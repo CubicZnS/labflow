@@ -1187,4 +1187,73 @@ describe("App", () => {
 
     expect(screen.queryByTestId("scatter-plot")).not.toBeInTheDocument();
   });
+
+  it("applies title, grid, tick density and font controls without re-requesting the series", async () => {
+    let seriesCalls = 0;
+    const fetchMock = installFetchMock(
+      () => jsonResponse(csvPayload),
+      () => {
+        seriesCalls += 1;
+        return jsonResponse(seriesPayload);
+      },
+    );
+    render(<App />);
+
+    await generateSeries();
+    expect(seriesCalls).toBe(1);
+    expect(screen.queryAllByTestId("grid-line")).toHaveLength(0);
+
+    fireEvent.change(screen.getByTestId("chart-title-input"), {
+      target: { value: "吸光度随时间变化" },
+    });
+    expect(screen.getByTestId("chart-title")).toHaveTextContent(
+      "吸光度随时间变化",
+    );
+    expect(screen.getByTestId("scatter-plot")).toHaveAccessibleName(
+      /2 个数据点.*吸光度随时间变化/,
+    );
+
+    fireEvent.click(screen.getByTestId("chart-show-grid"));
+    const xTickCount = screen.getAllByTestId("scatter-x-tick").length;
+    const yTickCount = screen.getAllByTestId("scatter-y-tick").length;
+    expect(screen.getAllByTestId("grid-line")).toHaveLength(
+      xTickCount + yTickCount,
+    );
+
+    fireEvent.change(screen.getByTestId("chart-tick-density"), {
+      target: { value: "dense" },
+    });
+    const denseX = screen.getAllByTestId("scatter-x-tick");
+    const denseY = screen.getAllByTestId("scatter-y-tick");
+    expect(denseX.length).toBeGreaterThanOrEqual(6);
+    expect(denseX.length).toBeLessThanOrEqual(9);
+    expect(denseY.length).toBeGreaterThanOrEqual(6);
+    expect(denseY.length).toBeLessThanOrEqual(9);
+    expect(screen.getAllByTestId("grid-line")).toHaveLength(
+      denseX.length + denseY.length,
+    );
+
+    const beforeFont = screen
+      .getAllByTestId("scatter-point")
+      .map((point) => `${point.getAttribute("cx")},${point.getAttribute("cy")}`);
+
+    fireEvent.change(screen.getByTestId("chart-font-size"), {
+      target: { value: "large" },
+    });
+    expect(
+      Number(screen.getAllByTestId("scatter-x-tick")[0].getAttribute("font-size")),
+    ).toBe(14);
+    expect(
+      screen
+        .getAllByTestId("scatter-point")
+        .map((point) => `${point.getAttribute("cx")},${point.getAttribute("cy")}`),
+    ).toEqual(beforeFont);
+
+    expect(seriesCalls).toBe(1);
+    expect(
+      fetchMock.mock.calls.filter(
+        ([input]) => String(input) === "/api/datasets/series",
+      ),
+    ).toHaveLength(1);
+  });
 });

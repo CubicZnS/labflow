@@ -14,6 +14,24 @@ const FIT_COLOR = "#b45309";
 const ERROR_BAR_COLOR = "#0f766e";
 const FIT_CURVE_SAMPLE_COUNT = 101;
 const ERROR_BAR_CAP = 5;
+const GRID_COLOR = "#e2e8f0";
+
+export type TickDensity = "sparse" | "standard" | "dense";
+export type FontScale = "small" | "medium" | "large";
+
+const TICK_LIMITS: Record<
+  Exclude<TickDensity, "standard">,
+  { minTicks: number; maxTicks: number; preferred: number }
+> = {
+  sparse: { minTicks: 3, maxTicks: 4, preferred: 4 },
+  dense: { minTicks: 6, maxTicks: 9, preferred: 8 },
+};
+
+const FONT_SCALES: Record<FontScale, { tick: number; axis: number; title: number }> = {
+  small: { tick: 9, axis: 10, title: 13 },
+  medium: { tick: 11, axis: 12, title: 15 },
+  large: { tick: 14, axis: 15, title: 18 },
+};
 
 type Domain = { min: number; max: number };
 type Ticks = { values: number[]; step: number; domain: Domain };
@@ -185,7 +203,7 @@ function ticksFor(domain: Domain, step: number): number[] {
   return values;
 }
 
-function generateTicks(domain: Domain): Ticks {
+function generateStandardTicks(domain: Domain): Ticks {
   const span = domain.max - domain.min;
   if (!Number.isFinite(span) || span <= 0) {
     const fractions = [0, 0.25, 0.5, 0.75, 1];
@@ -256,8 +274,139 @@ function generateTicks(domain: Domain): Ticks {
   };
 }
 
-function buildAxis(values: number[]): Ticks {
-  return generateTicks(computeDomain(values));
+function uniqueFinite(values: number[]): number[] {
+  const seen = new Set<number>();
+  const result: number[] = [];
+  for (const value of values) {
+    if (!Number.isFinite(value) || seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
+}
+
+function fractionTicks(domain: Domain, count: number): number[] {
+  if (count < 2) {
+    return uniqueFinite([domain.min, domain.max]);
+  }
+  const values: number[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const fraction = index / (count - 1);
+    values.push(domain.min * (1 - fraction) + domain.max * fraction);
+  }
+  return uniqueFinite(values);
+}
+
+function fallbackTicks(domain: Domain, preferred: number): Ticks {
+  const values = fractionTicks(domain, preferred);
+  const safeValues =
+    values.length >= 2 ? values : uniqueFinite([domain.min, domain.max]);
+  const span = (safeValues[safeValues.length - 1] ?? 0) - (safeValues[0] ?? 0);
+  const step = span / Math.max(1, safeValues.length - 1);
+  return {
+    values: safeValues.length > 0 ? safeValues : [domain.min, domain.max],
+    step: Number.isFinite(step) && step > 0 ? step : 1,
+    domain,
+  };
+}
+
+function generateDensityTicks(
+  domain: Domain,
+  minTicks: number,
+  maxTicks: number,
+  preferred: number,
+): Ticks {
+  const span = domain.max - domain.min;
+  if (!Number.isFinite(span) || span <= 0) {
+    return fallbackTicks(domain, preferred);
+  }
+
+  type Candidate = { values: number[]; step: number; domain: Domain; growth: number };
+
+  let bestInside: Candidate | null = null;
+  let bestExpanded: Candidate | null = null;
+
+  function pickBest(
+    current: Candidate | null,
+    candidate: Candidate,
+  ): Candidate | null {
+    if (candidate.values.length < minTicks || candidate.values.length > maxTicks) {
+      return current;
+    }
+    if (!current) {
+      return candidate;
+    }
+    const score = Math.abs(candidate.values.length - preferred);
+    const currentScore = Math.abs(current.values.length - preferred);
+    if (
+      score < currentScore - 1e-9 ||
+      (Math.abs(score - currentScore) <= 1e-9 &&
+        candidate.growth < current.growth - 1e-9)
+    ) {
+      return candidate;
+    }
+    return current;
+  }
+
+  for (const step of candidateSteps(span)) {
+    const insideValues = uniqueFinite(ticksFor(domain, step));
+    if (insideValues.length > 0) {
+      bestInside = pickBest(bestInside, {
+        values: insideValues,
+        step,
+        domain,
+        growth: 0,
+      });
+    }
+
+    const firstIndex = Math.floor(domain.min / step + 1e-9);
+    const lastIndex = Math.ceil(domain.max / step - 1e-9);
+    const count = lastIndex - firstIndex + 1;
+    if (count < minTicks || count > maxTicks) {
+      continue;
+    }
+    const low = firstIndex * step;
+    const high = lastIndex * step;
+    if (!Number.isFinite(low) || !Number.isFinite(high) || high <= low) {
+      continue;
+    }
+    const values: number[] = [];
+    for (let index = firstIndex; index <= lastIndex; index += 1) {
+      values.push(normalize(index * step, step));
+    }
+    const uniqueValues = uniqueFinite(values);
+    if (uniqueValues.length < minTicks || uniqueValues.length > maxTicks) {
+      continue;
+    }
+    bestExpanded = pickBest(bestExpanded, {
+      values: uniqueValues,
+      step,
+      domain: { min: low, max: high },
+      growth: (high - low) / span - 1,
+    });
+  }
+
+  const best = bestInside ?? bestExpanded;
+  if (best) {
+    return { values: best.values, step: best.step, domain: best.domain };
+  }
+  return fallbackTicks(domain, preferred);
+}
+
+function buildAxis(values: number[], density: TickDensity = "standard"): Ticks {
+  const domain = computeDomain(values);
+  if (density === "standard") {
+    return generateStandardTicks(domain);
+  }
+  const limits = TICK_LIMITS[density];
+  return generateDensityTicks(
+    domain,
+    limits.minTicks,
+    limits.maxTicks,
+    limits.preferred,
+  );
 }
 
 function formatTick(value: number, step: number): string {
@@ -305,6 +454,10 @@ export function ScatterPlot({
   xUnit,
   yUnit,
   fit = null,
+  title = "",
+  showGrid = false,
+  tickDensity = "standard",
+  fontScale = "medium",
 }: {
   pairs: SeriesPair[];
   xColumn: string;
@@ -312,14 +465,20 @@ export function ScatterPlot({
   xUnit?: string | null;
   yUnit?: string | null;
   fit?: FitResponse | null;
+  title?: string;
+  showGrid?: boolean;
+  tickDensity?: TickDensity;
+  fontScale?: FontScale;
 }) {
   const points = finitePairs(pairs);
   const pointCount = points.length;
   const hasPoints = pointCount > 0;
   const xLabel = axisLabel(xColumn, xUnit);
   const yLabel = axisLabel(yColumn, yUnit);
+  const trimmedTitle = title.trim();
+  const fonts = FONT_SCALES[fontScale];
 
-  const xAxis = hasPoints ? buildAxis(points.map((pair) => pair.x)) : null;
+  const xAxis = hasPoints ? buildAxis(points.map((pair) => pair.x), tickDensity) : null;
   const xDomain = xAxis?.domain ?? null;
 
   const errorBars = hasPoints ? buildErrorBars(fit) : [];
@@ -336,7 +495,7 @@ export function ScatterPlot({
       yValues.push(sample.y);
     }
   }
-  const yAxis = hasPoints ? buildAxis(yValues) : null;
+  const yAxis = hasPoints ? buildAxis(yValues, tickDensity) : null;
   const yDomain = yAxis?.domain ?? null;
   const xTicks = xAxis;
   const yTicks = yAxis;
@@ -360,9 +519,11 @@ export function ScatterPlot({
 
   const ariaLabel = hasPoints
     ? `${xLabel} 对 ${yLabel} 的散点图，共 ${pointCount} 个数据点${
-        overlayLabels.length > 0 ? `，${overlayLabels.join("，")}` : ""
-      }`
-    : `${xLabel} 对 ${yLabel} 的散点图，暂无可绘制的数据点`;
+        trimmedTitle ? `，标题「${trimmedTitle}」` : ""
+      }${overlayLabels.length > 0 ? `，${overlayLabels.join("，")}` : ""}`
+    : `${xLabel} 对 ${yLabel} 的散点图，暂无可绘制的数据点${
+        trimmedTitle ? `，标题「${trimmedTitle}」` : ""
+      }`;
 
   return (
     <figure
@@ -386,38 +547,60 @@ export function ScatterPlot({
         preserveAspectRatio="xMidYMid meet"
         className="mt-3 h-auto w-full"
       >
+        {trimmedTitle ? (
+          <text
+            data-testid="chart-title"
+            x={VIEW_WIDTH / 2}
+            y={18}
+            textAnchor="middle"
+            fill="#0f172a"
+            fontSize={fonts.title}
+            fontWeight={600}
+          >
+            {trimmedTitle}
+          </text>
+        ) : null}
+
         {hasPoints && xDomain && yDomain && xTicks && yTicks ? (
           <>
-            <g aria-hidden="true">
-              {xTicks.values.map((value) => {
-                const x = scaleX(value, xDomain);
-                return (
-                  <line
-                    key={`grid-x-${value}`}
-                    x1={x}
-                    y1={MARGIN.top}
-                    x2={x}
-                    y2={AXIS_Y}
-                    stroke="#e2e8f0"
-                    strokeWidth={1}
-                  />
-                );
-              })}
-              {yTicks.values.map((value) => {
-                const y = scaleY(value, yDomain);
-                return (
-                  <line
-                    key={`grid-y-${value}`}
-                    x1={MARGIN.left}
-                    y1={y}
-                    x2={MARGIN.left + INNER_WIDTH}
-                    y2={y}
-                    stroke="#e2e8f0"
-                    strokeWidth={1}
-                  />
-                );
-              })}
-            </g>
+            {showGrid ? (
+              <g aria-hidden="true" data-testid="grid-group">
+                {xTicks.values.map((value) => {
+                  const x = scaleX(value, xDomain);
+                  return (
+                    <line
+                      key={`grid-x-${value}`}
+                      data-testid="grid-line"
+                      data-axis="x"
+                      x1={x}
+                      y1={MARGIN.top}
+                      x2={x}
+                      y2={AXIS_Y}
+                      stroke={GRID_COLOR}
+                      strokeWidth={1}
+                      strokeDasharray="4 4"
+                    />
+                  );
+                })}
+                {yTicks.values.map((value) => {
+                  const y = scaleY(value, yDomain);
+                  return (
+                    <line
+                      key={`grid-y-${value}`}
+                      data-testid="grid-line"
+                      data-axis="y"
+                      x1={MARGIN.left}
+                      y1={y}
+                      x2={MARGIN.left + INNER_WIDTH}
+                      y2={y}
+                      stroke={GRID_COLOR}
+                      strokeWidth={1}
+                      strokeDasharray="4 4"
+                    />
+                  );
+                })}
+              </g>
+            ) : null}
 
             <line
               x1={MARGIN.left}
@@ -454,7 +637,7 @@ export function ScatterPlot({
                     y={AXIS_Y + 20}
                     textAnchor="middle"
                     fill="#64748b"
-                    fontSize={11}
+                    fontSize={fonts.tick}
                   >
                     {formatTick(value, xTicks.step)}
                   </text>
@@ -480,7 +663,7 @@ export function ScatterPlot({
                     y={y + 4}
                     textAnchor="end"
                     fill="#64748b"
-                    fontSize={11}
+                    fontSize={fonts.tick}
                   >
                     {formatTick(value, yTicks.step)}
                   </text>
@@ -494,7 +677,7 @@ export function ScatterPlot({
               y={VIEW_HEIGHT - 14}
               textAnchor="middle"
               fill="#334155"
-              fontSize={12}
+              fontSize={fonts.axis}
               fontWeight={600}
             >
               {xLabel}
@@ -505,7 +688,7 @@ export function ScatterPlot({
               y={MARGIN.top + INNER_HEIGHT / 2}
               textAnchor="middle"
               fill="#334155"
-              fontSize={12}
+              fontSize={fonts.axis}
               fontWeight={600}
               transform={`rotate(-90 16 ${MARGIN.top + INNER_HEIGHT / 2})`}
             >
@@ -639,6 +822,18 @@ export function ScatterPlot({
               style={{ backgroundColor: ERROR_BAR_COLOR }}
             />
             竖线为 Y 误差棒（±σ）
+          </span>
+        ) : null}
+        {showGrid && hasPoints ? (
+          <span
+            className="inline-flex items-center gap-2"
+            data-testid="scatter-grid-legend"
+          >
+            <span
+              aria-hidden="true"
+              className="inline-block w-5 border-t border-dashed border-slate-400"
+            />
+            虚线段为网格参考线
           </span>
         ) : null}
         <span>自动坐标范围，含约 5% 边距</span>
