@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
-import type { CsvImportResponse, SeriesResponse } from "./lib/api";
+import type { CsvImportResponse, FitResponse, SeriesResponse } from "./lib/api";
 
 const healthPayload = { status: "ok", service: "labflow-api", version: "0.1.0" };
 
@@ -47,6 +47,32 @@ const seriesPayload: SeriesResponse = {
   ],
 };
 
+const fitPayload: FitResponse = {
+  x_column: "time_s",
+  y_column: "absorbance",
+  x_unit: "s",
+  y_unit: "mV",
+  row_count: 3,
+  pair_count: 2,
+  skipped_count: 1,
+  degree: 1,
+  coefficients: [0.0229, 0.012],
+  equation: "y = 0.0229x + 0.012",
+  r_squared: 1,
+  pairs: [
+    { x: 0, y: 0.012 },
+    { x: 10, y: 0.241 },
+  ],
+  fitted: [0.012, 0.241],
+  residuals: [0, 0],
+  rmse: 0,
+  max_abs_residual: 0,
+  warnings: [
+    "Column 'absorbance' has 1 missing value(s)",
+    "Pairing skipped 1 row(s) with missing, non-numeric, or non-finite values",
+  ],
+};
+
 function jsonResponse(payload: unknown, status = 200): Response {
   return {
     ok: status >= 200 && status < 300,
@@ -58,6 +84,7 @@ function jsonResponse(payload: unknown, status = 200): Response {
 function installFetchMock(
   upload?: (url: string) => Response | Promise<Response>,
   series?: () => Response | Promise<Response>,
+  fit?: () => Response | Promise<Response>,
 ) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
     const url = String(input);
@@ -66,6 +93,9 @@ function installFetchMock(
     }
     if (url === "/api/datasets/series" && series) {
       return series();
+    }
+    if (url === "/api/datasets/fit" && fit) {
+      return fit();
     }
     if ((url === "/api/datasets/csv" || url === "/api/datasets/xlsx") && upload) {
       return upload(url);
@@ -104,6 +134,14 @@ describe("App", () => {
   beforeEach(() => {
     installFetchMock();
   });
+
+  async function generateSeries() {
+    chooseFile();
+    startUpload();
+    await screen.findByTestId("series-section");
+    fireEvent.click(screen.getByRole("button", { name: "生成配对数据" }));
+    await screen.findByTestId("fit-section");
+  }
 
   it("renders the product shell", async () => {
     render(<App />);
@@ -438,5 +476,175 @@ describe("App", () => {
         ([input]) => String(input) === "/api/datasets/series",
       ),
     ).toHaveLength(0);
+  });
+
+  it("shows the fit section with degree 1 after a successful series", async () => {
+    installFetchMock(
+      () => jsonResponse(csvPayload),
+      () => jsonResponse(seriesPayload),
+    );
+    render(<App />);
+
+    await generateSeries();
+
+    const select = screen.getByTestId("fit-degree-select") as HTMLSelectElement;
+    expect(select.value).toBe("1");
+    expect(
+      within(select)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["线性（1 次）", "二次（2 次）", "三次（3 次）"]);
+    expect(screen.getByRole("button", { name: "运行拟合" })).toBeEnabled();
+    expect(screen.queryByTestId("fit-result")).not.toBeInTheDocument();
+  });
+
+  it("posts the fit FormData and renders equation, R², residuals, and preview", async () => {
+    const longPairs = Array.from({ length: 12 }, (_, index) => ({
+      x: index,
+      y: index * 2,
+    }));
+    const longFit: FitResponse = {
+      ...fitPayload,
+      pair_count: 12,
+      pairs: longPairs,
+      fitted: longPairs.map((pair) => pair.y),
+      residuals: longPairs.map(() => 0),
+    };
+    const fetchMock = installFetchMock(
+      () => jsonResponse(csvPayload),
+      () => jsonResponse(seriesPayload),
+      () => jsonResponse(longFit),
+    );
+    render(<App />);
+
+    await generateSeries();
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+
+    expect(await screen.findByTestId("fit-equation")).toHaveTextContent(
+      "y = 0.0229x + 0.012",
+    );
+    expect(screen.getByTestId("fit-r2")).toHaveTextContent("1.0000");
+    expect(screen.getByTestId("fit-rmse")).toHaveTextContent("0");
+    expect(screen.getByTestId("fit-max-residual")).toHaveTextContent("0");
+    expect(screen.getByTestId("fit-coefficients")).toHaveTextContent(
+      "0.0229、0.012",
+    );
+
+    const table = screen.getByTestId("fit-preview-table");
+    expect(within(table).getAllByRole("row")).toHaveLength(11);
+    expect(screen.getByTestId("fit-preview-caption")).toHaveTextContent(
+      "仅显示前 10 行",
+    );
+    expect(
+      within(table).getByRole("columnheader", { name: "X (s)" }),
+    ).toBeInTheDocument();
+    expect(
+      within(table).getByRole("columnheader", { name: "Y (mV)" }),
+    ).toBeInTheDocument();
+
+    const fitCall = fetchMock.mock.calls.find(
+      ([input]) => String(input) === "/api/datasets/fit",
+    );
+    expect(fitCall).toBeDefined();
+    expect(fitCall?.[1]?.method).toBe("POST");
+    const body = fitCall?.[1]?.body as FormData;
+    expect(body).toBeInstanceOf(FormData);
+    expect(body.get("file")).toBeInstanceOf(File);
+    expect(body.get("format")).toBe("csv");
+    expect(body.get("x_column")).toBe("time_s");
+    expect(body.get("y_column")).toBe("absorbance");
+    expect(body.get("x_unit")).toBe("s");
+    expect(body.get("y_unit")).toBe("mV");
+    expect(body.get("degree")).toBe("1");
+  });
+
+  it.each([2, 3])("sends the selected degree %i to the fit endpoint", async (degree) => {
+    const fetchMock = installFetchMock(
+      () => jsonResponse(csvPayload),
+      () => jsonResponse(seriesPayload),
+      () => jsonResponse({ ...fitPayload, degree }),
+    );
+    render(<App />);
+
+    await generateSeries();
+    fireEvent.change(screen.getByTestId("fit-degree-select"), {
+      target: { value: String(degree) },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+
+    await screen.findByTestId("fit-result");
+
+    const fitCalls = fetchMock.mock.calls.filter(
+      ([input]) => String(input) === "/api/datasets/fit",
+    );
+    expect(fitCalls).toHaveLength(1);
+    const body = fitCalls[0][1]?.body as FormData;
+    expect(body.get("degree")).toBe(String(degree));
+  });
+
+  it("shows the server detail when the fit fails and hides any result", async () => {
+    installFetchMock(
+      () => jsonResponse(csvPayload),
+      () => jsonResponse(seriesPayload),
+      () =>
+        jsonResponse(
+          { detail: "degree 3 requires more than 3 valid X/Y pairs; got 3" },
+          422,
+        ),
+    );
+    render(<App />);
+
+    await generateSeries();
+    fireEvent.change(screen.getByTestId("fit-degree-select"), {
+      target: { value: "3" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+
+    expect(await screen.findByTestId("fit-error")).toHaveTextContent(
+      "degree 3 requires more than 3 valid X/Y pairs; got 3",
+    );
+    expect(screen.queryByTestId("fit-result")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("fit-preview-table")).not.toBeInTheDocument();
+  });
+
+  it("disables the run button while a fit request is pending", async () => {
+    let resolveFit: ((response: Response) => void) | undefined;
+    const pendingFit = new Promise<Response>((resolve) => {
+      resolveFit = resolve;
+    });
+    installFetchMock(
+      () => jsonResponse(csvPayload),
+      () => jsonResponse(seriesPayload),
+      () => pendingFit,
+    );
+    render(<App />);
+
+    await generateSeries();
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+
+    const button = screen.getByRole("button", { name: "正在拟合…" });
+    expect(button).toBeDisabled();
+
+    resolveFit?.(jsonResponse(fitPayload));
+    expect(await screen.findByTestId("fit-result")).toBeInTheDocument();
+  });
+
+  it("clears the previous fit result when a new series is generated", async () => {
+    installFetchMock(
+      () => jsonResponse(csvPayload),
+      () => jsonResponse(seriesPayload),
+      () => jsonResponse(fitPayload),
+    );
+    render(<App />);
+
+    await generateSeries();
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+    await screen.findByTestId("fit-result");
+
+    fireEvent.click(screen.getByRole("button", { name: "生成配对数据" }));
+    await screen.findByTestId("series-pair-count");
+
+    expect(screen.getByTestId("fit-section")).toBeInTheDocument();
+    expect(screen.queryByTestId("fit-result")).not.toBeInTheDocument();
   });
 });

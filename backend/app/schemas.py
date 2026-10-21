@@ -74,3 +74,23 @@ class SeriesResponse(BaseModel):
     x_stats: ColumnStats | None
     y_stats: ColumnStats | None
     warnings: list[str]
+
+
+class DatasetFitResponse(BaseModel):
+    x_column: str
+    y_column: str
+    x_unit: str | None
+    y_unit: str | None
+    row_count: int
+    pair_count: int
+    skipped_count: int
+    degree: int
+    coefficients: list[float]
+    equation: str
+    r_squared: float
+    pairs: list[SeriesPair]
+    fitted: list[float]
+    residuals: list[float]
+    rmse: float
+    max_abs_residual: float
+    warnings: list[str]
