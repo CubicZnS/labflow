@@ -309,27 +309,30 @@ function CsvResult({
 export function CsvImportPanel() {
   const inputId = useId();
   const uploadIdRef = useRef(0);
+  const sampleLoadingRef = useRef(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>({ status: "idle" });
+  const [isSampleLoading, setIsSampleLoading] = useState(false);
+  const [sampleError, setSampleError] = useState<string | null>(null);
 
   const isParsing = uploadState.status === "parsing";
+  const isBusy = isParsing || isSampleLoading;
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
     setSelectedFile(file);
     setUploadState({ status: "idle" });
+    setSampleError(null);
   }
 
   function handleClear() {
     setSelectedFile(null);
     setUploadState({ status: "idle" });
+    setSampleError(null);
   }
 
-  async function handleUpload() {
-    if (!selectedFile || isParsing) {
-      return;
-    }
-    const fileName = selectedFile.name;
+  async function runUpload(file: File) {
+    const fileName = file.name;
     const format = datasetFormatForFile(fileName);
     if (!format) {
       setUploadState({
@@ -341,14 +344,14 @@ export function CsvImportPanel() {
     }
     setUploadState({ status: "parsing", fileName });
     try {
-      const result = await uploadDataset(selectedFile, format);
+      const result = await uploadDataset(file, format);
       uploadIdRef.current += 1;
       setUploadState({
         status: "success",
         fileName,
         format,
         result,
-        file: selectedFile,
+        file,
         uploadId: uploadIdRef.current,
       });
     } catch (error) {
@@ -360,6 +363,44 @@ export function CsvImportPanel() {
             ? error.message
             : format.toUpperCase() + " 上传失败，请稍后重试。",
       });
+    }
+  }
+
+  async function handleUpload() {
+    if (!selectedFile || isBusy) {
+      return;
+    }
+    setSampleError(null);
+    await runUpload(selectedFile);
+  }
+
+  async function handleLoadSample() {
+    if (sampleLoadingRef.current || isParsing) {
+      return;
+    }
+    sampleLoadingRef.current = true;
+    setIsSampleLoading(true);
+    setSampleError(null);
+    try {
+      const response = await fetch("/samples/labflow-demo.csv");
+      if (!response.ok) {
+        throw new Error(
+          "示例数据载入失败（HTTP " + response.status + "），请重试或手动上传文件。",
+        );
+      }
+      const text = await response.text();
+      const file = new File([text], "labflow-demo.csv", { type: "text/csv" });
+      setSelectedFile(file);
+      await runUpload(file);
+    } catch (error) {
+      setSampleError(
+        error instanceof Error && error.message.startsWith("示例数据载入失败")
+          ? error.message
+          : "示例数据载入失败，请检查网络后重试，或手动上传文件。",
+      );
+    } finally {
+      sampleLoadingRef.current = false;
+      setIsSampleLoading(false);
     }
   }
 
@@ -382,6 +423,19 @@ export function CsvImportPanel() {
             支持 UTF-8 编码的 CSV 与 XLSX（导入首个工作表），单文件最大 10 MB。文件只用于本地解析。
           </p>
 
+          <button
+            type="button"
+            data-testid="load-sample"
+            onClick={handleLoadSample}
+            disabled={isBusy}
+            className="mt-4 w-full rounded-xl border border-cyan/40 bg-cyan/5 px-4 py-3 text-sm font-semibold text-cyan transition hover:border-cyan hover:bg-cyan/10 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSampleLoading ? "正在载入示例…" : "载入示例数据"}
+          </button>
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            内置 12 行示例 CSV，含 1 个缺失读数与中文备注，便于先体验完整流程。
+          </p>
+
           <label
             htmlFor={inputId}
             className="mt-5 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-cyan/40 bg-cyan/5 px-4 py-6 text-sm font-medium text-cyan transition hover:border-cyan hover:bg-cyan/10"
@@ -395,7 +449,7 @@ export function CsvImportPanel() {
             className="sr-only"
             type="file"
             accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            disabled={isParsing}
+            disabled={isBusy}
             onChange={handleFileChange}
           />
 
@@ -412,7 +466,7 @@ export function CsvImportPanel() {
               <button
                 type="button"
                 onClick={handleClear}
-                disabled={isParsing}
+                disabled={isBusy}
                 aria-label="清除已选文件"
                 className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -428,7 +482,7 @@ export function CsvImportPanel() {
           <button
             type="button"
             onClick={handleUpload}
-            disabled={!selectedFile || isParsing}
+            disabled={!selectedFile || isBusy}
             className="mt-4 w-full rounded-xl bg-cyan px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan/20 transition hover:bg-cyan-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
           >
             {isParsing ? "正在解析…" : "上传并解析"}
@@ -438,6 +492,18 @@ export function CsvImportPanel() {
             <p role="status" className="mt-3 text-sm text-slate-600">
               正在上传并解析 {uploadState.fileName}，请稍候…
             </p>
+          ) : null}
+
+          {sampleError ? (
+            <div
+              role="alert"
+              className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3"
+            >
+              <p className="text-sm font-semibold text-rose-700">示例载入失败</p>
+              <p className="mt-1 text-sm leading-6 text-rose-700" data-testid="sample-error">
+                {sampleError}
+              </p>
+            </div>
           ) : null}
 
           {uploadState.status === "error" ? (
