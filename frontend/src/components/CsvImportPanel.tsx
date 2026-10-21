@@ -1,5 +1,10 @@
 import { useId, useState, type ChangeEvent } from "react";
-import { uploadCsv, type CsvImportResponse, type PreviewCell } from "../lib/api";
+import {
+  uploadCsv,
+  type ColumnStats,
+  type CsvImportResponse,
+  type PreviewCell,
+} from "../lib/api";
 
 type UploadState =
   | { status: "idle" }
@@ -17,6 +22,34 @@ function formatFileSize(bytes: number): string {
     return (bytes / 1024).toFixed(1) + " KB";
   }
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+function trimStatNumber(text: string): string {
+  const [mantissa, exponent] = text.split("e");
+  const trimmedMantissa = mantissa.includes(".")
+    ? mantissa.replace(/0+$/, "").replace(/\.$/, "")
+    : mantissa;
+  if (exponent === undefined) {
+    return trimmedMantissa;
+  }
+  const negative = exponent.startsWith("-");
+  const digits = exponent.replace(/^[+-]/, "").replace(/^0+(?=\d)/, "");
+  return trimmedMantissa + "e" + (negative ? "-" : "") + digits;
+}
+
+function formatStat(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+  if (value === 0) {
+    return "0";
+  }
+  const magnitude = Math.abs(value);
+  const raw =
+    magnitude >= 1e6 || magnitude < 1e-4
+      ? value.toExponential(3)
+      : value.toPrecision(4);
+  return trimStatNumber(raw);
 }
 
 function PreviewValue({ value }: { value: PreviewCell }) {
@@ -37,6 +70,124 @@ function EmptyPreview() {
       <p className="mt-2 text-sm leading-6 text-slate-500">
         选择 CSV 并解析后，这里会显示行数、数值列、警告和前 10 行数据。
       </p>
+    </div>
+  );
+}
+
+function ColumnStatsPanel({ column, stats }: { column: string; stats: ColumnStats }) {
+  return (
+    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm font-semibold text-ink">{column} 的描述统计</p>
+        <span className="text-xs text-slate-500">基于完整 CSV 数据计算</span>
+      </div>
+      <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <dt className="text-xs text-slate-500">有效样本量 n</dt>
+          <dd className="mt-1 text-lg font-semibold text-ink" data-testid="stats-n">
+            {rowFormatter.format(stats.n)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">均值</dt>
+          <dd className="mt-1 text-lg font-semibold text-ink" data-testid="stats-mean">
+            {formatStat(stats.mean)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">样本标准差</dt>
+          <dd className="mt-1 text-lg font-semibold text-ink" data-testid="stats-std">
+            {formatStat(stats.std)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">标准误（SEM）</dt>
+          <dd className="mt-1 text-lg font-semibold text-ink" data-testid="stats-sem">
+            {formatStat(stats.sem)}
+          </dd>
+        </div>
+      </dl>
+      <p className="mt-3 text-xs text-slate-500" data-testid="stats-missing">
+        {stats.missing > 0
+          ? `已排除 ${rowFormatter.format(stats.missing)} 个缺失值或非有限值。`
+          : "未排除缺失值或非有限值。"}
+      </p>
+    </div>
+  );
+}
+
+function CsvStatistics({ result }: { result: CsvImportResponse }) {
+  const selectId = useId();
+  const [selectedColumn, setSelectedColumn] = useState(result.numeric_columns[0] ?? "");
+
+  if (result.numeric_columns.length === 0) {
+    return (
+      <div
+        className="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 p-4"
+        data-testid="stats-empty"
+      >
+        <p className="text-sm font-semibold text-ink">描述统计</p>
+        <p className="mt-1 text-sm leading-6 text-slate-600">
+          未识别到数值列，无法计算描述统计。请上传至少包含一个数值列的 CSV。
+        </p>
+      </div>
+    );
+  }
+
+  const activeColumn = result.numeric_columns.includes(selectedColumn)
+    ? selectedColumn
+    : result.numeric_columns[0];
+  const stats = result.column_stats[activeColumn];
+  const omittedColumns = result.numeric_columns.filter(
+    (column) => !result.column_stats[column],
+  );
+
+  return (
+    <div className="mt-4 rounded-xl border border-slate-200 p-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-ink">描述统计</p>
+          <p className="mt-1 text-xs text-slate-500">
+            由后端基于完整 CSV 计算，缺失值与非有限值不参与统计。
+          </p>
+        </div>
+        <div className="w-full sm:w-48">
+          <label htmlFor={selectId} className="block text-xs text-slate-500">
+            选择数值列
+          </label>
+          <select
+            id={selectId}
+            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-ink focus:border-cyan focus:outline-none focus:ring-2 focus:ring-cyan/20"
+            value={activeColumn}
+            onChange={(event) => setSelectedColumn(event.target.value)}
+            data-testid="stats-column-select"
+          >
+            {result.numeric_columns.map((column) => (
+              <option key={column} value={column}>
+                {column}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {stats ? (
+        <ColumnStatsPanel column={activeColumn} stats={stats} />
+      ) : (
+        <p
+          className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800"
+          data-testid="stats-unavailable"
+        >
+          “{activeColumn}” 的有效数值不足 2 个，无法计算样本标准差和标准误。
+        </p>
+      )}
+
+      {omittedColumns.length > 0 ? (
+        <p className="mt-3 text-xs leading-5 text-slate-500" data-testid="stats-omitted">
+          以下数值列因有效数值不足 2 个而未提供统计结果：
+          {omittedColumns.join("、")}。
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -90,6 +241,11 @@ function CsvResult({ fileName, result }: { fileName: string; result: CsvImportRe
           </p>
         )}
       </div>
+
+      <CsvStatistics
+        key={fileName + ":" + result.row_count + ":" + result.columns.join(",")}
+        result={result}
+      />
 
       <div className="mt-5">
         <div className="flex items-center justify-between gap-3">

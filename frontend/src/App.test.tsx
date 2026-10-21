@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import type { CsvImportResponse } from "./lib/api";
@@ -9,6 +9,16 @@ const csvPayload: CsvImportResponse = {
   row_count: 3,
   columns: ["time_s", "absorbance", "notes"],
   numeric_columns: ["time_s", "absorbance"],
+  column_stats: {
+    time_s: { n: 3, missing: 0, mean: 5, std: 5, sem: 2.886751345948129 },
+    absorbance: {
+      n: 2,
+      missing: 1,
+      mean: 0.1265,
+      std: 0.1619271450638394,
+      sem: 0.1144876738714033,
+    },
+  },
   preview: [
     { time_s: 0, absorbance: 0.012, notes: "基线" },
     { time_s: 5, absorbance: null, notes: null },
@@ -94,6 +104,76 @@ describe("App", () => {
     expect(uploadCall?.[1]?.method).toBe("POST");
     expect(uploadCall?.[1]?.body).toBeInstanceOf(FormData);
     expect((uploadCall?.[1]?.body as FormData).get("file")).toBe(file);
+  });
+
+  it("renders statistics for the default numeric column and updates on selection", async () => {
+    installFetchMock(() => jsonResponse(csvPayload));
+    render(<App />);
+
+    chooseFile();
+    startUpload();
+
+    expect(await screen.findByTestId("stats-n")).toHaveTextContent("3");
+    expect(screen.getByTestId("stats-mean")).toHaveTextContent("5");
+    expect(screen.getByTestId("stats-std")).toHaveTextContent("5");
+    expect(screen.getByTestId("stats-sem")).toHaveTextContent("2.887");
+    expect(screen.getByTestId("stats-missing")).toHaveTextContent("未排除缺失值或非有限值");
+
+    const select = screen.getByTestId("stats-column-select");
+    expect(
+      within(select)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["time_s", "absorbance"]);
+
+    fireEvent.change(select, { target: { value: "absorbance" } });
+
+    expect(screen.getByTestId("stats-n")).toHaveTextContent("2");
+    expect(screen.getByTestId("stats-mean")).toHaveTextContent("0.1265");
+    expect(screen.getByTestId("stats-std")).toHaveTextContent("0.1619");
+    expect(screen.getByTestId("stats-sem")).toHaveTextContent("0.1145");
+    expect(screen.getByTestId("stats-missing")).toHaveTextContent("已排除 1 个缺失值或非有限值");
+  });
+
+  it("shows an empty statistics state when there are no numeric columns", async () => {
+    installFetchMock(() =>
+      jsonResponse({ ...csvPayload, numeric_columns: [], column_stats: {} }),
+    );
+    render(<App />);
+
+    chooseFile();
+    startUpload();
+
+    expect(await screen.findByTestId("stats-empty")).toHaveTextContent(
+      "未识别到数值列，无法计算描述统计",
+    );
+    expect(screen.queryByTestId("stats-column-select")).not.toBeInTheDocument();
+  });
+
+  it("explains when a numeric column has too few finite values", async () => {
+    installFetchMock(() =>
+      jsonResponse({
+        ...csvPayload,
+        numeric_columns: ["sparse", "time_s"],
+        column_stats: { time_s: csvPayload.column_stats.time_s },
+      }),
+    );
+    render(<App />);
+
+    chooseFile();
+    startUpload();
+
+    expect(await screen.findByTestId("stats-unavailable")).toHaveTextContent(
+      "有效数值不足 2 个",
+    );
+    expect(screen.getByTestId("stats-omitted")).toHaveTextContent("sparse");
+
+    fireEvent.change(screen.getByTestId("stats-column-select"), {
+      target: { value: "time_s" },
+    });
+
+    expect(screen.getByTestId("stats-n")).toHaveTextContent("3");
+    expect(screen.getByTestId("stats-omitted")).toHaveTextContent("sparse");
   });
 
   it("shows an explicit no-warning state when parsing succeeds cleanly", async () => {

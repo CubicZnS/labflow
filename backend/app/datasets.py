@@ -13,6 +13,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from app.analysis import summary_stats
+
 PREVIEW_ROWS = 10
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 ALLOWED_CONTENT_TYPES = frozenset(
@@ -51,6 +53,22 @@ def _is_numeric_column(series: pd.Series) -> bool:
     return bool(pd.api.types.is_numeric_dtype(series)) and not bool(
         pd.api.types.is_bool_dtype(series)
     ) and int(series.notna().sum()) > 0
+
+
+def _column_stats(series: pd.Series) -> dict[str, Any] | None:
+    """Return summary statistics for a numeric column, or None if too few values."""
+    values = pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
+    finite = values[np.isfinite(values)]
+    if finite.size < 2:
+        return None
+    stats = summary_stats(finite.tolist())
+    return {
+        "n": stats["n"],
+        "missing": int(values.size - finite.size),
+        "mean": stats["mean"],
+        "std": stats["std"],
+        "sem": stats["sem"],
+    }
 
 
 def _validate_field_counts(data: bytes) -> None:
@@ -120,6 +138,12 @@ def parse_csv_bytes(data: bytes) -> dict[str, Any]:
         if _is_numeric_column(series):
             numeric_columns.append(str(column))
 
+    column_stats: dict[str, dict[str, Any]] = {}
+    for column in numeric_columns:
+        stats = _column_stats(frame[column])
+        if stats is not None:
+            column_stats[column] = stats
+
     head = frame.head(PREVIEW_ROWS)
     preview_frame = head.astype(object).where(pd.notna(head), None)
     preview = [
@@ -131,6 +155,7 @@ def parse_csv_bytes(data: bytes) -> dict[str, Any]:
         "row_count": len(frame),
         "columns": columns,
         "numeric_columns": numeric_columns,
+        "column_stats": column_stats,
         "preview": preview,
         "warnings": warnings,
     }
