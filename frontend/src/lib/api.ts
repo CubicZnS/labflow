@@ -163,6 +163,91 @@ export type SeriesSelection = {
   yUnit?: string;
 };
 
+export type FitDegree = 1 | 2 | 3;
+
+export type FitResponse = {
+  x_column: string;
+  y_column: string;
+  x_unit: string | null;
+  y_unit: string | null;
+  row_count: number;
+  pair_count: number;
+  skipped_count: number;
+  degree: number;
+  coefficients: number[];
+  equation: string;
+  r_squared: number;
+  pairs: SeriesPair[];
+  fitted: number[];
+  residuals: number[];
+  rmse: number;
+  max_abs_residual: number;
+  warnings: string[];
+};
+
+export type FitSelection = {
+  xColumn: string;
+  yColumn: string;
+  xUnit?: string;
+  yUnit?: string;
+  degree: FitDegree;
+};
+
+export async function createFit(
+  file: File,
+  format: DatasetFormat,
+  selection: FitSelection,
+  signal?: AbortSignal,
+): Promise<FitResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("format", format);
+  form.append("x_column", selection.xColumn);
+  form.append("y_column", selection.yColumn);
+  form.append("degree", String(selection.degree));
+  const xUnit = selection.xUnit?.trim() ?? "";
+  const yUnit = selection.yUnit?.trim() ?? "";
+  if (xUnit) {
+    form.append("x_unit", xUnit);
+  }
+  if (yUnit) {
+    form.append("y_unit", yUnit);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch("/api/datasets/fit", {
+      method: "POST",
+      body: form,
+      signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw error;
+    }
+    throw new CsvUploadError("无法连接分析服务，请确认后端已启动后重试。");
+  }
+
+  if (!response.ok) {
+    let detail: string | null = null;
+    try {
+      detail = extractErrorDetail(await response.json());
+    } catch {
+      detail = null;
+    }
+    throw new CsvUploadError(
+      detail ?? `拟合失败（HTTP ${response.status}），请检查数据后重试。`,
+      response.status,
+    );
+  }
+
+  try {
+    return (await response.json()) as FitResponse;
+  } catch {
+    throw new CsvUploadError("服务器返回了无法解析的响应，请稍后重试。", response.status);
+  }
+}
+
 export async function createSeries(
   file: File,
   format: DatasetFormat,

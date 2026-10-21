@@ -17,8 +17,10 @@ from app.datasets import (
     parse_csv_bytes,
     parse_xlsx_bytes,
 )
+from app.fitting import build_fit
 from app.schemas import (
     CsvImportResponse,
+    DatasetFitResponse,
     FitRequest,
     FitResponse,
     HealthResponse,
@@ -156,3 +158,52 @@ async def import_series(
     except DatasetImportError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     return SeriesResponse(**result)
+
+
+@app.post("/api/datasets/fit", response_model=DatasetFitResponse)
+async def dataset_fit(
+    file: Annotated[UploadFile, File()],
+    format: Annotated[str, Form()],
+    x_column: Annotated[str, Form()],
+    y_column: Annotated[str, Form()],
+    degree: Annotated[str, Form()] = "1",
+    x_unit: Annotated[str | None, Form()] = None,
+    y_unit: Annotated[str | None, Form()] = None,
+) -> DatasetFitResponse:
+    format_label = format.strip().lower()
+    if format_label not in SUPPORTED_SERIES_FORMATS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported format '{format}'; use 'csv' or 'xlsx'",
+        )
+
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+    if format_label == "csv":
+        allowed_types = ALLOWED_CONTENT_TYPES
+        expected = "CSV"
+    else:
+        allowed_types = ALLOWED_XLSX_CONTENT_TYPES
+        expected = "XLSX"
+    if content_type not in allowed_types:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported content type '{content_type or 'unknown'}'; "
+            f"upload a {expected} file",
+        )
+
+    data = await file.read()
+    await file.close()
+    try:
+        frame, warnings = load_series_frame(format_label, data)
+        result = build_fit(
+            frame,
+            warnings,
+            x_column=x_column,
+            y_column=y_column,
+            x_unit=x_unit,
+            y_unit=y_unit,
+            degree=degree,
+        )
+    except DatasetImportError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    return DatasetFitResponse(**result)

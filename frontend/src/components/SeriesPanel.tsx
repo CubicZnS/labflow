@@ -5,6 +5,7 @@ import {
   type DatasetFormat,
   type SeriesResponse,
 } from "../lib/api";
+import { FitPanel } from "./FitPanel";
 
 type SeriesState =
   | { status: "idle" }
@@ -83,6 +84,7 @@ export function SeriesPanel({
   const [xUnit, setXUnit] = useState("");
   const [yUnit, setYUnit] = useState("");
   const [seriesState, setSeriesState] = useState<SeriesState>({ status: "idle" });
+  const [seriesRun, setSeriesRun] = useState(0);
 
   const isLoading = seriesState.status === "loading";
   const sameSelection = xColumn !== "" && xColumn === yColumn;
@@ -101,6 +103,7 @@ export function SeriesPanel({
         yUnit,
       });
       setSeriesState({ status: "success", result: series });
+      setSeriesRun((run) => run + 1);
     } catch (error) {
       setSeriesState({
         status: "error",
@@ -258,6 +261,12 @@ export function SeriesPanel({
           </dl>
           <UnitSummary result={seriesState.result} />
           <PairPreview result={seriesState.result} />
+          <FitPanel
+            key={seriesRun}
+            file={file}
+            format={format}
+            series={seriesState.result}
+          />
         </div>
       ) : null}
     </div>
