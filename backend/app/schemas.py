@@ -108,3 +108,9 @@ class DatasetFitResponse(BaseModel):
     max_abs_residual: float
     warnings: list[str]
     uncertainty: FitUncertainty
+    weighted: bool
+    y_error_column: str | None
+    y_error_unit: str | None
+    y_errors: list[float] | None
+    chi_squared: float | None
+    reduced_chi_squared: float | None

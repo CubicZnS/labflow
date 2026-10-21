@@ -78,6 +78,12 @@ const fitPayload: FitResponse = {
     condition_number: 5.196152,
     ill_conditioned: false,
   },
+  weighted: false,
+  y_error_column: null,
+  y_error_unit: null,
+  y_errors: null,
+  chi_squared: null,
+  reduced_chi_squared: null,
 };
 
 function jsonResponse(payload: unknown, status = 200): Response {
@@ -749,5 +755,163 @@ describe("App", () => {
     expect(screen.getByTestId("fit-uncertainty-ci-high-0")).toHaveTextContent("—");
     expect(screen.getByTestId("fit-residual-dof")).toHaveTextContent("0");
     expect(screen.queryByTestId("fit-conditioning-warning")).not.toBeInTheDocument();
+  });
+
+  it("lists only non-axis numeric columns as Y error options and defaults to equal weighting", async () => {
+    const csvWithError: CsvImportResponse = {
+      ...csvPayload,
+      numeric_columns: ["time_s", "absorbance", "err"],
+    };
+    installFetchMock(
+      () => jsonResponse(csvWithError),
+      () => jsonResponse(seriesPayload),
+    );
+    render(<App />);
+
+    await generateSeries();
+
+    const select = screen.getByTestId("fit-error-select") as HTMLSelectElement;
+    expect(select.value).toBe("");
+    expect(
+      within(select)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["不使用（等权拟合）", "err"]);
+    expect(screen.queryByTestId("fit-error-unit-input")).not.toBeInTheDocument();
+  });
+
+  it("sends the selected Y error column and unit with the fit request", async () => {
+    const csvWithError: CsvImportResponse = {
+      ...csvPayload,
+      numeric_columns: ["time_s", "absorbance", "err"],
+    };
+    const weightedFit: FitResponse = {
+      ...fitPayload,
+      weighted: true,
+      y_error_column: "err",
+      y_error_unit: "mV",
+      y_errors: [0.1, 0.2],
+      chi_squared: 1.5,
+      reduced_chi_squared: 0.75,
+    };
+    const fetchMock = installFetchMock(
+      () => jsonResponse(csvWithError),
+      () => jsonResponse(seriesPayload),
+      () => jsonResponse(weightedFit),
+    );
+    render(<App />);
+
+    await generateSeries();
+    fireEvent.change(screen.getByTestId("fit-error-select"), {
+      target: { value: "err" },
+    });
+    fireEvent.change(screen.getByTestId("fit-error-unit-input"), {
+      target: { value: "mV" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+
+    await screen.findByTestId("fit-result");
+    const fitCall = fetchMock.mock.calls.find(
+      ([input]) => String(input) === "/api/datasets/fit",
+    );
+    const body = fitCall?.[1]?.body as FormData;
+    expect(body.get("y_error_column")).toBe("err");
+    expect(body.get("y_error_unit")).toBe("mV");
+  });
+
+  it("renders weighted diagnostics and the preview Y error column", async () => {
+    const csvWithError: CsvImportResponse = {
+      ...csvPayload,
+      numeric_columns: ["time_s", "absorbance", "err"],
+    };
+    const weightedFit: FitResponse = {
+      ...fitPayload,
+      weighted: true,
+      y_error_column: "err",
+      y_error_unit: "mV",
+      y_errors: [0.1, 0.2],
+      chi_squared: 1.5,
+      reduced_chi_squared: 0.75,
+    };
+    installFetchMock(
+      () => jsonResponse(csvWithError),
+      () => jsonResponse(seriesPayload),
+      () => jsonResponse(weightedFit),
+    );
+    render(<App />);
+
+    await generateSeries();
+    fireEvent.change(screen.getByTestId("fit-error-select"), {
+      target: { value: "err" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+
+    expect(await screen.findByTestId("fit-weighted-badge")).toHaveTextContent(
+      "加权拟合（使用 Y 误差列）",
+    );
+    expect(screen.getByTestId("fit-error-column")).toHaveTextContent("err");
+    expect(screen.getByTestId("fit-error-unit")).toHaveTextContent("mV");
+    expect(screen.getByTestId("fit-chi-squared")).toHaveTextContent("1.5");
+    expect(screen.getByTestId("fit-reduced-chi2")).toHaveTextContent("0.75");
+
+    const table = screen.getByTestId("fit-preview-table");
+    expect(
+      within(table).getByRole("columnheader", { name: "Y 误差" }),
+    ).toBeInTheDocument();
+    expect(within(table).getAllByRole("row")).toHaveLength(3);
+    expect(within(table).getByText("0.1")).toBeInTheDocument();
+    expect(within(table).getByText("0.2")).toBeInTheDocument();
+  });
+
+  it("does not fabricate weighted values for an equal-weight fit", async () => {
+    installFetchMock(
+      () => jsonResponse(csvPayload),
+      () => jsonResponse(seriesPayload),
+      () => jsonResponse(fitPayload),
+    );
+    render(<App />);
+
+    await generateSeries();
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+
+    expect(await screen.findByTestId("fit-weighted-badge")).toHaveTextContent(
+      "等权拟合（未使用 Y 误差列）",
+    );
+    expect(screen.getByTestId("fit-error-column")).toHaveTextContent("未使用");
+    expect(screen.getByTestId("fit-error-unit")).toHaveTextContent("未标注");
+    expect(screen.getByTestId("fit-chi-squared")).toHaveTextContent("—");
+    expect(screen.getByTestId("fit-reduced-chi2")).toHaveTextContent("—");
+    expect(
+      within(screen.getByTestId("fit-preview-table")).queryByRole("columnheader", {
+        name: "Y 误差",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("resets the selected Y error column when a new series is generated", async () => {
+    const csvWithError: CsvImportResponse = {
+      ...csvPayload,
+      numeric_columns: ["time_s", "absorbance", "err"],
+    };
+    installFetchMock(
+      () => jsonResponse(csvWithError),
+      () => jsonResponse(seriesPayload),
+      () => jsonResponse(fitPayload),
+    );
+    render(<App />);
+
+    await generateSeries();
+    fireEvent.change(screen.getByTestId("fit-error-select"), {
+      target: { value: "err" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+    await screen.findByTestId("fit-result");
+
+    fireEvent.click(screen.getByRole("button", { name: "生成配对数据" }));
+    await screen.findByTestId("series-pair-count");
+
+    const select = screen.getByTestId("fit-error-select") as HTMLSelectElement;
+    expect(select.value).toBe("");
+    expect(screen.queryByTestId("fit-result")).not.toBeInTheDocument();
   });
 });

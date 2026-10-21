@@ -101,6 +101,8 @@ def _fit_uncertainty(
     y_array: np.ndarray,
     coefficients: np.ndarray,
     degree: int,
+    *,
+    weights: np.ndarray | None = None,
 ) -> dict[str, object]:
     """Compute coefficient standard errors, 95% CIs, and conditioning diagnostics.
 
@@ -108,6 +110,9 @@ def _fit_uncertainty(
     finite values instead of raising. When the data exactly determines the fit
     there are no residual degrees of freedom, so the uncertainty is reported as
     ``None`` rather than dividing by zero.
+
+    For a weighted fit the supplied absolute 1-sigma errors define the covariance
+    directly as ``pinv(X^T W X)``; no mean-squared-error rescaling is applied.
     """
     pair_count = int(x_array.size)
     parameter_count = degree + 1
@@ -118,8 +123,11 @@ def _fit_uncertainty(
     standard_errors: list[float] | None = None
     confidence_intervals: list[dict[str, float]] | None = None
     if residual_dof > 0:
-        mse = float(np.sum(residuals**2)) / residual_dof
-        covariance = mse * np.linalg.pinv(design.T @ design)
+        if weights is None:
+            mse = float(np.sum(residuals**2)) / residual_dof
+            covariance = mse * np.linalg.pinv(design.T @ design)
+        else:
+            covariance = np.linalg.pinv(design.T @ (weights[:, None] * design))
         diagonal = np.maximum(np.diag(covariance), 0.0)
         standard_errors = [float(math.sqrt(value)) for value in diagonal]
         t_critical = float(stats.t.ppf(0.5 + CONFIDENCE_LEVEL / 2.0, residual_dof))
@@ -141,6 +149,47 @@ def _fit_uncertainty(
     }
 
 
+def _error_weights(
+    y_errors: Iterable[float], size: int
+) -> tuple[np.ndarray, np.ndarray]:
+    """Validate absolute Y errors and return them with their 1/sigma^2 weights."""
+    errors = _float_array(y_errors, "y_errors")
+    if errors.size != size:
+        raise ValueError("y_errors must have the same length as x and y")
+    if not np.all(errors > 0.0):
+        raise ValueError("y_errors must be strictly positive")
+    with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
+        weights = 1.0 / (errors**2)
+    if not np.all(np.isfinite(weights)):
+        raise ValueError("y_errors are too small to yield finite 1/sigma^2 weights")
+    return errors, weights
+
+
+def _weighted_least_squares(
+    x_array: np.ndarray,
+    y_array: np.ndarray,
+    degree: int,
+    y_errors: Iterable[float],
+) -> tuple[np.ndarray, dict[str, object], float, float | None]:
+    """Shared weighted solve and covariance used by linear and polynomial fits."""
+    _, weights = _error_weights(y_errors, int(x_array.size))
+    design = _design_matrix(x_array, degree)
+    sqrt_weight = np.sqrt(weights)
+    coefficients = np.linalg.lstsq(
+        design * sqrt_weight[:, None], y_array * sqrt_weight, rcond=None
+    )[0]
+    residuals = y_array - design @ coefficients
+    chi_squared = float(np.sum(weights * residuals**2))
+    if not math.isfinite(chi_squared):
+        raise ValueError("weighted fit produced a non-finite chi-squared")
+    uncertainty = _fit_uncertainty(
+        x_array, y_array, coefficients, degree, weights=weights
+    )
+    residual_dof = int(uncertainty["residual_dof"])
+    reduced_chi_squared = chi_squared / residual_dof if residual_dof > 0 else None
+    return coefficients, uncertainty, chi_squared, reduced_chi_squared
+
+
 def summary_stats(values: Iterable[float]) -> dict[str, float | int]:
     """Return n, mean, sample standard deviation, and standard error of the mean."""
     array = _float_array(values, "values")
@@ -152,13 +201,32 @@ def summary_stats(values: Iterable[float]) -> dict[str, float | int]:
     return {"n": int(array.size), "mean": mean, "std": std, "sem": sem}
 
 
-def linear_fit(x: Iterable[float], y: Iterable[float]) -> dict[str, object]:
-    """Fit y = slope*x + intercept and return the fit diagnostics."""
+def linear_fit(
+    x: Iterable[float],
+    y: Iterable[float],
+    *,
+    y_errors: Iterable[float] | None = None,
+) -> dict[str, object]:
+    """Fit y = slope*x + intercept and return the fit diagnostics.
+
+    When ``y_errors`` (absolute 1-sigma uncertainties) are supplied the fit is a
+    weighted least-squares solve; otherwise the Phase 2.2 unweighted path runs
+    unchanged.
+    """
     x_array, y_array = _paired_arrays(x, y)
     if float(np.ptp(x_array)) == 0.0:
         raise ValueError("x values must vary to fit a line")
-    slope, intercept = np.polyfit(x_array, y_array, 1)
-    coefficients = np.asarray([slope, intercept])
+    if y_errors is None:
+        slope, intercept = np.polyfit(x_array, y_array, 1)
+        coefficients = np.asarray([slope, intercept])
+        uncertainty = _fit_uncertainty(x_array, y_array, coefficients, 1)
+        chi_squared: float | None = None
+        reduced_chi_squared: float | None = None
+    else:
+        coefficients, uncertainty, chi_squared, reduced_chi_squared = (
+            _weighted_least_squares(x_array, y_array, 1, y_errors)
+        )
+        slope, intercept = coefficients
     y_hat = slope * x_array + intercept
     residuals = (y_array - y_hat).tolist()
     return {
@@ -169,12 +237,25 @@ def linear_fit(x: Iterable[float], y: Iterable[float]) -> dict[str, object]:
         "r_squared": _r_squared(y_array, y_hat),
         "residuals": [float(value) for value in residuals],
         "equation": _format_polynomial(coefficients),
-        "uncertainty": _fit_uncertainty(x_array, y_array, coefficients, 1),
+        "uncertainty": uncertainty,
+        "chi_squared": chi_squared,
+        "reduced_chi_squared": reduced_chi_squared,
     }
 
 
-def polynomial_fit(x: Iterable[float], y: Iterable[float], degree: int = 2) -> dict[str, object]:
-    """Fit a 2nd or 3rd degree polynomial and return coefficients (highest power first)."""
+def polynomial_fit(
+    x: Iterable[float],
+    y: Iterable[float],
+    degree: int = 2,
+    *,
+    y_errors: Iterable[float] | None = None,
+) -> dict[str, object]:
+    """Fit a 2nd or 3rd degree polynomial and return coefficients (highest power first).
+
+    When ``y_errors`` (absolute 1-sigma uncertainties) are supplied the fit is a
+    weighted least-squares solve; otherwise the Phase 2.2 unweighted path runs
+    unchanged.
+    """
     if degree not in (2, 3):
         raise ValueError("degree must be 2 or 3")
     x_array, y_array = _paired_arrays(x, y)
@@ -182,7 +263,15 @@ def polynomial_fit(x: Iterable[float], y: Iterable[float], degree: int = 2) -> d
         raise ValueError(f"degree {degree} requires more than {degree} data points")
     if float(np.ptp(x_array)) == 0.0:
         raise ValueError("x values must vary to fit a polynomial")
-    coefficients = np.polyfit(x_array, y_array, degree)
+    if y_errors is None:
+        coefficients = np.polyfit(x_array, y_array, degree)
+        uncertainty = _fit_uncertainty(x_array, y_array, coefficients, int(degree))
+        chi_squared: float | None = None
+        reduced_chi_squared: float | None = None
+    else:
+        coefficients, uncertainty, chi_squared, reduced_chi_squared = (
+            _weighted_least_squares(x_array, y_array, int(degree), y_errors)
+        )
     y_hat = np.polyval(coefficients, x_array)
     return {
         "degree": int(degree),
@@ -190,5 +279,7 @@ def polynomial_fit(x: Iterable[float], y: Iterable[float], degree: int = 2) -> d
         "r_squared": _r_squared(y_array, y_hat),
         "residuals": [float(value) for value in (y_array - y_hat).tolist()],
         "equation": _format_polynomial(coefficients),
-        "uncertainty": _fit_uncertainty(x_array, y_array, coefficients, int(degree)),
+        "uncertainty": uncertainty,
+        "chi_squared": chi_squared,
+        "reduced_chi_squared": reduced_chi_squared,
     }

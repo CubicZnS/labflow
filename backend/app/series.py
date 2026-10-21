@@ -48,7 +48,8 @@ def _is_temporal(series: pd.Series) -> bool:
     )
 
 
-def _coerce(series: pd.Series) -> np.ndarray:
+def coerce_numeric_column(series: pd.Series) -> np.ndarray:
+    """Coerce a column to floats; temporal columns become all-NaN."""
     if _is_temporal(series):
         return np.full(len(series), np.nan, dtype=float)
     return pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
@@ -61,7 +62,7 @@ def _is_numeric_detectable(series: pd.Series) -> bool:
     return bool(pd.to_numeric(series, errors="coerce").notna().any())
 
 
-def _normalize_unit(value: str | None, axis: str) -> str | None:
+def normalize_unit(value: str | None, axis: str) -> str | None:
     if value is None:
         return None
     trimmed = value.strip()
@@ -87,7 +88,8 @@ def _paired_stats(values: list[float]) -> dict[str, Any] | None:
     }
 
 
-def _resolve_column(frame: pd.DataFrame, column: str, axis: str) -> str:
+def resolve_numeric_column(frame: pd.DataFrame, column: str, axis: str) -> str:
+    """Validate that a column exists and is numeric under the shared detection rules."""
     if column not in frame.columns:
         raise DatasetImportError(
             f"{axis} column '{column}' was not found in the dataset", status_code=422
@@ -97,6 +99,16 @@ def _resolve_column(frame: pd.DataFrame, column: str, axis: str) -> str:
             f"{axis} column '{column}' is not numeric", status_code=422
         )
     return column
+
+
+def paired_columns(
+    frame: pd.DataFrame, x_column: str, y_column: str
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return coerced X/Y values and the shared finite-pair row mask."""
+    x_values = coerce_numeric_column(frame[x_column])
+    y_values = coerce_numeric_column(frame[y_column])
+    valid = np.isfinite(x_values) & np.isfinite(y_values)
+    return x_values, y_values, valid
 
 
 def build_series(
@@ -114,15 +126,13 @@ def build_series(
             f"X and Y columns must differ; both are '{x_column}'", status_code=422
         )
 
-    resolved_x = _resolve_column(frame, x_column, "X")
-    resolved_y = _resolve_column(frame, y_column, "Y")
+    resolved_x = resolve_numeric_column(frame, x_column, "X")
+    resolved_y = resolve_numeric_column(frame, y_column, "Y")
 
-    normalized_x_unit = _normalize_unit(x_unit, "X")
-    normalized_y_unit = _normalize_unit(y_unit, "Y")
+    normalized_x_unit = normalize_unit(x_unit, "X")
+    normalized_y_unit = normalize_unit(y_unit, "Y")
 
-    x_values = _coerce(frame[resolved_x])
-    y_values = _coerce(frame[resolved_y])
-    valid = np.isfinite(x_values) & np.isfinite(y_values)
+    x_values, y_values, valid = paired_columns(frame, resolved_x, resolved_y)
 
     x_paired = x_values[valid]
     y_paired = y_values[valid]

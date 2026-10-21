@@ -95,6 +95,62 @@ function FitResult({ result }: { result: FitResponse }) {
         </div>
       </dl>
 
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span
+          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+            result.weighted
+              ? "bg-cyan/10 text-cyan-800"
+              : "bg-slate-200 text-slate-600"
+          }`}
+          data-testid="fit-weighted-badge"
+        >
+          {result.weighted
+            ? "加权拟合（使用 Y 误差列）"
+            : "等权拟合（未使用 Y 误差列）"}
+        </span>
+      </div>
+
+      <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <dt className="text-xs text-slate-500">Y 误差列</dt>
+          <dd
+            className="mt-1 text-base font-semibold text-ink"
+            data-testid="fit-error-column"
+          >
+            {result.y_error_column ?? "未使用"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">Y 误差单位</dt>
+          <dd
+            className="mt-1 text-base font-semibold text-ink"
+            data-testid="fit-error-unit"
+          >
+            {result.y_error_unit ?? "未标注"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">χ²</dt>
+          <dd
+            className="mt-1 text-base font-semibold text-ink"
+            data-testid="fit-chi-squared"
+          >
+            {result.chi_squared === null ? "—" : formatValue(result.chi_squared)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-slate-500">约化 χ²</dt>
+          <dd
+            className="mt-1 text-base font-semibold text-ink"
+            data-testid="fit-reduced-chi2"
+          >
+            {result.reduced_chi_squared === null
+              ? "—"
+              : formatValue(result.reduced_chi_squared)}
+          </dd>
+        </div>
+      </dl>
+
       <p className="mt-3 text-sm text-slate-600">
         系数（最高次在前）：
         <span className="font-medium text-ink" data-testid="fit-coefficients">
@@ -235,6 +291,11 @@ function FitResult({ result }: { result: FitResponse }) {
               <th scope="col" className="whitespace-nowrap px-4 py-2 font-medium">
                 残差
               </th>
+              {result.weighted ? (
+                <th scope="col" className="whitespace-nowrap px-4 py-2 font-medium">
+                  Y 误差
+                </th>
+              ) : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
@@ -252,6 +313,11 @@ function FitResult({ result }: { result: FitResponse }) {
                 <td className="whitespace-nowrap px-4 py-2 text-slate-700">
                   {formatValue(result.residuals[index] ?? Number.NaN)}
                 </td>
+                {result.weighted ? (
+                  <td className="whitespace-nowrap px-4 py-2 text-slate-700">
+                    {formatValue(result.y_errors?.[index] ?? Number.NaN)}
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>
@@ -265,16 +331,25 @@ export function FitPanel({
   file,
   format,
   series,
+  numericColumns,
 }: {
   file: File;
   format: DatasetFormat;
   series: SeriesResponse;
+  numericColumns: string[];
 }) {
   const degreeId = useId();
+  const errorColumnId = useId();
+  const errorUnitId = useId();
   const [degree, setDegree] = useState<FitDegree>(1);
+  const [errorColumn, setErrorColumn] = useState("");
+  const [errorUnit, setErrorUnit] = useState("");
   const [fitState, setFitState] = useState<FitState>({ status: "idle" });
 
   const isLoading = fitState.status === "loading";
+  const availableErrorColumns = numericColumns.filter(
+    (column) => column !== series.x_column && column !== series.y_column,
+  );
 
   async function handleRun() {
     if (isLoading) {
@@ -288,6 +363,8 @@ export function FitPanel({
         xUnit: series.x_unit ?? undefined,
         yUnit: series.y_unit ?? undefined,
         degree,
+        yErrorColumn: errorColumn || undefined,
+        yErrorUnit: errorColumn ? errorUnit : undefined,
       });
       setFitState({ status: "success", result });
     } catch (error) {
@@ -335,6 +412,46 @@ export function FitPanel({
             ))}
           </select>
         </div>
+
+        <div className="w-full sm:w-52">
+          <label htmlFor={errorColumnId} className="block text-xs text-slate-500">
+            Y 误差列（可选）
+          </label>
+          <select
+            id={errorColumnId}
+            value={errorColumn}
+            disabled={isLoading}
+            onChange={(event) => setErrorColumn(event.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-ink focus:border-cyan focus:outline-none focus:ring-2 focus:ring-cyan/20 disabled:cursor-not-allowed disabled:bg-slate-100"
+            data-testid="fit-error-select"
+          >
+            <option value="">不使用（等权拟合）</option>
+            {availableErrorColumns.map((column) => (
+              <option key={column} value={column}>
+                {column}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {errorColumn ? (
+          <div className="w-full sm:w-44">
+            <label htmlFor={errorUnitId} className="block text-xs text-slate-500">
+              Y 误差单位（可选）
+            </label>
+            <input
+              id={errorUnitId}
+              type="text"
+              value={errorUnit}
+              maxLength={32}
+              disabled={isLoading}
+              onChange={(event) => setErrorUnit(event.target.value)}
+              placeholder="例如 µV"
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-ink focus:border-cyan focus:outline-none focus:ring-2 focus:ring-cyan/20 disabled:cursor-not-allowed disabled:bg-slate-100"
+              data-testid="fit-error-unit-input"
+            />
+          </div>
+        ) : null}
 
         <button
           type="button"

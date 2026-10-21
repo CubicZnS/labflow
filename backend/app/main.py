@@ -169,6 +169,8 @@ async def dataset_fit(
     degree: Annotated[str, Form()] = "1",
     x_unit: Annotated[str | None, Form()] = None,
     y_unit: Annotated[str | None, Form()] = None,
+    y_error_column: Annotated[str | None, Form()] = None,
+    y_error_unit: Annotated[str | None, Form()] = None,
 ) -> DatasetFitResponse:
     format_label = format.strip().lower()
     if format_label not in SUPPORTED_SERIES_FORMATS:
@@ -203,6 +205,8 @@ async def dataset_fit(
             x_unit=x_unit,
             y_unit=y_unit,
             degree=degree,
+            y_error_column=y_error_column,
+            y_error_unit=y_error_unit,
         )
     except DatasetImportError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc

@@ -266,6 +266,7 @@ export function SeriesPanel({
             file={file}
             format={format}
             series={seriesState.result}
+            numericColumns={numericColumns}
           />
         </div>
       ) : null}

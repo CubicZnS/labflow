@@ -1,6 +1,7 @@
 import io
 import math
 
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 from openpyxl import Workbook
@@ -33,6 +34,8 @@ def post_fit(
     degree: str = "1",
     x_unit: str | None = None,
     y_unit: str | None = None,
+    y_error_column: str | None = None,
+    y_error_unit: str | None = None,
     filename: str | None = None,
     content_type: str | None = None,
 ):
@@ -46,6 +49,10 @@ def post_fit(
         data["x_unit"] = x_unit
     if y_unit is not None:
         data["y_unit"] = y_unit
+    if y_error_column is not None:
+        data["y_error_column"] = y_error_column
+    if y_error_unit is not None:
+        data["y_error_unit"] = y_error_unit
     if filename is None:
         filename = "data.xlsx" if format.lower() == "xlsx" else "data.csv"
     if content_type is None:
@@ -372,3 +379,196 @@ def test_fit_csv_and_xlsx_uncertainty_fields_match() -> None:
     assert csv_body["warnings"] == xlsx_body["warnings"]
     assert csv_body["uncertainty"]["residual_dof"] == 3
     assert csv_body["uncertainty"]["standard_errors"] is not None
+
+
+WEIGHTED_CSV = (
+    b"x,y,err\n0,1.0,0.2\n1,3.1,0.3\n2,4.9,0.5\n3,7.2,0.4\n"
+)
+
+
+def test_fit_weighted_linear_matches_independent_wls_and_reports_fields() -> None:
+    response = post_fit(WEIGHTED_CSV, degree="1", y_error_column="err", y_error_unit=" mV ")
+    assert response.status_code == 200
+    body = response.json()
+
+    x = np.array([0.0, 1.0, 2.0, 3.0])
+    y = np.array([1.0, 3.1, 4.9, 7.2])
+    errors = np.array([0.2, 0.3, 0.5, 0.4])
+    weights = 1.0 / errors**2
+    design = np.vander(x, 2, increasing=False)
+    sqrt_weight = np.sqrt(weights)
+    coefficients = np.linalg.lstsq(
+        design * sqrt_weight[:, None], y * sqrt_weight, rcond=None
+    )[0]
+    residuals = y - design @ coefficients
+    chi_squared = float(np.sum(weights * residuals**2))
+    covariance = np.linalg.pinv(design.T @ (weights[:, None] * design))
+    standard_errors = np.sqrt(np.maximum(np.diag(covariance), 0.0))
+
+    assert body["weighted"] is True
+    assert body["y_error_column"] == "err"
+    assert body["y_error_unit"] == "mV"
+    assert body["y_errors"] == pytest.approx(errors.tolist())
+    assert len(body["y_errors"]) == len(body["pairs"])
+    assert body["coefficients"] == pytest.approx(coefficients.tolist(), abs=1e-12)
+    assert body["uncertainty"]["standard_errors"] == pytest.approx(
+        standard_errors.tolist(), abs=1e-12
+    )
+    assert body["chi_squared"] == pytest.approx(chi_squared, abs=1e-12)
+    assert body["reduced_chi_squared"] == pytest.approx(chi_squared / 2.0, abs=1e-12)
+    assert body["uncertainty"]["residual_dof"] == 2
+    assert isinstance(body["weighted"], bool)
+    assert isinstance(body["chi_squared"], float)
+    assert isinstance(body["reduced_chi_squared"], float)
+
+
+def test_fit_unweighted_response_has_no_fabricated_weighted_values() -> None:
+    response = post_fit(WEIGHTED_CSV, degree="1")
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["weighted"] is False
+    assert body["y_error_column"] is None
+    assert body["y_error_unit"] is None
+    assert body["y_errors"] is None
+    assert body["chi_squared"] is None
+    assert body["reduced_chi_squared"] is None
+
+
+def test_fit_weighted_exactly_determined_returns_null_uncertainty() -> None:
+    response = post_fit(
+        b"x,y,err\n0,1,0.5\n2,5,0.1\n", degree="1", y_error_column="err"
+    )
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["weighted"] is True
+    assert body["pair_count"] == 2
+    assert body["coefficients"] == pytest.approx([2.0, 1.0], abs=1e-12)
+    assert body["uncertainty"]["residual_dof"] == 0
+    assert body["uncertainty"]["standard_errors"] is None
+    assert body["uncertainty"]["confidence_intervals"] is None
+    assert body["chi_squared"] == pytest.approx(0.0, abs=1e-12)
+    assert body["reduced_chi_squared"] is None
+    assert body["warnings"] == [UNCERTAINTY_WARNING]
+
+
+def test_fit_weighted_validates_only_retained_x_y_rows() -> None:
+    content = b"x,y,err\n0,1,0.1\n1,,0\n2,3,0.2\n3,4.8,0.3\n4,,-1\n"
+    response = post_fit(content, degree="1", y_error_column="err")
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["pair_count"] == 3
+    assert body["skipped_count"] == 2
+    assert body["y_errors"] == pytest.approx([0.1, 0.2, 0.3])
+
+
+@pytest.mark.parametrize(
+    ("content", "kwargs", "fragment"),
+    [
+        (b"x,y\n1,2\n2,4\n3,6\n", {"y_error_column": "missing"}, "not found"),
+        (
+            b"x,y,err\n1,2,a\n2,4,b\n3,6,c\n",
+            {"y_error_column": "err"},
+            "not numeric",
+        ),
+        (
+            b"x,y,err\n1,2,0.1\n2,4,0\n3,6,0.3\n",
+            {"y_error_column": "err"},
+            "1 retained row",
+        ),
+        (
+            b"x,y,err\n1,2,0.1\n2,4,-0.2\n3,6,0.3\n",
+            {"y_error_column": "err"},
+            "1 retained row",
+        ),
+        (
+            b"x,y,err\n1,2,0.1\n2,4,\n3,6,0.3\n",
+            {"y_error_column": "err"},
+            "1 retained row",
+        ),
+        (
+            b"x,y,err\n1,2,0.1\n2,4,0.2\n3,6,0.3\n",
+            {"y_error_column": "   "},
+            "blank",
+        ),
+        (
+            b"x,y,err\n1,2,0.1\n2,4,0.2\n3,6,0.3\n",
+            {"y_error_column": "x"},
+            "differ",
+        ),
+        (
+            b"x,y,err\n1,2,0.1\n2,4,0.2\n3,6,0.3\n",
+            {"y_error_column": "y"},
+            "differ",
+        ),
+        (
+            b"x,y,err\n1,2,0.1\n2,4,0.2\n3,6,0.3\n",
+            {"y_error_unit": "mV"},
+            "requires",
+        ),
+        (
+            b"x,y,err\n1,2,0.1\n2,4,0.2\n3,6,0.3\n",
+            {"y_error_column": "err", "y_error_unit": "a" * 33},
+            "32",
+        ),
+        (
+            b"x,y,err\n1,2,1e-200\n2,4,0.2\n3,6,0.3\n",
+            {"y_error_column": "err"},
+            "1/sigma^2",
+        ),
+    ],
+)
+def test_fit_rejects_invalid_y_error_inputs(
+    content: bytes, kwargs: dict[str, str], fragment: str
+) -> None:
+    response = post_fit(content, degree="1", **kwargs)
+    assert response.status_code == 422
+    assert fragment in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    ("error_value", "expect_warning"),
+    [("0.2", False), ("0.01", True), ("10", True)],
+)
+def test_fit_reduced_chi_squared_warning_thresholds(
+    error_value: str, expect_warning: bool
+) -> None:
+    rows = ["0,0", "1,2.1", "2,3.9", "3,6.2", "4,7.8"]
+    content = (
+        "x,y,err\n"
+        + "\n".join(f"{row},{error_value}" for row in rows)
+        + "\n"
+    ).encode()
+    response = post_fit(content, degree="1", y_error_column="err")
+    assert response.status_code == 200
+    body = response.json()
+    chi_warnings = [
+        warning for warning in body["warnings"] if warning.startswith("Reduced chi-squared")
+    ]
+    if expect_warning:
+        assert len(chi_warnings) == 1
+        assert "supplied Y errors may be inconsistent" in chi_warnings[0]
+    else:
+        assert chi_warnings == []
+    assert "NaN" not in response.text
+    assert "Infinity" not in response.text
+
+
+def test_fit_weighted_csv_and_xlsx_payloads_match() -> None:
+    rows = [
+        ["x", "y", "err"],
+        [0, 1.0, 0.2],
+        [1, 3.1, 0.3],
+        [2, 4.9, 0.5],
+        [3, 7.2, 0.4],
+    ]
+    csv_response = post_fit(WEIGHTED_CSV, degree="1", y_error_column="err")
+    xlsx_response = post_fit(
+        build_xlsx(rows), format="xlsx", degree="1", y_error_column="err"
+    )
+
+    assert csv_response.status_code == 200
+    assert xlsx_response.status_code == 200
+    assert csv_response.json() == xlsx_response.json()

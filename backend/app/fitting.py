@@ -7,6 +7,7 @@ and derives residual diagnostics without adding any new numerical method.
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 import numpy as np
@@ -14,7 +15,13 @@ import pandas as pd
 
 from app.analysis import linear_fit, polynomial_fit
 from app.datasets import DatasetImportError
-from app.series import build_series
+from app.series import (
+    build_series,
+    coerce_numeric_column,
+    normalize_unit,
+    paired_columns,
+    resolve_numeric_column,
+)
 
 MIN_DEGREE = 1
 MAX_DEGREE = 3
@@ -52,9 +59,24 @@ def build_fit(
     x_unit: str | None,
     y_unit: str | None,
     degree: str | int | None,
+    y_error_column: str | None = None,
+    y_error_unit: str | None = None,
 ) -> dict[str, Any]:
-    """Fit the paired X/Y series and return coefficients plus residual diagnostics."""
+    """Fit the paired X/Y series and return coefficients plus residual diagnostics.
+
+    Supplying ``y_error_column`` turns the fit into a weighted least-squares solve
+    using the validated absolute Y uncertainties from that column.
+    """
     resolved_degree = resolve_degree(degree)
+
+    if y_error_column is not None and not y_error_column.strip():
+        raise DatasetImportError(
+            "Y error column must not be blank", status_code=422
+        )
+    if y_error_column is None and y_error_unit is not None:
+        raise DatasetImportError(
+            "Y error unit requires a Y error column", status_code=422
+        )
 
     series = build_series(
         frame,
@@ -80,11 +102,50 @@ def build_fit(
             "X values must vary to fit a polynomial", status_code=422
         )
 
+    resolved_error_column: str | None = None
+    resolved_error_unit: str | None = None
+    errors: np.ndarray | None = None
+    if y_error_column is not None:
+        resolved_error_column = y_error_column.strip()
+        if resolved_error_column in (series["x_column"], series["y_column"]):
+            raise DatasetImportError(
+                "Y error column must differ from the X and Y columns; "
+                f"got '{resolved_error_column}'",
+                status_code=422,
+            )
+        resolved_error_column = resolve_numeric_column(
+            frame, resolved_error_column, "Y error"
+        )
+        resolved_error_unit = normalize_unit(y_error_unit, "Y error")
+
+        _, _, valid = paired_columns(frame, series["x_column"], series["y_column"])
+        error_values = coerce_numeric_column(frame[resolved_error_column])[valid]
+        invalid = ~np.isfinite(error_values) | (error_values <= 0.0)
+        invalid_count = int(np.count_nonzero(invalid))
+        if invalid_count > 0:
+            raise DatasetImportError(
+                f"Y error column '{resolved_error_column}' has {invalid_count} "
+                "retained row(s) with missing, non-finite, or non-positive values",
+                status_code=422,
+            )
+        with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
+            weights = 1.0 / (error_values**2)
+        non_finite_weights = int(np.count_nonzero(~np.isfinite(weights)))
+        if non_finite_weights > 0:
+            raise DatasetImportError(
+                f"Y error column '{resolved_error_column}' has {non_finite_weights} "
+                "retained row(s) whose 1/sigma^2 weight is not finite",
+                status_code=422,
+            )
+        errors = error_values
+
     try:
         if resolved_degree == 1:
-            analysis = linear_fit(x_values, y_values)
+            analysis = linear_fit(x_values, y_values, y_errors=errors)
         else:
-            analysis = polynomial_fit(x_values, y_values, resolved_degree)
+            analysis = polynomial_fit(
+                x_values, y_values, resolved_degree, y_errors=errors
+            )
     except ValueError as exc:
         raise DatasetImportError(str(exc), status_code=422) from exc
 
@@ -94,6 +155,8 @@ def build_fit(
     max_abs_residual = float(np.max(np.abs(residuals))) if residuals.size else 0.0
 
     uncertainty = analysis["uncertainty"]
+    chi_squared = analysis.get("chi_squared")
+    reduced_chi_squared = analysis.get("reduced_chi_squared")
     warnings = list(series["warnings"])
     if uncertainty["residual_dof"] == 0:
         warnings.append(
@@ -107,6 +170,16 @@ def build_fit(
         warnings.append(
             f"Fit design matrix is ill-conditioned (condition number {formatted}); "
             "coefficient estimates may be numerically unstable"
+        )
+    if (
+        errors is not None
+        and reduced_chi_squared is not None
+        and math.isfinite(reduced_chi_squared)
+        and not 0.1 <= reduced_chi_squared <= 10.0
+    ):
+        warnings.append(
+            f"Reduced chi-squared {reduced_chi_squared:.6g} suggests the supplied "
+            "Y errors may be inconsistent with the fit residuals"
         )
 
     return {
@@ -128,4 +201,10 @@ def build_fit(
         "max_abs_residual": max_abs_residual,
         "uncertainty": uncertainty,
         "warnings": warnings,
+        "weighted": errors is not None,
+        "y_error_column": resolved_error_column,
+        "y_error_unit": resolved_error_unit,
+        "y_errors": [float(value) for value in errors.tolist()] if errors is not None else None,
+        "chi_squared": chi_squared,
+        "reduced_chi_squared": reduced_chi_squared,
     }
