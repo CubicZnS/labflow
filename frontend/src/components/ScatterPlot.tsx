@@ -14,6 +14,24 @@ const FIT_COLOR = "#b45309";
 const ERROR_BAR_COLOR = "#0f766e";
 const FIT_CURVE_SAMPLE_COUNT = 101;
 const ERROR_BAR_CAP = 5;
+const GRID_COLOR = "#e2e8f0";
+
+export type TickDensity = "sparse" | "standard" | "dense";
+export type FontScale = "small" | "medium" | "large";
+
+const TICK_LIMITS: Record<
+  Exclude<TickDensity, "standard">,
+  { minTicks: number; maxTicks: number; preferred: number }
+> = {
+  sparse: { minTicks: 3, maxTicks: 4, preferred: 4 },
+  dense: { minTicks: 6, maxTicks: 9, preferred: 8 },
+};
+
+const FONT_SCALES: Record<FontScale, { tick: number; axis: number; title: number }> = {
+  small: { tick: 9, axis: 10, title: 13 },
+  medium: { tick: 11, axis: 12, title: 15 },
+  large: { tick: 14, axis: 15, title: 18 },
+};
 
 type Domain = { min: number; max: number };
 type Ticks = { values: number[]; step: number; domain: Domain };
@@ -185,7 +203,7 @@ function ticksFor(domain: Domain, step: number): number[] {
   return values;
 }
 
-function generateTicks(domain: Domain): Ticks {
+function generateStandardTicks(domain: Domain): Ticks {
   const span = domain.max - domain.min;
   if (!Number.isFinite(span) || span <= 0) {
     const fractions = [0, 0.25, 0.5, 0.75, 1];
@@ -200,67 +218,123 @@ function generateTicks(domain: Domain): Ticks {
     };
   }
 
-  const steps = candidateSteps(span);
-  let best: { values: number[]; step: number; domain: Domain; growth: number } | null =
-    null;
-
-  for (const step of steps) {
-    const inside = ticksFor(domain, step);
+  for (const step of candidateSteps(span)) {
+    const inside = uniqueFinite(ticksFor(domain, step));
     if (inside.length >= MIN_TICKS && inside.length <= MAX_TICKS) {
       return { values: inside, step, domain };
     }
-
-    const firstIndex = Math.floor(domain.min / step + 1e-9);
-    const lastIndex = Math.ceil(domain.max / step - 1e-9);
-    const count = lastIndex - firstIndex + 1;
-    if (count < MIN_TICKS || count > MAX_TICKS) {
-      continue;
-    }
-    const low = firstIndex * step;
-    const high = lastIndex * step;
-    if (!Number.isFinite(low) || !Number.isFinite(high) || high <= low) {
-      continue;
-    }
-    const growth = (high - low) / span - 1;
-    const values: number[] = [];
-    for (let index = firstIndex; index <= lastIndex; index += 1) {
-      values.push(normalize(index * step, step));
-    }
-    const candidate = {
-      values,
-      step,
-      domain: { min: low, max: high },
-      growth,
-    };
-    if (
-      !best ||
-      growth < best.growth - 1e-9 ||
-      (Math.abs(growth - best.growth) <= 1e-9 &&
-        Math.abs(values.length - 5) < Math.abs(best.values.length - 5))
-    ) {
-      best = candidate;
-    }
   }
 
-  if (best) {
-    return { values: best.values, step: best.step, domain: best.domain };
-  }
+  return standardFallbackTicks(domain);
+}
 
-  const fractions = [0, 0.25, 0.5, 0.75, 1];
+function uniqueFinite(values: number[]): number[] {
+  const seen = new Set<number>();
+  const result: number[] = [];
+  for (const value of values) {
+    if (!Number.isFinite(value) || seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
+}
+
+function fractionTicks(domain: Domain, count: number): number[] {
+  if (count < 2) {
+    return uniqueFinite([domain.min, domain.max]);
+  }
+  const values: number[] = [];
+  for (let index = 1; index <= count; index += 1) {
+    const fraction = index / (count + 1);
+    values.push(domain.min * (1 - fraction) + domain.max * fraction);
+  }
+  return uniqueFinite(values);
+}
+
+function fallbackTicks(domain: Domain, preferred: number): Ticks {
+  const values = fractionTicks(domain, preferred);
+  const safeValues =
+    values.length >= 2 ? values : uniqueFinite([domain.min, domain.max]);
+  const span = (safeValues[safeValues.length - 1] ?? 0) - (safeValues[0] ?? 0);
+  const step = span / Math.max(1, safeValues.length - 1);
   return {
-    values: fractions.map(
-      (fraction) => domain.min * (1 - fraction) + domain.max * fraction,
-    ),
-    step: span / 4,
+    values: safeValues.length > 0 ? safeValues : [domain.min, domain.max],
+    step: Number.isFinite(step) && step > 0 ? step : 1,
     domain,
   };
 }
 
-function buildAxis(values: number[]): Ticks {
-  return generateTicks(computeDomain(values));
+function standardFallbackTicks(domain: Domain): Ticks {
+  const values = fractionTicks(domain, MIN_TICKS + 1);
+  const safeValues =
+    values.length >= 2 ? values : uniqueFinite([domain.min, domain.max]);
+  const span = (safeValues[safeValues.length - 1] ?? 0) - (safeValues[0] ?? 0);
+  const step = span / Math.max(1, (safeValues.length - 1) * 10);
+  return {
+    values: safeValues.length > 0 ? safeValues : [domain.min, domain.max],
+    step: Number.isFinite(step) && step > 0 ? step : 1,
+    domain,
+  };
 }
 
-function formatTick(value: number, step: number): string {
+function generateDensityTicks(
+  domain: Domain,
+  minTicks: number,
+  maxTicks: number,
+  preferred: number,
+): Ticks {
+  const span = domain.max - domain.min;
+  if (!Number.isFinite(span) || span <= 0) {
+    return fallbackTicks(domain, preferred);
+  }
+
+  let best: { values: number[]; step: number } | null = null;
+
+  for (const step of candidateSteps(span)) {
+    const values = uniqueFinite(ticksFor(domain, step));
+    if (values.length < minTicks || values.length > maxTicks) {
+      continue;
+    }
+    if (!best) {
+      best = { values, step };
+      continue;
+    }
+    const score = Math.abs(values.length - preferred);
+    const currentScore = Math.abs(best.values.length - preferred);
+    if (score < currentScore - 1e-9) {
+      best = { values, step };
+    }
+  }
+
+  if (best) {
+    return { values: best.values, step: best.step, domain };
+  }
+  return fallbackTicks(domain, preferred);
+}
+
+function buildAxis(values: number[], density: TickDensity = "standard"): Ticks {
+  const domain = computeDomain(values);
+  if (density === "standard") {
+    const ticks = generateStandardTicks(domain);
+    return { values: ticks.values, step: ticks.step, domain };
+  }
+  const limits = TICK_LIMITS[density];
+  const ticks = generateDensityTicks(
+    domain,
+    limits.minTicks,
+    limits.maxTicks,
+    limits.preferred,
+  );
+  return { values: ticks.values, step: ticks.step, domain };
+}
+
+function trimExponential(text: string): string {
+  return text.replace(/\.?0+e/, "e").replace("e+", "e");
+}
+
+function formatLegacyTick(value: number, step: number): string {
   if (!Number.isFinite(value)) {
     return "—";
   }
@@ -269,13 +343,62 @@ function formatTick(value: number, step: number): string {
   }
   const abs = Math.abs(value);
   if (abs >= 1e5 || abs < 1e-3) {
-    return value
-      .toExponential(2)
-      .replace(/\.?0+e/, "e")
-      .replace("e+", "e");
+    return trimExponential(value.toExponential(2));
   }
   const decimals = Math.min(8, Math.max(0, Math.ceil(-Math.log10(step)) + 1));
   return String(Number(value.toFixed(decimals)));
+}
+
+function formatAdaptiveTick(value: number, step: number, extra = 0): string {
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+  if (value === 0) {
+    return "0";
+  }
+  const abs = Math.abs(value);
+  if (abs >= 1e5 || abs < 1e-3) {
+    const ratio = step > 0 && Number.isFinite(step) ? abs / step : Number.NaN;
+    const significant =
+      Number.isFinite(ratio) && ratio > 0
+        ? Math.ceil(Math.log10(ratio)) + 1 + extra
+        : 2 + extra;
+    const digits = Math.min(17, Math.max(2, significant));
+    const text = trimExponential(value.toExponential(digits - 1));
+    if (Number.isFinite(Number(text))) {
+      return text;
+    }
+    return trimExponential(value.toPrecision(17));
+  }
+  const decimals = Math.min(8, Math.max(0, Math.ceil(-Math.log10(step)) + 1 + extra));
+  return String(Number(value.toFixed(decimals)));
+}
+
+function labelsAreUnique(labels: string[]): boolean {
+  return new Set(labels).size === labels.length;
+}
+
+function buildTickLabels(
+  values: number[],
+  step: number,
+  density: TickDensity,
+): string[] {
+  if (density === "standard") {
+    const legacy = values.map((value) => formatLegacyTick(value, step));
+    if (
+      labelsAreUnique(legacy) &&
+      legacy.every((label) => Number.isFinite(Number(label)))
+    ) {
+      return legacy;
+    }
+  }
+  for (let extra = 0; extra <= 12; extra += 1) {
+    const labels = values.map((value) => formatAdaptiveTick(value, step, extra));
+    if (labelsAreUnique(labels)) {
+      return labels;
+    }
+  }
+  return values.map((value) => (Number.isFinite(value) ? String(value) : "—"));
 }
 
 function axisRatio(value: number, domain: Domain): number {
@@ -305,6 +428,10 @@ export function ScatterPlot({
   xUnit,
   yUnit,
   fit = null,
+  title = "",
+  showGrid = false,
+  tickDensity = "standard",
+  fontScale = "medium",
 }: {
   pairs: SeriesPair[];
   xColumn: string;
@@ -312,14 +439,20 @@ export function ScatterPlot({
   xUnit?: string | null;
   yUnit?: string | null;
   fit?: FitResponse | null;
+  title?: string;
+  showGrid?: boolean;
+  tickDensity?: TickDensity;
+  fontScale?: FontScale;
 }) {
   const points = finitePairs(pairs);
   const pointCount = points.length;
   const hasPoints = pointCount > 0;
   const xLabel = axisLabel(xColumn, xUnit);
   const yLabel = axisLabel(yColumn, yUnit);
+  const trimmedTitle = title.trim();
+  const fonts = FONT_SCALES[fontScale];
 
-  const xAxis = hasPoints ? buildAxis(points.map((pair) => pair.x)) : null;
+  const xAxis = hasPoints ? buildAxis(points.map((pair) => pair.x), tickDensity) : null;
   const xDomain = xAxis?.domain ?? null;
 
   const errorBars = hasPoints ? buildErrorBars(fit) : [];
@@ -336,10 +469,16 @@ export function ScatterPlot({
       yValues.push(sample.y);
     }
   }
-  const yAxis = hasPoints ? buildAxis(yValues) : null;
+  const yAxis = hasPoints ? buildAxis(yValues, tickDensity) : null;
   const yDomain = yAxis?.domain ?? null;
   const xTicks = xAxis;
   const yTicks = yAxis;
+  const xTickLabels = xTicks
+    ? buildTickLabels(xTicks.values, xTicks.step, tickDensity)
+    : [];
+  const yTickLabels = yTicks
+    ? buildTickLabels(yTicks.values, yTicks.step, tickDensity)
+    : [];
 
   const domainAttributes = xDomain && yDomain
     ? {
@@ -360,9 +499,11 @@ export function ScatterPlot({
 
   const ariaLabel = hasPoints
     ? `${xLabel} 对 ${yLabel} 的散点图，共 ${pointCount} 个数据点${
-        overlayLabels.length > 0 ? `，${overlayLabels.join("，")}` : ""
-      }`
-    : `${xLabel} 对 ${yLabel} 的散点图，暂无可绘制的数据点`;
+        trimmedTitle ? `，标题「${trimmedTitle}」` : ""
+      }${overlayLabels.length > 0 ? `，${overlayLabels.join("，")}` : ""}`
+    : `${xLabel} 对 ${yLabel} 的散点图，暂无可绘制的数据点${
+        trimmedTitle ? `，标题「${trimmedTitle}」` : ""
+      }`;
 
   return (
     <figure
@@ -386,38 +527,60 @@ export function ScatterPlot({
         preserveAspectRatio="xMidYMid meet"
         className="mt-3 h-auto w-full"
       >
+        {trimmedTitle ? (
+          <text
+            data-testid="chart-title"
+            x={VIEW_WIDTH / 2}
+            y={18}
+            textAnchor="middle"
+            fill="#0f172a"
+            fontSize={fonts.title}
+            fontWeight={600}
+          >
+            {trimmedTitle}
+          </text>
+        ) : null}
+
         {hasPoints && xDomain && yDomain && xTicks && yTicks ? (
           <>
-            <g aria-hidden="true">
-              {xTicks.values.map((value) => {
-                const x = scaleX(value, xDomain);
-                return (
-                  <line
-                    key={`grid-x-${value}`}
-                    x1={x}
-                    y1={MARGIN.top}
-                    x2={x}
-                    y2={AXIS_Y}
-                    stroke="#e2e8f0"
-                    strokeWidth={1}
-                  />
-                );
-              })}
-              {yTicks.values.map((value) => {
-                const y = scaleY(value, yDomain);
-                return (
-                  <line
-                    key={`grid-y-${value}`}
-                    x1={MARGIN.left}
-                    y1={y}
-                    x2={MARGIN.left + INNER_WIDTH}
-                    y2={y}
-                    stroke="#e2e8f0"
-                    strokeWidth={1}
-                  />
-                );
-              })}
-            </g>
+            {showGrid ? (
+              <g aria-hidden="true" data-testid="grid-group">
+                {xTicks.values.map((value) => {
+                  const x = scaleX(value, xDomain);
+                  return (
+                    <line
+                      key={`grid-x-${value}`}
+                      data-testid="grid-line"
+                      data-axis="x"
+                      x1={x}
+                      y1={MARGIN.top}
+                      x2={x}
+                      y2={AXIS_Y}
+                      stroke={GRID_COLOR}
+                      strokeWidth={1}
+                      strokeDasharray="4 4"
+                    />
+                  );
+                })}
+                {yTicks.values.map((value) => {
+                  const y = scaleY(value, yDomain);
+                  return (
+                    <line
+                      key={`grid-y-${value}`}
+                      data-testid="grid-line"
+                      data-axis="y"
+                      x1={MARGIN.left}
+                      y1={y}
+                      x2={MARGIN.left + INNER_WIDTH}
+                      y2={y}
+                      stroke={GRID_COLOR}
+                      strokeWidth={1}
+                      strokeDasharray="4 4"
+                    />
+                  );
+                })}
+              </g>
+            ) : null}
 
             <line
               x1={MARGIN.left}
@@ -436,7 +599,7 @@ export function ScatterPlot({
               strokeWidth={1}
             />
 
-            {xTicks.values.map((value) => {
+            {xTicks.values.map((value, index) => {
               const x = scaleX(value, xDomain);
               return (
                 <g key={`tick-x-${value}`}>
@@ -454,15 +617,15 @@ export function ScatterPlot({
                     y={AXIS_Y + 20}
                     textAnchor="middle"
                     fill="#64748b"
-                    fontSize={11}
+                    fontSize={fonts.tick}
                   >
-                    {formatTick(value, xTicks.step)}
+                    {xTickLabels[index]}
                   </text>
                 </g>
               );
             })}
 
-            {yTicks.values.map((value) => {
+            {yTicks.values.map((value, index) => {
               const y = scaleY(value, yDomain);
               return (
                 <g key={`tick-y-${value}`}>
@@ -480,9 +643,9 @@ export function ScatterPlot({
                     y={y + 4}
                     textAnchor="end"
                     fill="#64748b"
-                    fontSize={11}
+                    fontSize={fonts.tick}
                   >
-                    {formatTick(value, yTicks.step)}
+                    {yTickLabels[index]}
                   </text>
                 </g>
               );
@@ -494,7 +657,7 @@ export function ScatterPlot({
               y={VIEW_HEIGHT - 14}
               textAnchor="middle"
               fill="#334155"
-              fontSize={12}
+              fontSize={fonts.axis}
               fontWeight={600}
             >
               {xLabel}
@@ -505,7 +668,7 @@ export function ScatterPlot({
               y={MARGIN.top + INNER_HEIGHT / 2}
               textAnchor="middle"
               fill="#334155"
-              fontSize={12}
+              fontSize={fonts.axis}
               fontWeight={600}
               transform={`rotate(-90 16 ${MARGIN.top + INNER_HEIGHT / 2})`}
             >
@@ -639,6 +802,18 @@ export function ScatterPlot({
               style={{ backgroundColor: ERROR_BAR_COLOR }}
             />
             竖线为 Y 误差棒（±σ）
+          </span>
+        ) : null}
+        {showGrid && hasPoints ? (
+          <span
+            className="inline-flex items-center gap-2"
+            data-testid="scatter-grid-legend"
+          >
+            <span
+              aria-hidden="true"
+              className="inline-block w-5 border-t border-dashed border-slate-400"
+            />
+            虚线段为网格参考线
           </span>
         ) : null}
         <span>自动坐标范围，含约 5% 边距</span>

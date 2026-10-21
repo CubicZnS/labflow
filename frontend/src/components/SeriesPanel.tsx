@@ -7,7 +7,11 @@ import {
   type SeriesResponse,
 } from "../lib/api";
 import { FitPanel } from "./FitPanel";
-import { ScatterPlot } from "./ScatterPlot";
+import {
+  ScatterPlot,
+  type FontScale,
+  type TickDensity,
+} from "./ScatterPlot";
 
 type SeriesState =
   | { status: "idle" }
@@ -16,6 +20,7 @@ type SeriesState =
   | { status: "error"; message: string };
 
 const UNIT_MAX_LENGTH = 32;
+const TITLE_MAX_LENGTH = 80;
 const PREVIEW_LIMIT = 10;
 
 function unitHeader(label: string, unit: string | null): string {
@@ -75,6 +80,10 @@ export function SeriesPanel({
   const ySelectId = useId();
   const xUnitId = useId();
   const yUnitId = useId();
+  const chartTitleId = useId();
+  const tickDensityId = useId();
+  const fontScaleId = useId();
+  const showGridId = useId();
 
   const numericColumns = result.numeric_columns;
   const enoughColumns = numericColumns.length >= 2;
@@ -88,6 +97,10 @@ export function SeriesPanel({
   const [seriesState, setSeriesState] = useState<SeriesState>({ status: "idle" });
   const [seriesRun, setSeriesRun] = useState(0);
   const [fitResult, setFitResult] = useState<FitResponse | null>(null);
+  const [chartTitle, setChartTitle] = useState("");
+  const [showGrid, setShowGrid] = useState(false);
+  const [tickDensity, setTickDensity] = useState<TickDensity>("standard");
+  const [fontScale, setFontScale] = useState<FontScale>("medium");
   const seriesRunRef = useRef(0);
 
   const isLoading = seriesState.status === "loading";
@@ -274,6 +287,100 @@ export function SeriesPanel({
             </div>
           </dl>
           <UnitSummary result={seriesState.result} />
+          <div
+            className="mt-4 rounded-xl border border-slate-200 bg-white p-4"
+            data-testid="chart-style-controls"
+          >
+            <h5 className="text-sm font-semibold text-ink">图表样式</h5>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              标题、网格、刻度密度与字号只影响图表显示，不改变数据或重新请求配对结果。
+            </p>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label
+                  htmlFor={chartTitleId}
+                  className="block text-xs text-slate-500"
+                >
+                  图表标题
+                </label>
+                <input
+                  id={chartTitleId}
+                  type="text"
+                  value={chartTitle}
+                  maxLength={TITLE_MAX_LENGTH}
+                  onChange={(event) => setChartTitle(event.target.value)}
+                  placeholder="可选，例如 吸光度随时间变化"
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-ink focus:border-cyan focus:outline-none focus:ring-2 focus:ring-cyan/20"
+                  data-testid="chart-title-input"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor={tickDensityId}
+                  className="block text-xs text-slate-500"
+                >
+                  刻度密度
+                </label>
+                <select
+                  id={tickDensityId}
+                  value={tickDensity}
+                  onChange={(event) =>
+                    setTickDensity(event.target.value as TickDensity)
+                  }
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-ink focus:border-cyan focus:outline-none focus:ring-2 focus:ring-cyan/20"
+                  data-testid="chart-tick-density"
+                >
+                  <option value="sparse">稀疏（每轴 3–4 个刻度）</option>
+                  <option value="standard">标准（每轴 4–6 个刻度）</option>
+                  <option value="dense">密集（每轴 6–9 个刻度）</option>
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor={fontScaleId}
+                  className="block text-xs text-slate-500"
+                >
+                  字号
+                </label>
+                <select
+                  id={fontScaleId}
+                  value={fontScale}
+                  onChange={(event) =>
+                    setFontScale(event.target.value as FontScale)
+                  }
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-ink focus:border-cyan focus:outline-none focus:ring-2 focus:ring-cyan/20"
+                  data-testid="chart-font-size"
+                >
+                  <option value="small">小</option>
+                  <option value="medium">中</option>
+                  <option value="large">大</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label
+                  htmlFor={showGridId}
+                  className="inline-flex items-center gap-2 text-sm text-ink"
+                >
+                  <input
+                    id={showGridId}
+                    type="checkbox"
+                    checked={showGrid}
+                    onChange={(event) => setShowGrid(event.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-cyan focus:ring-cyan/30"
+                    data-testid="chart-show-grid"
+                  />
+                  显示网格
+                </label>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  默认关闭；开启后以虚线在刻度位置绘制参考线，与坐标轴用线型区分。
+                </p>
+              </div>
+            </div>
+          </div>
           <ScatterPlot
             pairs={seriesState.result.pairs}
             xColumn={seriesState.result.x_column}
@@ -281,6 +388,10 @@ export function SeriesPanel({
             xUnit={seriesState.result.x_unit}
             yUnit={seriesState.result.y_unit}
             fit={fitResult}
+            title={chartTitle}
+            showGrid={showGrid}
+            tickDensity={tickDensity}
+            fontScale={fontScale}
           />
           <PairPreview result={seriesState.result} />
           <FitPanel

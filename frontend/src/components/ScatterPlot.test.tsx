@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { FitResponse } from "../lib/api";
-import { ScatterPlot } from "./ScatterPlot";
+import { ScatterPlot, type TickDensity } from "./ScatterPlot";
 
 const pairs = [
   { x: 0, y: 0.012 },
@@ -55,6 +55,83 @@ function curveCoordinates(element: Element): number[][] {
     .trim()
     .split(/\s+/)
     .map((part) => part.split(",").map(Number));
+}
+
+function tickLabels(axis: "x" | "y"): string[] {
+  return screen
+    .getAllByTestId(`scatter-${axis}-tick`)
+    .map((tick) => tick.textContent ?? "");
+}
+
+const sixPairs = [
+  { x: 0, y: 0.05 },
+  { x: 2, y: 0.1 },
+  { x: 4, y: 0.15 },
+  { x: 6, y: 0.2 },
+  { x: 8, y: 0.22 },
+  { x: 10, y: 0.25 },
+];
+
+const narrowPairs = [
+  { x: 4999995, y: 5000005 },
+  { x: 5000000, y: 5000000 },
+  { x: 5000005, y: 4999995 },
+];
+
+function weightedFit(
+  data: { x: number; y: number }[],
+  coefficients: number[] = [0.02, 0.05],
+): FitResponse {
+  return createFit({
+    pairs: data,
+    pair_count: data.length,
+    row_count: data.length,
+    coefficients,
+    weighted: true,
+    y_error_column: "err",
+    y_error_unit: "mV",
+    y_errors: data.map((_, index) => 0.01 + index * 0.002),
+  });
+}
+
+function plotSnapshot() {
+  const plot = screen.getByTestId("scatter-plot");
+  return {
+    domains: [
+      "data-domain-x-min",
+      "data-domain-x-max",
+      "data-domain-y-min",
+      "data-domain-y-max",
+    ].map((name) => plot.getAttribute(name)),
+    points: screen
+      .getAllByTestId("scatter-point")
+      .map((point) => [point.getAttribute("cx"), point.getAttribute("cy")]),
+    curve: screen.getByTestId("fit-curve").getAttribute("points"),
+    bars: screen.getAllByTestId("error-bar").map((bar) => bar.innerHTML),
+  };
+}
+
+function expectTicksInsideDomain(density: TickDensity): void {
+  const ranges: Record<TickDensity, { min: number; max: number }> = {
+    sparse: { min: 3, max: 4 },
+    standard: { min: 4, max: 6 },
+    dense: { min: 6, max: 9 },
+  };
+  const plot = screen.getByTestId("scatter-plot");
+  for (const axis of ["x", "y"] as const) {
+    const labels = tickLabels(axis);
+    expect(labels.length).toBeGreaterThanOrEqual(ranges[density].min);
+    expect(labels.length).toBeLessThanOrEqual(ranges[density].max);
+    const values = labels.map(Number);
+    expect(new Set(labels).size).toBe(labels.length);
+    const domainMin = numberAttribute(plot, `data-domain-${axis}-min`);
+    const domainMax = numberAttribute(plot, `data-domain-${axis}-max`);
+    for (const value of values) {
+      expect(Number.isFinite(value)).toBe(true);
+      expect(value).toBeGreaterThanOrEqual(domainMin);
+      expect(value).toBeLessThanOrEqual(domainMax);
+    }
+  }
 }
 
 describe("ScatterPlot", () => {
@@ -568,5 +645,447 @@ describe("ScatterPlot", () => {
     expect(plot.outerHTML).not.toContain("Infinity");
     expect(errorSpy.mock.calls.flat().join(" ")).not.toMatch(/NaN|Infinity/);
     errorSpy.mockRestore();
+  });
+
+  it("renders a centered, escaped chart title only when it is not blank", () => {
+    const { rerender } = render(
+      <ScatterPlot pairs={pairs} xColumn="time_s" yColumn="absorbance" />,
+    );
+    const baselineCy =
+      screen.getAllByTestId("scatter-point")[0].getAttribute("cy");
+    expect(screen.queryByTestId("chart-title")).not.toBeInTheDocument();
+
+    rerender(
+      <ScatterPlot
+        pairs={pairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        title="   "
+      />,
+    );
+    expect(screen.queryByTestId("chart-title")).not.toBeInTheDocument();
+    expect(
+      screen.getAllByTestId("scatter-point")[0].getAttribute("cy"),
+    ).toBe(baselineCy);
+
+    const rawTitle = '<script>alert("x")</script> & 标题';
+    rerender(
+      <ScatterPlot
+        pairs={pairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        title={rawTitle}
+      />,
+    );
+    const title = screen.getByTestId("chart-title");
+    expect(title).toHaveTextContent(rawTitle);
+    expect(title).toHaveAttribute("text-anchor", "middle");
+    expect(Number(title.getAttribute("x"))).toBe(320);
+    expect(Number(title.getAttribute("y"))).toBeLessThan(24);
+    expect(screen.getByTestId("scatter-plot").querySelector("script")).toBeNull();
+    expect(screen.getByTestId("scatter-plot").getAttribute("aria-label")).toContain(
+      "标题「",
+    );
+  });
+
+  it("keeps grid lines off by default and draws one dashed line per tick on demand", () => {
+    const weighted = createFit({
+      weighted: true,
+      y_error_column: "absorbance_err",
+      y_error_unit: "mV",
+      y_errors: [0.01, 0.02, 0.03, 0.04],
+    });
+    const { rerender } = render(
+      <ScatterPlot
+        pairs={pairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        fit={weighted}
+      />,
+    );
+    expect(screen.queryAllByTestId("grid-line")).toHaveLength(0);
+    expect(screen.queryByTestId("scatter-grid-legend")).not.toBeInTheDocument();
+    const before = screen
+      .getAllByTestId("scatter-point")
+      .map((point) => `${point.getAttribute("cx")},${point.getAttribute("cy")}`);
+    const curveBefore = screen.getByTestId("fit-curve").getAttribute("points");
+    const barsBefore = screen
+      .getAllByTestId("error-bar")
+      .map((bar) => bar.innerHTML);
+
+    rerender(
+      <ScatterPlot
+        pairs={pairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        fit={weighted}
+        showGrid
+      />,
+    );
+
+    const xTicks = screen.getAllByTestId("scatter-x-tick");
+    const yTicks = screen.getAllByTestId("scatter-y-tick");
+    const lines = screen.getAllByTestId("grid-line");
+    expect(lines).toHaveLength(xTicks.length + yTicks.length);
+    expect(lines.filter((line) => line.getAttribute("data-axis") === "x")).toHaveLength(
+      xTicks.length,
+    );
+    expect(lines.filter((line) => line.getAttribute("data-axis") === "y")).toHaveLength(
+      yTicks.length,
+    );
+    for (const line of lines) {
+      expect(line).toHaveAttribute("stroke-dasharray", "4 4");
+      expect(line.getAttribute("stroke")).toBe("#e2e8f0");
+    }
+
+    const after = screen
+      .getAllByTestId("scatter-point")
+      .map((point) => `${point.getAttribute("cx")},${point.getAttribute("cy")}`);
+    expect(after).toEqual(before);
+    expect(screen.getByTestId("fit-curve").getAttribute("points")).toBe(curveBefore);
+    expect(
+      screen.getAllByTestId("error-bar").map((bar) => bar.innerHTML),
+    ).toEqual(barsBefore);
+
+    const gridGroup = screen.getByTestId("grid-group");
+    const lowerLayers = [
+      screen.getAllByTestId("scatter-point")[0],
+      screen.getByTestId("fit-curve"),
+      screen.getAllByTestId("error-bar")[0],
+    ];
+    for (const layer of lowerLayers) {
+      expect(
+        gridGroup.compareDocumentPosition(layer) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+    expect(screen.getByTestId("scatter-grid-legend")).toHaveTextContent(
+      "虚线段为网格参考线",
+    );
+  });
+
+  it("keeps sparse and dense tick counts unique, finite and inside the domain", () => {
+    const cases = [
+      { name: "regular", data: pairs },
+      { name: "single point", data: [{ x: 4, y: 9 }] },
+      {
+        name: "identical X",
+        data: [
+          { x: 5, y: 1 },
+          { x: 5, y: 2 },
+          { x: 5, y: 3 },
+        ],
+      },
+      {
+        name: "identical Y",
+        data: [
+          { x: 1, y: 7 },
+          { x: 2, y: 7 },
+          { x: 3, y: 7 },
+        ],
+      },
+      {
+        name: "extreme finite",
+        data: [{ x: Number.MAX_VALUE, y: -Number.MAX_VALUE }],
+      },
+    ];
+    const configs = [
+      { density: "sparse" as const, min: 3, max: 4 },
+      { density: "dense" as const, min: 6, max: 9 },
+    ];
+
+    for (const config of configs) {
+      for (const testCase of cases) {
+        const { unmount } = render(
+          <ScatterPlot
+            pairs={testCase.data}
+            xColumn="time_s"
+            yColumn="absorbance"
+            tickDensity={config.density}
+          />,
+        );
+        const plot = screen.getByTestId("scatter-plot");
+        for (const axis of ["x", "y"] as const) {
+          const ticks = screen.getAllByTestId(`scatter-${axis}-tick`);
+          expect(ticks.length).toBeGreaterThanOrEqual(config.min);
+          expect(ticks.length).toBeLessThanOrEqual(config.max);
+          const values = ticks.map((tick) => Number(tick.textContent));
+          expect(new Set(values).size).toBe(values.length);
+          const domainMin = numberAttribute(plot, `data-domain-${axis}-min`);
+          const domainMax = numberAttribute(plot, `data-domain-${axis}-max`);
+          for (const value of values) {
+            expect(Number.isFinite(value)).toBe(true);
+            expect(value).toBeGreaterThanOrEqual(domainMin);
+            expect(value).toBeLessThanOrEqual(domainMax);
+          }
+        }
+        for (const point of screen.getAllByTestId("scatter-point")) {
+          expect(Number.isFinite(Number(point.getAttribute("cx")))).toBe(true);
+          expect(Number.isFinite(Number(point.getAttribute("cy")))).toBe(true);
+        }
+        expect(plot.outerHTML).not.toContain("NaN");
+        expect(plot.outerHTML).not.toContain("Infinity");
+        unmount();
+      }
+    }
+  });
+
+  it("keeps dense tick labels unique for large values with a narrow span", () => {
+    render(
+      <ScatterPlot
+        pairs={[
+          { x: 4808119.117282331, y: 4773716.589715332 },
+          { x: 4777127.455105074, y: 4840162.042528391 },
+          { x: 4810557.4819026515, y: 4796042.640064843 },
+          { x: 4817035.215464421, y: 4848784.694285132 },
+        ]}
+        xColumn="easting_m"
+        yColumn="northing_m"
+        tickDensity="dense"
+      />,
+    );
+
+    for (const axis of ["x", "y"] as const) {
+      const labels = tickLabels(axis);
+      expect(labels.length).toBeGreaterThanOrEqual(6);
+      expect(new Set(labels).size).toBe(labels.length);
+      for (const label of labels) {
+        expect(Number.isFinite(Number(label))).toBe(true);
+      }
+    }
+  });
+
+  it("keeps dense tick labels unique for narrow spans at large and small scales", () => {
+    const cases = [
+      {
+        name: "5e6 plus or minus 5",
+        data: [
+          { x: 4999995, y: 5000005 },
+          { x: 5000000, y: 5000000 },
+          { x: 5000005, y: 4999995 },
+        ],
+      },
+      {
+        name: "1e-6 plus or minus 1e-9",
+        data: [
+          { x: 9.99e-7, y: 1.001e-6 },
+          { x: 1e-6, y: 1e-6 },
+          { x: 1.001e-6, y: 9.99e-7 },
+        ],
+      },
+    ];
+
+    for (const testCase of cases) {
+      const { unmount } = render(
+        <ScatterPlot
+          pairs={testCase.data}
+          xColumn="x"
+          yColumn="y"
+          tickDensity="dense"
+        />,
+      );
+      for (const axis of ["x", "y"] as const) {
+        const labels = tickLabels(axis);
+        expect(labels.length).toBeGreaterThanOrEqual(6);
+        expect(new Set(labels).size).toBe(labels.length);
+        for (const label of labels) {
+          expect(Number.isFinite(Number(label))).toBe(true);
+        }
+      }
+      unmount();
+    }
+  });
+
+  it("keeps domain, points, fit curve and error bars identical across tick densities", () => {
+    const cases = [
+      { name: "small regular", data: sixPairs, coefficients: [0.02, 0.05] },
+      {
+        name: "5e6 plus or minus 5",
+        data: narrowPairs,
+        coefficients: [1, 0.001],
+      },
+    ];
+    const densities: TickDensity[] = ["sparse", "standard", "dense"];
+
+    for (const testCase of cases) {
+      const fit = weightedFit(testCase.data, testCase.coefficients);
+      let baseline: ReturnType<typeof plotSnapshot> | null = null;
+      for (const density of densities) {
+        const { unmount } = render(
+          <ScatterPlot
+            pairs={testCase.data}
+            xColumn="time_s"
+            yColumn="absorbance"
+            fit={fit}
+            tickDensity={density}
+          />,
+        );
+        const snapshot = plotSnapshot();
+        expectTicksInsideDomain(density);
+        if (!baseline) {
+          baseline = snapshot;
+        } else {
+          expect(snapshot.domains).toEqual(baseline.domains);
+          expect(snapshot.points).toEqual(baseline.points);
+          expect(snapshot.curve).toBe(baseline.curve);
+          expect(snapshot.bars).toEqual(baseline.bars);
+        }
+        unmount();
+      }
+    }
+  });
+
+  it("keeps the QA reproduction datasets on their fixed padded domains", () => {
+    const cases = [
+      {
+        name: "small regular",
+        data: sixPairs,
+        expected: { x: [-0.5, 10.5], y: [0.04, 0.26] },
+      },
+      {
+        name: "5e6 plus or minus 5",
+        data: narrowPairs,
+        expected: { x: [4999994.5, 5000005.5], y: [4999994.5, 5000005.5] },
+      },
+    ];
+    const densities: TickDensity[] = ["sparse", "standard", "dense"];
+
+    for (const testCase of cases) {
+      let baseline: [string | null, string | null][] | null = null;
+      for (const density of densities) {
+        const { unmount } = render(
+          <ScatterPlot
+            pairs={testCase.data}
+            xColumn="x"
+            yColumn="y"
+            tickDensity={density}
+          />,
+        );
+        const plot = screen.getByTestId("scatter-plot");
+        expect(
+          numberAttribute(plot, "data-domain-x-min"),
+        ).toBeCloseTo(testCase.expected.x[0], 9);
+        expect(
+          numberAttribute(plot, "data-domain-x-max"),
+        ).toBeCloseTo(testCase.expected.x[1], 9);
+        expect(
+          numberAttribute(plot, "data-domain-y-min"),
+        ).toBeCloseTo(testCase.expected.y[0], 9);
+        expect(
+          numberAttribute(plot, "data-domain-y-max"),
+        ).toBeCloseTo(testCase.expected.y[1], 9);
+
+        const coordinates = screen
+          .getAllByTestId("scatter-point")
+          .map(
+            (point) =>
+              [point.getAttribute("cx"), point.getAttribute("cy")] as [
+                string | null,
+                string | null,
+              ],
+          );
+        if (!baseline) {
+          baseline = coordinates;
+        } else {
+          expect(coordinates).toEqual(baseline);
+        }
+        expectTicksInsideDomain(density);
+        unmount();
+      }
+    }
+  });
+
+  it("keeps standard tick labels unchanged for the default regular dataset", () => {
+    render(<ScatterPlot pairs={pairs} xColumn="time_s" yColumn="absorbance" />);
+
+    expect(tickLabels("x")).toEqual(["0", "2.5", "5", "7.5", "10"]);
+    expect(tickLabels("y")).toEqual(["0.05", "0.1", "0.15", "0.2", "0.25"]);
+  });
+
+  it("changes title, label and tick font sizes without moving chart geometry", () => {
+    const weighted = createFit({
+      weighted: true,
+      y_error_column: "absorbance_err",
+      y_error_unit: "mV",
+      y_errors: [0.01, 0.02, 0.03, 0.04],
+    });
+    const { rerender } = render(
+      <ScatterPlot
+        pairs={pairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        fit={weighted}
+        title="滴定曲线"
+      />,
+    );
+
+    const snapshot = () => ({
+      domains: [
+        "data-domain-x-min",
+        "data-domain-x-max",
+        "data-domain-y-min",
+        "data-domain-y-max",
+      ].map((name) => screen.getByTestId("scatter-plot").getAttribute(name)),
+      points: screen
+        .getAllByTestId("scatter-point")
+        .map((point) => `${point.getAttribute("cx")},${point.getAttribute("cy")}`),
+      curve: screen.getByTestId("fit-curve").getAttribute("points"),
+      bars: screen.getAllByTestId("error-bar").map((bar) => bar.innerHTML),
+    });
+
+    expect(
+      Number(screen.getAllByTestId("scatter-x-tick")[0].getAttribute("font-size")),
+    ).toBe(11);
+    expect(
+      Number(screen.getByTestId("scatter-x-label").getAttribute("font-size")),
+    ).toBe(12);
+    expect(Number(screen.getByTestId("chart-title").getAttribute("font-size"))).toBe(
+      15,
+    );
+    const medium = snapshot();
+
+    rerender(
+      <ScatterPlot
+        pairs={pairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        fit={weighted}
+        title="滴定曲线"
+        fontScale="large"
+      />,
+    );
+    expect(
+      Number(screen.getAllByTestId("scatter-x-tick")[0].getAttribute("font-size")),
+    ).toBe(14);
+    expect(
+      Number(screen.getAllByTestId("scatter-y-tick")[0].getAttribute("font-size")),
+    ).toBe(14);
+    expect(
+      Number(screen.getByTestId("scatter-y-label").getAttribute("font-size")),
+    ).toBe(15);
+    expect(Number(screen.getByTestId("chart-title").getAttribute("font-size"))).toBe(
+      18,
+    );
+    expect(snapshot()).toEqual(medium);
+
+    rerender(
+      <ScatterPlot
+        pairs={pairs}
+        xColumn="time_s"
+        yColumn="absorbance"
+        fit={weighted}
+        title="滴定曲线"
+        fontScale="small"
+      />,
+    );
+    expect(
+      Number(screen.getAllByTestId("scatter-x-tick")[0].getAttribute("font-size")),
+    ).toBe(9);
+    expect(
+      Number(screen.getByTestId("scatter-x-label").getAttribute("font-size")),
+    ).toBe(10);
+    expect(Number(screen.getByTestId("chart-title").getAttribute("font-size"))).toBe(
+      13,
+    );
+    expect(snapshot()).toEqual(medium);
   });
 });
