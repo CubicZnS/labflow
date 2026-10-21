@@ -74,7 +74,10 @@ Planned increments:
 - [x] 3.3 Chart title, grid toggle, tick density, and font-size controls on the single-series
       scatter plot; coordinate domain, point positions, fitted curve, and error bars are
       independent of the selected density (iteration #11, merge `4545a60`)
-- [ ] 3.4 Multiple series overlay with legend
+- [x] 3.4 Multiple series overlay with legend: primary series plus up to three added Y series,
+      shared X/Y domains, fixed color/shape encoding, Chinese legend, add/remove/limit/error
+      handling; primary-only fit overlay and error bars
+      (iteration #12, merge `227d04a`)
 - [ ] 3.5 PNG and SVG export
 
 Original scope kept for reference:

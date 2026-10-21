@@ -558,5 +558,13 @@ git log --oneline --decorate dev
 - Git：
   - `iter/12` 功能提交：`53133235d95071838e9f06339d3c480a879d64ea`
     https://github.com/CubicZnS/labflow/commit/53133235d95071838e9f06339d3c480a879d64ea
-  - `iter/12` 中文文档提交：本记录所在提交（README 与迭代记录同步更新）。
-  - 最终合并 SHA：待 Lead 独立 QA 通过并合并后补写；本记录不预填合并 SHA。
+  - `iter/12` 中文文档提交：`1ad1b73287fae035f7cd5f7e56b1ea5f4f41510c`
+    https://github.com/CubicZnS/labflow/commit/1ad1b73287fae035f7cd5f7e56b1ea5f4f41510c
+  - `iter/12` 推送时间校正提交：`f19d499aba253aef5f03627ab1df26e4dd2f2ce4`
+    https://github.com/CubicZnS/labflow/commit/f19d499aba253aef5f03627ab1df26e4dd2f2ce4
+  - `iter/12` 最终 HEAD：`f19d499aba253aef5f03627ab1df26e4dd2f2ce4`（与 `git ls-remote`、`gh api` 一致）。
+  - 独立 QA：MAC-57 **PASS**。QA 逐条核验 13 项验收、远端 SHA、6 个改动文件、5 个 gate、共享坐标域手算、中文 README/版本迭代表/迭代记录；未发现阻断问题。
+  - `dev` 合并提交：`227d04a3f7c7318d25b38efd3630ad6b907c93e8`
+    https://github.com/CubicZnS/labflow/commit/227d04a3f7c7318d25b38efd3630ad6b907c93e8
+  - 合并后在 `dev` 重跑：后端 `pytest -q` 通过（155 个测试，exit 0）、`ruff check app tests` 通过；前端 `typecheck` 通过、`test:run` **77 passed**、`build` 成功。
+  - 推送核验：`git ls-remote origin refs/heads/dev` 与 `gh api` 对合并 SHA 返回一致；`main` 保持 `7b3c2f1153eb561241ba33fa74e06953e552e63e` 未改动；无 force push、无历史改写。
