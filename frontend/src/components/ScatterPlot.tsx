@@ -11,6 +11,12 @@ const MAX_TICKS = 6;
 const PADDING_RATIO = 0.05;
 const POINT_COLOR = "#0e7490";
 const FIT_COLOR = "#b45309";
+const SERIES_STYLES: { color: string; shape: SeriesShape }[] = [
+  { color: POINT_COLOR, shape: "circle" },
+  { color: "#6d5bd0", shape: "square" },
+  { color: "#be123c", shape: "triangle" },
+  { color: "#4d7c0f", shape: "diamond" },
+];
 const ERROR_BAR_COLOR = "#0f766e";
 const FIT_CURVE_SAMPLE_COUNT = 101;
 const ERROR_BAR_CAP = 5;
@@ -18,6 +24,21 @@ const GRID_COLOR = "#e2e8f0";
 
 export type TickDensity = "sparse" | "standard" | "dense";
 export type FontScale = "small" | "medium" | "large";
+export type SeriesShape = "circle" | "square" | "triangle" | "diamond";
+
+export type ScatterExtraSeries = {
+  id: string;
+  name: string;
+  pairs: SeriesPair[];
+};
+
+type ResolvedSeries = {
+  id: string;
+  name: string;
+  points: SeriesPair[];
+  color: string;
+  shape: SeriesShape;
+};
 
 const TICK_LIMITS: Record<
   Exclude<TickDensity, "standard">,
@@ -421,8 +442,88 @@ function scaleY(value: number, domain: Domain): number {
   return AXIS_Y - axisRatio(value, domain) * INNER_HEIGHT;
 }
 
+function SeriesMarker({
+  color,
+  shape,
+  size = 12,
+}: {
+  color: string;
+  shape: SeriesShape;
+  size?: number;
+}) {
+  const half = size / 2;
+  if (shape === "circle") {
+    return <circle cx={half} cy={half} r={half - 1} fill={color} />;
+  }
+  if (shape === "square") {
+    return (
+      <rect x={1} y={1} width={size - 2} height={size - 2} rx={1} fill={color} />
+    );
+  }
+  if (shape === "triangle") {
+    return (
+      <polygon
+        points={`${half},1 ${size - 1},${size - 1} 1,${size - 1}`}
+        fill={color}
+      />
+    );
+  }
+  return (
+    <polygon
+      points={`${half},1 ${size - 1},${half} ${half},${size - 1} 1,${half}`}
+      fill={color}
+    />
+  );
+}
+
+function SeriesPoint({
+  pair,
+  series,
+  xDomain,
+  yDomain,
+}: {
+  pair: SeriesPair;
+  series: ResolvedSeries;
+  xDomain: Domain;
+  yDomain: Domain;
+}) {
+  const cx = scaleX(pair.x, xDomain);
+  const cy = scaleY(pair.y, yDomain);
+  const common = {
+    "data-testid": "scatter-point",
+    "data-series-id": series.id,
+    "data-shape": series.shape,
+    "data-x": String(pair.x),
+    "data-y": String(pair.y),
+    fill: series.color,
+    stroke: "#ffffff",
+    strokeWidth: 1.5,
+  };
+  if (series.shape === "square") {
+    return <rect {...common} x={cx - 3.5} y={cy - 3.5} width={7} height={7} rx={0.75} />;
+  }
+  if (series.shape === "triangle") {
+    return (
+      <polygon
+        {...common}
+        points={`${cx},${cy - 4.5} ${cx + 4.5},${cy + 3.5} ${cx - 4.5},${cy + 3.5}`}
+      />
+    );
+  }
+  if (series.shape === "diamond") {
+    return (
+      <polygon
+        {...common}
+        points={`${cx},${cy - 5} ${cx + 4.5},${cy} ${cx},${cy + 5} ${cx - 4.5},${cy}`}
+      />
+    );
+  }
+  return <circle {...common} cx={cx} cy={cy} r={4} />;
+}
+
 export function ScatterPlot({
   pairs,
+  extraSeries = [],
   xColumn,
   yColumn,
   xUnit,
@@ -434,6 +535,7 @@ export function ScatterPlot({
   fontScale = "medium",
 }: {
   pairs: SeriesPair[];
+  extraSeries?: ScatterExtraSeries[];
   xColumn: string;
   yColumn: string;
   xUnit?: string | null;
@@ -444,21 +546,50 @@ export function ScatterPlot({
   tickDensity?: TickDensity;
   fontScale?: FontScale;
 }) {
-  const points = finitePairs(pairs);
-  const pointCount = points.length;
+  const resolvedSeries: ResolvedSeries[] = [
+    { id: "main", name: yColumn, pairs: finitePairs(pairs) },
+    ...extraSeries.map((series) => ({
+      id: series.id,
+      name: series.name,
+      pairs: finitePairs(series.pairs),
+    })),
+  ].map((series, index) => {
+    const style = SERIES_STYLES[Math.min(index, SERIES_STYLES.length - 1)];
+    return {
+      id: series.id,
+      name: series.name,
+      points: series.pairs,
+      color: style.color,
+      shape: style.shape,
+    };
+  });
+  const seriesCount = resolvedSeries.length;
+  const isMultiSeries = seriesCount > 1;
+  const pointCount = resolvedSeries.reduce(
+    (total, series) => total + series.points.length,
+    0,
+  );
   const hasPoints = pointCount > 0;
   const xLabel = axisLabel(xColumn, xUnit);
-  const yLabel = axisLabel(yColumn, yUnit);
+  const unitLabel = yUnit?.trim();
+  const yLabel = isMultiSeries
+    ? unitLabel
+      ? `Y (${unitLabel})`
+      : "Y"
+    : axisLabel(yColumn, yUnit);
   const trimmedTitle = title.trim();
   const fonts = FONT_SCALES[fontScale];
 
-  const xAxis = hasPoints ? buildAxis(points.map((pair) => pair.x), tickDensity) : null;
+  const allPoints = resolvedSeries.flatMap((series) => series.points);
+  const xAxis = hasPoints
+    ? buildAxis(allPoints.map((pair) => pair.x), tickDensity)
+    : null;
   const xDomain = xAxis?.domain ?? null;
 
   const errorBars = hasPoints ? buildErrorBars(fit) : [];
   const hasErrorBars = errorBars.length > 0;
   const fitCurve = xDomain ? buildFitCurve(fit, xDomain) : null;
-  const yValues = points.map((pair) => pair.y);
+  const yValues = allPoints.map((pair) => pair.y);
   if (hasErrorBars) {
     for (const bar of errorBars) {
       yValues.push(bar.low, bar.high);
@@ -497,8 +628,13 @@ export function ScatterPlot({
     overlayLabels.push(`包含 ${errorBars.length} 条 Y 误差棒（±σ）`);
   }
 
+  const seriesNames = resolvedSeries.map((series) => series.name);
+  const seriesSummary = isMultiSeries
+    ? `${seriesCount} 个系列，${pointCount} 个数据点，系列：${seriesNames.join("、")}`
+    : `${pointCount} 个数据点`;
+
   const ariaLabel = hasPoints
-    ? `${xLabel} 对 ${yLabel} 的散点图，共 ${pointCount} 个数据点${
+    ? `${xLabel} 对 ${yLabel} 的散点图，共 ${seriesSummary}${
         trimmedTitle ? `，标题「${trimmedTitle}」` : ""
       }${overlayLabels.length > 0 ? `，${overlayLabels.join("，")}` : ""}`
     : `${xLabel} 对 ${yLabel} 的散点图，暂无可绘制的数据点${
@@ -513,7 +649,9 @@ export function ScatterPlot({
       <figcaption className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-sm font-semibold text-ink">散点图</span>
         <span className="text-xs text-slate-500" data-testid="scatter-summary">
-          {xLabel} · {yLabel} · {pointCount} 个数据点
+          {isMultiSeries
+            ? `${seriesCount} 个系列 · ${pointCount} 个数据点`
+            : `${xLabel} · ${yLabel} · ${pointCount} 个数据点`}
         </span>
       </figcaption>
 
@@ -522,6 +660,7 @@ export function ScatterPlot({
         role="img"
         aria-label={ariaLabel}
         data-point-count={pointCount}
+        data-series-count={seriesCount}
         {...domainAttributes}
         viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
         preserveAspectRatio="xMidYMid meet"
@@ -740,19 +879,26 @@ export function ScatterPlot({
                 })
               : null}
 
-            {points.map((pair, index) => (
-              <circle
-                key={`point-${index}`}
-                data-testid="scatter-point"
-                data-x={String(pair.x)}
-                data-y={String(pair.y)}
-                cx={scaleX(pair.x, xDomain)}
-                cy={scaleY(pair.y, yDomain)}
-                r={4}
-                fill={POINT_COLOR}
-                stroke="#ffffff"
-                strokeWidth={1.5}
-              />
+            {resolvedSeries.map((series) => (
+              <g
+                key={series.id}
+                data-testid="scatter-series"
+                data-series-id={series.id}
+                data-series-name={series.name}
+                data-series-color={series.color}
+                data-series-shape={series.shape}
+                data-point-count={series.points.length}
+              >
+                {series.points.map((pair, index) => (
+                  <SeriesPoint
+                    key={`point-${series.id}-${index}`}
+                    pair={pair}
+                    series={series}
+                    xDomain={xDomain}
+                    yDomain={yDomain}
+                  />
+                ))}
+              </g>
             ))}
           </>
         ) : (
@@ -770,14 +916,48 @@ export function ScatterPlot({
       </svg>
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-        <span className="inline-flex items-center gap-2" data-testid="scatter-legend">
-          <span
-            aria-hidden="true"
-            className="inline-block h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: POINT_COLOR }}
-          />
-          圆点表示一个数据点（{pointCount} 个）
-        </span>
+        <div className="flex flex-wrap items-center gap-3" data-testid="series-legend">
+          {resolvedSeries.map((series) => (
+            <span
+              key={series.id}
+              className="inline-flex items-center gap-2"
+              data-testid="series-legend-item"
+              data-series-id={series.id}
+              data-series-name={series.name}
+              data-series-color={series.color}
+              data-series-shape={series.shape}
+              data-point-count={series.points.length}
+            >
+              <svg
+                aria-hidden="true"
+                width={12}
+                height={12}
+                viewBox="0 0 12 12"
+                data-testid="series-legend-marker"
+                data-shape={series.shape}
+                data-color={series.color}
+              >
+                <SeriesMarker color={series.color} shape={series.shape} />
+              </svg>
+              <span className="font-medium text-slate-700">{series.name}</span>
+              <span>{series.points.length} 个数据点</span>
+            </span>
+          ))}
+        </div>
+        {!isMultiSeries ? (
+          <span className="inline-flex items-center gap-2" data-testid="scatter-legend">
+            <span
+              aria-hidden="true"
+              className="inline-block h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: POINT_COLOR }}
+            />
+            圆点表示一个数据点（{pointCount} 个）
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-2" data-testid="multi-series-hint">
+            形状与颜色共同区分不同系列
+          </span>
+        )}
         {fitCurve && fit ? (
           <span
             className="inline-flex items-center gap-2"

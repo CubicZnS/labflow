@@ -19,8 +19,16 @@ type SeriesState =
   | { status: "success"; result: SeriesResponse }
   | { status: "error"; message: string };
 
+type ExtraSeries = {
+  id: string;
+  name: string;
+  result: SeriesResponse;
+};
+
 const UNIT_MAX_LENGTH = 32;
 const TITLE_MAX_LENGTH = 80;
+const SERIES_NAME_MAX_LENGTH = 40;
+const MAX_SERIES = 4;
 const PREVIEW_LIMIT = 10;
 
 function unitHeader(label: string, unit: string | null): string {
@@ -84,6 +92,8 @@ export function SeriesPanel({
   const tickDensityId = useId();
   const fontScaleId = useId();
   const showGridId = useId();
+  const extraYSelectId = useId();
+  const extraNameId = useId();
 
   const numericColumns = result.numeric_columns;
   const enoughColumns = numericColumns.length >= 2;
@@ -101,11 +111,38 @@ export function SeriesPanel({
   const [showGrid, setShowGrid] = useState(false);
   const [tickDensity, setTickDensity] = useState<TickDensity>("standard");
   const [fontScale, setFontScale] = useState<FontScale>("medium");
+  const [extraSeries, setExtraSeries] = useState<ExtraSeries[]>([]);
+  const [extraYColumn, setExtraYColumn] = useState("");
+  const [extraName, setExtraName] = useState("");
+  const [extraLoading, setExtraLoading] = useState(false);
+  const [extraError, setExtraError] = useState<string | null>(null);
   const seriesRunRef = useRef(0);
+  const extraCounterRef = useRef(0);
+  const extraLoadingRef = useRef(false);
 
   const isLoading = seriesState.status === "loading";
   const sameSelection = xColumn !== "" && xColumn === yColumn;
   const canSubmit = enoughColumns && !sameSelection && !isLoading;
+
+  const mainResult =
+    seriesState.status === "success" ? seriesState.result : null;
+  const usedColumns = new Set<string>([
+    ...(mainResult ? [mainResult.x_column, mainResult.y_column] : []),
+    ...extraSeries.map((series) => series.result.y_column),
+  ]);
+  const availableColumns = numericColumns.filter(
+    (column) => !usedColumns.has(column),
+  );
+  const selectedExtraY = availableColumns.includes(extraYColumn)
+    ? extraYColumn
+    : (availableColumns[0] ?? "");
+  const displayedExtraName = extraName === "" ? selectedExtraY : extraName;
+  const atSeriesLimit = 1 + extraSeries.length >= MAX_SERIES;
+  const canAddExtra =
+    mainResult !== null &&
+    !extraLoading &&
+    !atSeriesLimit &&
+    availableColumns.length > 0;
 
   function handleFitChange(result: FitResponse | null) {
     if (seriesRunRef.current !== seriesRun) {
@@ -122,6 +159,10 @@ export function SeriesPanel({
     setSeriesRun(seriesRunRef.current);
     setSeriesState({ status: "loading" });
     setFitResult(null);
+    setExtraSeries([]);
+    setExtraYColumn("");
+    setExtraName("");
+    setExtraError(null);
     try {
       const series = await createSeries(file, format, {
         xColumn,
@@ -140,6 +181,69 @@ export function SeriesPanel({
             : "生成配对数据失败，请稍后重试。",
       });
     }
+  }
+
+  async function handleAddExtra() {
+    if (
+      !mainResult ||
+      extraLoadingRef.current ||
+      atSeriesLimit ||
+      availableColumns.length === 0
+    ) {
+      return;
+    }
+    const yColumnToAdd = selectedExtraY;
+    if (!yColumnToAdd || usedColumns.has(yColumnToAdd)) {
+      setExtraError("该 Y 列已被使用，请选择其他数值列。");
+      return;
+    }
+    const name = (extraName.trim() || yColumnToAdd).slice(
+      0,
+      SERIES_NAME_MAX_LENGTH,
+    );
+    const runId = seriesRunRef.current;
+    extraLoadingRef.current = true;
+    setExtraLoading(true);
+    setExtraError(null);
+    try {
+      const series = await createSeries(file, format, {
+        xColumn: mainResult.x_column,
+        yColumn: yColumnToAdd,
+        xUnit: mainResult.x_unit ?? "",
+        yUnit: mainResult.y_unit ?? "",
+      });
+      if (seriesRunRef.current !== runId) {
+        return;
+      }
+      extraCounterRef.current += 1;
+      setExtraSeries((current) => [
+        ...current,
+        {
+          id: `extra-${extraCounterRef.current}`,
+          name: name || yColumnToAdd,
+          result: series,
+        },
+      ]);
+      setExtraName("");
+      setExtraYColumn("");
+    } catch (error) {
+      if (seriesRunRef.current !== runId) {
+        return;
+      }
+      setExtraError(
+        `添加系列失败：${
+          error instanceof Error ? error.message : "请稍后重试。"
+        }`,
+      );
+    } finally {
+      extraLoadingRef.current = false;
+      setExtraLoading(false);
+    }
+  }
+
+  function handleRemoveExtra(id: string) {
+    setExtraSeries((current) => current.filter((series) => series.id !== id));
+    setExtraError(null);
   }
 
   return (
@@ -381,8 +485,148 @@ export function SeriesPanel({
               </div>
             </div>
           </div>
+
+          <div
+            className="mt-4 rounded-xl border border-slate-200 bg-white p-4"
+            data-testid="multi-series-controls"
+          >
+            <h5 className="text-sm font-semibold text-ink">多系列叠加</h5>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              所有叠加系列共用当前 X/Y 单位与 X 列。最多支持 4 个系列（主系列 + 3
+              个追加系列）；主系列与已追加系列使用过的 Y 列不会出现在下拉框中。
+            </p>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div>
+                <label
+                  htmlFor={extraYSelectId}
+                  className="block text-xs text-slate-500"
+                >
+                  Y 列
+                </label>
+                <select
+                  id={extraYSelectId}
+                  value={selectedExtraY}
+                  disabled={
+                    extraLoading || atSeriesLimit || availableColumns.length === 0
+                  }
+                  onChange={(event) => {
+                    setExtraYColumn(event.target.value);
+                    setExtraName("");
+                    setExtraError(null);
+                  }}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-ink focus:border-cyan focus:outline-none focus:ring-2 focus:ring-cyan/20 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  data-testid="extra-series-y-select"
+                >
+                  {availableColumns.length === 0 ? (
+                    <option value="">无可用数值列</option>
+                  ) : (
+                    availableColumns.map((column) => (
+                      <option key={column} value={column}>
+                        {column}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor={extraNameId}
+                  className="block text-xs text-slate-500"
+                >
+                  系列名称（最多 {SERIES_NAME_MAX_LENGTH} 字符）
+                </label>
+                <input
+                  id={extraNameId}
+                  type="text"
+                  value={displayedExtraName}
+                  maxLength={SERIES_NAME_MAX_LENGTH}
+                  disabled={
+                    extraLoading || atSeriesLimit || availableColumns.length === 0
+                  }
+                  onChange={(event) => setExtraName(event.target.value)}
+                  placeholder="默认使用所选 Y 列名"
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-ink focus:border-cyan focus:outline-none focus:ring-2 focus:ring-cyan/20 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  data-testid="extra-series-name"
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleAddExtra}
+              disabled={!canAddExtra}
+              className="mt-3 w-full rounded-xl bg-cyan px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan/20 transition hover:bg-cyan-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+              data-testid="add-extra-series"
+            >
+              {extraLoading ? "正在添加…" : "添加系列"}
+            </button>
+
+            {atSeriesLimit ? (
+              <p
+                className="mt-2 text-xs text-amber-700"
+                data-testid="series-limit-hint"
+              >
+                已达到 4 个系列上限，请先移除已有追加系列后再添加。
+              </p>
+            ) : null}
+            {!atSeriesLimit && availableColumns.length === 0 ? (
+              <p
+                className="mt-2 text-xs text-amber-700"
+                data-testid="series-no-columns"
+              >
+                所有数值列均已用于当前系列，暂无可用于叠加的 Y 列。
+              </p>
+            ) : null}
+
+            {extraError ? (
+              <p
+                role="alert"
+                className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
+                data-testid="extra-series-error"
+              >
+                {extraError}
+              </p>
+            ) : null}
+
+            {extraSeries.length > 0 ? (
+              <ul className="mt-3 space-y-2" data-testid="extra-series-list">
+                {extraSeries.map((series) => (
+                  <li
+                    key={series.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                    data-testid="extra-series-item"
+                    data-series-id={series.id}
+                  >
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-ink">{series.name}</span>
+                      <span className="text-xs text-slate-500">
+                        {series.result.y_column} · {series.result.pair_count} 个数据点
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveExtra(series.id)}
+                      aria-label={`移除系列 ${series.name}`}
+                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-600 transition hover:border-rose-300 hover:text-rose-700"
+                      data-testid="remove-extra-series"
+                    >
+                      移除
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+
           <ScatterPlot
             pairs={seriesState.result.pairs}
+            extraSeries={extraSeries.map((series) => ({
+              id: series.id,
+              name: series.name,
+              pairs: series.result.pairs,
+            }))}
             xColumn={seriesState.result.x_column}
             yColumn={seriesState.result.y_column}
             xUnit={seriesState.result.x_unit}

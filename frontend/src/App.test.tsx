@@ -103,7 +103,7 @@ function jsonResponse(payload: unknown, status = 200): Response {
 
 function installFetchMock(
   upload?: (url: string) => Response | Promise<Response>,
-  series?: () => Response | Promise<Response>,
+  series?: (init?: RequestInit) => Response | Promise<Response>,
   fit?: () => Response | Promise<Response>,
 ) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
@@ -112,7 +112,7 @@ function installFetchMock(
       return jsonResponse(healthPayload);
     }
     if (url === "/api/datasets/series" && series) {
-      return series();
+      return series(_init);
     }
     if (url === "/api/datasets/fit" && fit) {
       return fit();
@@ -1255,5 +1255,338 @@ describe("App", () => {
         ([input]) => String(input) === "/api/datasets/series",
       ),
     ).toHaveLength(1);
+  });
+
+  const multiColumnCsv: CsvImportResponse = {
+    ...csvPayload,
+    numeric_columns: [
+      "time_s",
+      "absorbance",
+      "temperature",
+      "pressure",
+      "humidity",
+    ],
+    column_stats: {
+      ...csvPayload.column_stats,
+      temperature: { n: 3, missing: 0, mean: 290, std: 10, sem: 5.7735 },
+      pressure: { n: 3, missing: 0, mean: 101, std: 1, sem: 0.5773 },
+      humidity: { n: 3, missing: 0, mean: 50, std: 5, sem: 2.8867 },
+    },
+  };
+
+  const extraPayloads: Record<string, SeriesResponse> = {
+    temperature: {
+      ...seriesPayload,
+      y_column: "temperature",
+      pair_count: 3,
+      skipped_count: 0,
+      pairs: [
+        { x: 0, y: 280 },
+        { x: 5, y: 290 },
+        { x: 10, y: 300 },
+      ],
+      y_stats: null,
+    },
+    pressure: {
+      ...seriesPayload,
+      y_column: "pressure",
+      pair_count: 2,
+      skipped_count: 0,
+      pairs: [
+        { x: 0, y: 100 },
+        { x: 10, y: 102 },
+      ],
+      y_stats: null,
+    },
+    humidity: {
+      ...seriesPayload,
+      y_column: "humidity",
+      pair_count: 2,
+      skipped_count: 0,
+      pairs: [
+        { x: 0, y: 45 },
+        { x: 10, y: 55 },
+      ],
+      y_stats: null,
+    },
+  };
+
+  function installMultiSeriesMock() {
+    return installFetchMock(
+      () => jsonResponse(multiColumnCsv),
+      (init) => {
+        const body = init?.body as FormData;
+        const yColumn = String(body.get("y_column"));
+        if (yColumn === "absorbance") {
+          return jsonResponse(seriesPayload);
+        }
+        return jsonResponse(extraPayloads[yColumn] ?? seriesPayload);
+      },
+      () => jsonResponse(fitPayload),
+    );
+  }
+
+  function seriesRequests(fetchMock: ReturnType<typeof installFetchMock>) {
+    return fetchMock.mock.calls.filter(
+      ([input]) => String(input) === "/api/datasets/series",
+    );
+  }
+
+  async function addExtraSeries(name?: string) {
+    if (name !== undefined) {
+      fireEvent.change(screen.getByTestId("extra-series-name"), {
+        target: { value: name },
+      });
+    }
+    fireEvent.click(screen.getByTestId("add-extra-series"));
+  }
+
+  it("adds a second series using the main X column and units", async () => {
+    const fetchMock = installMultiSeriesMock();
+    render(<App />);
+
+    await generateSeries();
+    expect(screen.getByTestId("multi-series-controls")).toHaveTextContent(
+      "所有叠加系列共用当前 X/Y 单位与 X 列",
+    );
+    const ySelect = screen.getByTestId(
+      "extra-series-y-select",
+    ) as HTMLSelectElement;
+    expect(
+      Array.from(ySelect.options).map((option) => option.value),
+    ).toEqual(["temperature", "pressure", "humidity"]);
+    expect(ySelect.value).toBe("temperature");
+    expect(screen.getByTestId("extra-series-name")).toHaveValue("temperature");
+
+    await addExtraSeries("温度序列");
+    await waitFor(() =>
+      expect(screen.getAllByTestId("scatter-series")).toHaveLength(2),
+    );
+
+    const calls = seriesRequests(fetchMock);
+    expect(calls).toHaveLength(2);
+    const body = calls[1][1]?.body as FormData;
+    expect(body.get("format")).toBe("csv");
+    expect(body.get("x_column")).toBe("time_s");
+    expect(body.get("y_column")).toBe("temperature");
+    expect(body.get("x_unit")).toBe("s");
+    expect(body.get("y_unit")).toBe("mV");
+    expect(body.get("file")).toBeInstanceOf(File);
+
+    const plot = screen.getByTestId("scatter-plot");
+    expect(plot).toHaveAttribute("data-series-count", "2");
+    expect(plot).toHaveAttribute("data-point-count", "5");
+    expect(screen.getByTestId("scatter-summary")).toHaveTextContent(
+      "2 个系列 · 5 个数据点",
+    );
+    const legendItems = screen.getAllByTestId("series-legend-item");
+    expect(legendItems).toHaveLength(2);
+    expect(legendItems[1]).toHaveTextContent("温度序列");
+    expect(legendItems[1]).toHaveTextContent("3 个数据点");
+    expect(legendItems[1]).toHaveAttribute("data-series-shape", "square");
+    expect(screen.getByTestId("scatter-y-label")).toHaveTextContent("Y (mV)");
+    expect(screen.getByTestId("extra-series-item")).toHaveTextContent(
+      "temperature · 3 个数据点",
+    );
+    expect(
+      Array.from(
+        (screen.getByTestId("extra-series-y-select") as HTMLSelectElement)
+          .options,
+      ).map((option) => option.value),
+    ).toEqual(["pressure", "humidity"]);
+
+    fireEvent.change(screen.getByTestId("chart-tick-density"), {
+      target: { value: "dense" },
+    });
+    fireEvent.change(screen.getByTestId("chart-font-size"), {
+      target: { value: "large" },
+    });
+    expect(seriesRequests(fetchMock)).toHaveLength(2);
+    expect(screen.getAllByTestId("scatter-series")).toHaveLength(2);
+  });
+
+  it("does not offer the main or already used Y columns for another series", async () => {
+    const fetchMock = installMultiSeriesMock();
+    render(<App />);
+
+    await generateSeries();
+    const optionsBefore = Array.from(
+      (screen.getByTestId("extra-series-y-select") as HTMLSelectElement).options,
+    ).map((option) => option.value);
+    expect(optionsBefore).not.toContain("time_s");
+    expect(optionsBefore).not.toContain("absorbance");
+
+    await addExtraSeries();
+    await waitFor(() =>
+      expect(screen.getAllByTestId("scatter-series")).toHaveLength(2),
+    );
+    const optionsAfter = Array.from(
+      (screen.getByTestId("extra-series-y-select") as HTMLSelectElement).options,
+    ).map((option) => option.value);
+    expect(optionsAfter).not.toContain("temperature");
+    expect(optionsAfter).not.toContain("absorbance");
+    expect(seriesRequests(fetchMock)).toHaveLength(2);
+  });
+
+  it("disables adding once four series exist and shows a Chinese limit hint", async () => {
+    const fetchMock = installMultiSeriesMock();
+    render(<App />);
+
+    await generateSeries();
+    await addExtraSeries();
+    await waitFor(() =>
+      expect(screen.getAllByTestId("scatter-series")).toHaveLength(2),
+    );
+    await addExtraSeries();
+    await waitFor(() =>
+      expect(screen.getAllByTestId("scatter-series")).toHaveLength(3),
+    );
+    await addExtraSeries();
+    await waitFor(() =>
+      expect(screen.getAllByTestId("scatter-series")).toHaveLength(4),
+    );
+
+    const button = screen.getByTestId("add-extra-series");
+    expect(button).toBeDisabled();
+    expect(button).toHaveTextContent("添加系列");
+    expect(screen.getByTestId("series-limit-hint")).toHaveTextContent(
+      "已达到 4 个系列上限",
+    );
+    expect(screen.getByTestId("scatter-summary")).toHaveTextContent(
+      "4 个系列 · 9 个数据点",
+    );
+    expect(seriesRequests(fetchMock)).toHaveLength(4);
+
+    fireEvent.click(button);
+    expect(seriesRequests(fetchMock)).toHaveLength(4);
+    expect(screen.getAllByTestId("scatter-series")).toHaveLength(4);
+  });
+
+  it("removes an added series and updates the chart and legend immediately", async () => {
+    const fetchMock = installMultiSeriesMock();
+    render(<App />);
+
+    await generateSeries();
+    await addExtraSeries();
+    await waitFor(() =>
+      expect(screen.getAllByTestId("scatter-series")).toHaveLength(2),
+    );
+    expect(screen.getByTestId("scatter-summary")).toHaveTextContent(
+      "2 个系列 · 5 个数据点",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "移除系列 temperature" }));
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("scatter-series")).toHaveLength(1),
+    );
+    expect(screen.getAllByTestId("series-legend-item")).toHaveLength(1);
+    expect(screen.getByTestId("scatter-summary")).toHaveTextContent(
+      "time_s (s) · absorbance (mV) · 2 个数据点",
+    );
+    expect(screen.queryByTestId("extra-series-item")).not.toBeInTheDocument();
+    expect(
+      Array.from(
+        (screen.getByTestId("extra-series-y-select") as HTMLSelectElement)
+          .options,
+      ).map((option) => option.value),
+    ).toContain("temperature");
+    expect(seriesRequests(fetchMock)).toHaveLength(2);
+  });
+
+  it("keeps existing series and the chart when adding a series fails", async () => {
+    let seriesCalls = 0;
+    installFetchMock(
+      () => jsonResponse(multiColumnCsv),
+      () => {
+        seriesCalls += 1;
+        if (seriesCalls === 1) {
+          return jsonResponse(seriesPayload);
+        }
+        return jsonResponse({ detail: "筛选后不足两个有效配对" }, 422);
+      },
+    );
+    render(<App />);
+
+    await generateSeries();
+    await addExtraSeries();
+
+    expect(await screen.findByTestId("extra-series-error")).toHaveTextContent(
+      "添加系列失败",
+    );
+    expect(screen.getByTestId("extra-series-error")).toHaveTextContent(
+      "筛选后不足两个有效配对",
+    );
+    expect(screen.getAllByTestId("scatter-series")).toHaveLength(1);
+    expect(screen.getAllByTestId("series-legend-item")).toHaveLength(1);
+    expect(screen.queryByTestId("extra-series-item")).not.toBeInTheDocument();
+    expect(screen.getByTestId("scatter-summary")).toHaveTextContent(
+      "2 个数据点",
+    );
+  });
+
+  it("shows the adding state and disables the button while the request is pending", async () => {
+    let resolveExtra: ((response: Response) => void) | null = null;
+    let seriesCalls = 0;
+    installFetchMock(
+      () => jsonResponse(multiColumnCsv),
+      () => {
+        seriesCalls += 1;
+        if (seriesCalls === 1) {
+          return jsonResponse(seriesPayload);
+        }
+        return new Promise<Response>((resolve) => {
+          resolveExtra = resolve;
+        });
+      },
+    );
+    render(<App />);
+
+    await generateSeries();
+    await addExtraSeries();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("add-extra-series")).toHaveTextContent(
+        "正在添加…",
+      ),
+    );
+    expect(screen.getByTestId("add-extra-series")).toBeDisabled();
+    expect(screen.getAllByTestId("scatter-series")).toHaveLength(1);
+
+    await act(async () => {
+      resolveExtra?.(jsonResponse(extraPayloads.temperature));
+    });
+    await waitFor(() =>
+      expect(screen.getAllByTestId("scatter-series")).toHaveLength(2),
+    );
+  });
+
+  it("clears added series and fit results when the main series is regenerated", async () => {
+    installMultiSeriesMock();
+    render(<App />);
+
+    await generateSeries();
+    await addExtraSeries();
+    await waitFor(() =>
+      expect(screen.getAllByTestId("scatter-series")).toHaveLength(2),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "运行拟合" }));
+    await screen.findByTestId("fit-result");
+    expect(screen.getByTestId("fit-curve")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "生成配对数据" }));
+    await waitFor(() =>
+      expect(screen.getAllByTestId("scatter-series")).toHaveLength(1),
+    );
+
+    expect(screen.queryByTestId("extra-series-item")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("series-legend-item")).toHaveLength(1);
+    expect(screen.getByTestId("extra-series-name")).toHaveValue("temperature");
+    expect(screen.queryByTestId("fit-result")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("fit-curve")).not.toBeInTheDocument();
+    expect(screen.getByTestId("scatter-summary")).toHaveTextContent(
+      "2 个数据点",
+    );
   });
 });
