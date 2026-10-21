@@ -1,7 +1,8 @@
-"""Deterministic CSV import parsing for LabFlow datasets.
+"""Deterministic dataset import parsing for LabFlow.
 
-Parsing is local and rule-based: pandas handles the file, and warnings are derived
-from simple counts so the same upload always yields the same response.
+Parsing is local and rule-based: pandas/openpyxl handle the file, and warnings are
+derived from simple counts so the same upload always yields the same response.
+CSV and XLSX share the same frame-validation, statistics, and preview pipeline.
 """
 
 from __future__ import annotations
@@ -9,9 +10,13 @@ from __future__ import annotations
 import csv
 import io
 from typing import Any
+from xml.etree.ElementTree import ParseError
+from zipfile import BadZipFile
 
 import numpy as np
 import pandas as pd
+from openpyxl import load_workbook
+from openpyxl.utils.exceptions import InvalidFileException
 
 from app.analysis import summary_stats
 
@@ -26,10 +31,16 @@ ALLOWED_CONTENT_TYPES = frozenset(
         "application/octet-stream",
     }
 )
+ALLOWED_XLSX_CONTENT_TYPES = frozenset(
+    {
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/octet-stream",
+    }
+)
 
 
-class CsvImportError(ValueError):
-    """Raised when an uploaded CSV cannot be accepted."""
+class DatasetImportError(ValueError):
+    """Raised when an uploaded dataset cannot be accepted."""
 
     def __init__(self, message: str, status_code: int = 422) -> None:
         super().__init__(message)
@@ -76,7 +87,7 @@ def _validate_field_counts(data: bytes) -> None:
     try:
         text = data.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
-        raise CsvImportError(f"Malformed CSV: {exc}", status_code=422) from exc
+        raise DatasetImportError(f"Malformed CSV: {exc}", status_code=422) from exc
 
     reader = csv.reader(io.StringIO(text, newline=""))
     expected: int | None = None
@@ -88,37 +99,23 @@ def _validate_field_counts(data: bytes) -> None:
                 expected = len(record)
                 continue
             if len(record) != expected:
-                raise CsvImportError(
+                raise DatasetImportError(
                     f"Malformed CSV: row {reader.line_num} has {len(record)} field(s) "
                     f"but the header has {expected}",
                     status_code=422,
                 )
     except csv.Error as exc:
-        raise CsvImportError(f"Malformed CSV: {exc}", status_code=422) from exc
+        raise DatasetImportError(f"Malformed CSV: {exc}", status_code=422) from exc
 
 
-def parse_csv_bytes(data: bytes) -> dict[str, Any]:
-    """Parse raw CSV bytes into columns, numeric columns, preview, and warnings."""
-    if not data or not data.strip():
-        raise CsvImportError("CSV file is empty", status_code=400)
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise CsvImportError(
-            f"CSV file exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
-            status_code=413,
-        )
-
-    _validate_field_counts(data)
-
-    try:
-        frame = pd.read_csv(io.BytesIO(data), encoding="utf-8-sig", index_col=False)
-    except (pd.errors.EmptyDataError, pd.errors.ParserError, UnicodeDecodeError, ValueError) as exc:
-        raise CsvImportError(f"Malformed CSV: {exc}", status_code=422) from exc
-
+def _build_payload(
+    frame: pd.DataFrame, format_label: str, warnings: list[str]
+) -> dict[str, Any]:
+    """Shared validation, warnings, statistics, and preview for every format."""
     if frame.empty:
-        raise CsvImportError("CSV contains no data rows", status_code=422)
+        raise DatasetImportError(f"{format_label} contains no data rows", status_code=422)
 
     columns = [str(column) for column in frame.columns]
-    warnings: list[str] = []
 
     missing_counts = frame.isna().sum()
     for column in frame.columns:
@@ -159,6 +156,124 @@ def parse_csv_bytes(data: bytes) -> dict[str, Any]:
         "preview": preview,
         "warnings": warnings,
     }
+
+
+def parse_csv_bytes(data: bytes) -> dict[str, Any]:
+    """Parse raw CSV bytes into columns, numeric columns, preview, and warnings."""
+    if not data or not data.strip():
+        raise DatasetImportError("CSV file is empty", status_code=400)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise DatasetImportError(
+            f"CSV file exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
+            status_code=413,
+        )
+
+    _validate_field_counts(data)
+
+    try:
+        frame = pd.read_csv(io.BytesIO(data), encoding="utf-8-sig", index_col=False)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError, UnicodeDecodeError, ValueError) as exc:
+        raise DatasetImportError(f"Malformed CSV: {exc}", status_code=422) from exc
+
+    return _build_payload(frame, "CSV", [])
+
+
+def _normalize_cell(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
+    return value
+
+
+def _dedupe_columns(columns: list[str]) -> list[str]:
+    seen: dict[str, int] = {}
+    deduped: list[str] = []
+    for column in columns:
+        count = seen.get(column, 0)
+        deduped.append(column if count == 0 else f"{column}.{count}")
+        seen[column] = count + 1
+    return deduped
+
+
+def _read_xlsx_rows(data: bytes) -> tuple[list[str], list[list[Any]]]:
+    try:
+        workbook = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    except (
+        BadZipFile,
+        InvalidFileException,
+        KeyError,
+        OSError,
+        ParseError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        raise DatasetImportError(f"Malformed XLSX: {exc}", status_code=422) from exc
+
+    try:
+        sheet_names = list(workbook.sheetnames)
+        if not sheet_names:
+            raise DatasetImportError("XLSX workbook contains no worksheets", status_code=422)
+        sheet = workbook[sheet_names[0]]
+        rows = [list(row) for row in sheet.iter_rows(values_only=True)]
+    finally:
+        workbook.close()
+    return sheet_names, rows
+
+
+def _xlsx_frame(sheet_name: str, rows: list[list[Any]]) -> pd.DataFrame:
+    normalized = [[_normalize_cell(value) for value in row] for row in rows]
+    normalized = [row for row in normalized if any(value is not None for value in row)]
+    if not normalized:
+        raise DatasetImportError(
+            f"Worksheet '{sheet_name}' contains no data rows", status_code=422
+        )
+
+    header, *body = normalized
+    width = len(header)
+    if width == 0:
+        raise DatasetImportError(
+            f"Worksheet '{sheet_name}' contains no data rows", status_code=422
+        )
+
+    columns = _dedupe_columns(
+        [str(value) if value is not None else f"Unnamed: {index}" for index, value in enumerate(header)]
+    )
+
+    records: list[list[Any]] = []
+    for row_number, row in enumerate(body, start=2):
+        if len(row) > width:
+            raise DatasetImportError(
+                f"Malformed XLSX: row {row_number} has {len(row)} value(s) "
+                f"but the header has {width}",
+                status_code=422,
+            )
+        records.append(row + [None] * (width - len(row)))
+
+    return pd.DataFrame(records, columns=columns)
+
+
+def parse_xlsx_bytes(data: bytes) -> dict[str, Any]:
+    """Parse the first worksheet of raw XLSX bytes with the CSV response contract."""
+    if not data or not data.strip():
+        raise DatasetImportError("XLSX file is empty", status_code=400)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise DatasetImportError(
+            f"XLSX file exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
+            status_code=413,
+        )
+
+    sheet_names, rows = _read_xlsx_rows(data)
+    frame = _xlsx_frame(sheet_names[0], rows)
+
+    warnings: list[str] = []
+    if len(sheet_names) > 1:
+        warnings.append(
+            f"Workbook contains {len(sheet_names)} worksheets; "
+            f"imported the first worksheet '{sheet_names[0]}'"
+        )
+
+    return _build_payload(frame, "XLSX", warnings)
 
 
 def _describe_non_numeric(series: pd.Series, column: str, warnings: list[str]) -> None:

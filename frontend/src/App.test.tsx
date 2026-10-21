@@ -35,14 +35,16 @@ function jsonResponse(payload: unknown, status = 200): Response {
   } as Response;
 }
 
-function installFetchMock(upload?: () => Response | Promise<Response>) {
+function installFetchMock(
+  upload?: (url: string) => Response | Promise<Response>,
+) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
     const url = String(input);
     if (url === "/api/health") {
       return jsonResponse(healthPayload);
     }
-    if (url === "/api/datasets/csv" && upload) {
-      return upload();
+    if ((url === "/api/datasets/csv" || url === "/api/datasets/xlsx") && upload) {
+      return upload(url);
     }
     throw new Error("Unexpected request: " + url);
   });
@@ -50,9 +52,23 @@ function installFetchMock(upload?: () => Response | Promise<Response>) {
   return fetchMock;
 }
 
+function fileTypeFor(name: string): string {
+  if (name.toLowerCase().endsWith(".xlsx")) {
+    return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  }
+  if (name.toLowerCase().endsWith(".csv")) {
+    return "text/csv";
+  }
+  return "text/plain";
+}
+
 function chooseFile(name = "experiment.csv") {
-  const file = new File(["time_s,absorbance\n0,0.012\n"], name, { type: "text/csv" });
-  fireEvent.change(screen.getByLabelText("选择 CSV 文件"), { target: { files: [file] } });
+  const file = new File(["time_s,absorbance\n0,0.012\n"], name, {
+    type: fileTypeFor(name),
+  });
+  fireEvent.change(screen.getByLabelText("选择 CSV 或 XLSX 文件"), {
+    target: { files: [file] },
+  });
   return file;
 }
 
@@ -104,6 +120,47 @@ describe("App", () => {
     expect(uploadCall?.[1]?.method).toBe("POST");
     expect(uploadCall?.[1]?.body).toBeInstanceOf(FormData);
     expect((uploadCall?.[1]?.body as FormData).get("file")).toBe(file);
+  });
+
+  it("routes an xlsx file to the xlsx endpoint and renders the same result shape", async () => {
+    const fetchMock = installFetchMock((url) =>
+      jsonResponse(url === "/api/datasets/xlsx" ? csvPayload : { detail: "wrong endpoint" }),
+    );
+    render(<App />);
+
+    const file = chooseFile("experiment.xlsx");
+    startUpload();
+
+    expect(await screen.findByText("XLSX 已解析")).toBeInTheDocument();
+    expect(screen.getByTestId("row-count")).toHaveTextContent("3");
+    expect(screen.getByTestId("numeric-columns")).toHaveTextContent("time_s、absorbance");
+    expect(screen.getByTestId("stats-n")).toHaveTextContent("3");
+    expect(screen.getByTestId("preview-table")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "absorbance" })).toBeInTheDocument();
+    expect(screen.getAllByLabelText("缺失值")).toHaveLength(2);
+
+    const datasetCalls = fetchMock.mock.calls.filter(([input]) =>
+      String(input).startsWith("/api/datasets/"),
+    );
+    expect(datasetCalls).toHaveLength(1);
+    expect(String(datasetCalls[0][0])).toBe("/api/datasets/xlsx");
+    expect(datasetCalls[0][1]?.method).toBe("POST");
+    expect((datasetCalls[0][1]?.body as FormData).get("file")).toBe(file);
+  });
+
+  it("rejects an unsupported extension before making a request", async () => {
+    const fetchMock = installFetchMock(() => jsonResponse(csvPayload));
+    render(<App />);
+
+    chooseFile("experiment.txt");
+    startUpload();
+
+    expect(await screen.findByTestId("upload-error")).toHaveTextContent(
+      "不支持的文件格式，请选择 .csv 或 .xlsx 文件。",
+    );
+    expect(
+      fetchMock.mock.calls.filter(([input]) => String(input).startsWith("/api/datasets/")),
+    ).toHaveLength(0);
   });
 
   it("renders statistics for the default numeric column and updates on selection", async () => {

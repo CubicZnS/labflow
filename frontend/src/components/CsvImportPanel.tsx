@@ -1,15 +1,22 @@
 import { useId, useState, type ChangeEvent } from "react";
 import {
-  uploadCsv,
+  datasetFormatForFile,
+  uploadDataset,
   type ColumnStats,
   type CsvImportResponse,
+  type DatasetFormat,
   type PreviewCell,
 } from "../lib/api";
 
 type UploadState =
   | { status: "idle" }
   | { status: "parsing"; fileName: string }
-  | { status: "success"; fileName: string; result: CsvImportResponse }
+  | {
+      status: "success";
+      fileName: string;
+      format: DatasetFormat;
+      result: CsvImportResponse;
+    }
   | { status: "error"; fileName: string; message: string };
 
 const rowFormatter = new Intl.NumberFormat("zh-CN");
@@ -68,7 +75,7 @@ function EmptyPreview() {
     <div className="flex h-full min-h-64 flex-col justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/60 p-6 text-center">
       <p className="text-sm font-semibold text-ink">数据预览</p>
       <p className="mt-2 text-sm leading-6 text-slate-500">
-        选择 CSV 并解析后，这里会显示行数、数值列、警告和前 10 行数据。
+        选择 CSV 或 XLSX 并解析后，这里会显示行数、数值列、警告和前 10 行数据。
       </p>
     </div>
   );
@@ -79,7 +86,7 @@ function ColumnStatsPanel({ column, stats }: { column: string; stats: ColumnStat
     <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-sm font-semibold text-ink">{column} 的描述统计</p>
-        <span className="text-xs text-slate-500">基于完整 CSV 数据计算</span>
+        <span className="text-xs text-slate-500">基于完整数据集计算</span>
       </div>
       <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
@@ -128,7 +135,7 @@ function CsvStatistics({ result }: { result: CsvImportResponse }) {
       >
         <p className="text-sm font-semibold text-ink">描述统计</p>
         <p className="mt-1 text-sm leading-6 text-slate-600">
-          未识别到数值列，无法计算描述统计。请上传至少包含一个数值列的 CSV。
+          未识别到数值列，无法计算描述统计。请上传至少包含一个数值列的 CSV 或 XLSX。
         </p>
       </div>
     );
@@ -148,7 +155,7 @@ function CsvStatistics({ result }: { result: CsvImportResponse }) {
         <div>
           <p className="text-sm font-semibold text-ink">描述统计</p>
           <p className="mt-1 text-xs text-slate-500">
-            由后端基于完整 CSV 计算，缺失值与非有限值不参与统计。
+            由后端基于完整数据集计算，缺失值与非有限值不参与统计。
           </p>
         </div>
         <div className="w-full sm:w-48">
@@ -192,7 +199,15 @@ function CsvStatistics({ result }: { result: CsvImportResponse }) {
   );
 }
 
-function CsvResult({ fileName, result }: { fileName: string; result: CsvImportResponse }) {
+function CsvResult({
+  fileName,
+  format,
+  result,
+}: {
+  fileName: string;
+  format: DatasetFormat;
+  result: CsvImportResponse;
+}) {
   return (
     <div>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -203,7 +218,7 @@ function CsvResult({ fileName, result }: { fileName: string; result: CsvImportRe
         </div>
         <span className="pill border-emerald-200 bg-emerald-50 text-emerald-700">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          CSV 已解析
+          {format.toUpperCase()} 已解析
         </span>
       </div>
 
@@ -254,7 +269,7 @@ function CsvResult({ fileName, result }: { fileName: string; result: CsvImportRe
         </div>
         <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200 text-left text-sm" data-testid="preview-table">
-            <caption className="sr-only">CSV 数据预览</caption>
+            <caption className="sr-only">{format.toUpperCase()} 数据预览</caption>
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 {result.columns.map((column) => (
@@ -305,15 +320,27 @@ export function CsvImportPanel() {
       return;
     }
     const fileName = selectedFile.name;
+    const format = datasetFormatForFile(fileName);
+    if (!format) {
+      setUploadState({
+        status: "error",
+        fileName,
+        message: "不支持的文件格式，请选择 .csv 或 .xlsx 文件。",
+      });
+      return;
+    }
     setUploadState({ status: "parsing", fileName });
     try {
-      const result = await uploadCsv(selectedFile);
-      setUploadState({ status: "success", fileName, result });
+      const result = await uploadDataset(selectedFile, format);
+      setUploadState({ status: "success", fileName, format, result });
     } catch (error) {
       setUploadState({
         status: "error",
         fileName,
-        message: error instanceof Error ? error.message : "CSV 上传失败，请稍后重试。",
+        message:
+          error instanceof Error
+            ? error.message
+            : format.toUpperCase() + " 上传失败，请稍后重试。",
       });
     }
   }
@@ -323,7 +350,7 @@ export function CsvImportPanel() {
       <div className="max-w-2xl">
         <p className="eyebrow">Data import</p>
         <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink">
-          导入 CSV，先看清数据再分析
+          导入 CSV 或 XLSX，先看清数据再分析
         </h2>
         <p className="mt-3 text-slate-600">
           上传后立即返回行数、数值列与缺失/重复等警告，并展示前 10 行预览。
@@ -334,7 +361,7 @@ export function CsvImportPanel() {
         <div className="card">
           <h3 className="text-base font-semibold text-ink">1. 选择文件</h3>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            支持 UTF-8 编码的 CSV，单文件最大 10 MB。文件只用于本地解析。
+            支持 UTF-8 编码的 CSV 与 XLSX（导入首个工作表），单文件最大 10 MB。文件只用于本地解析。
           </p>
 
           <label
@@ -342,14 +369,14 @@ export function CsvImportPanel() {
             className="mt-5 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-cyan/40 bg-cyan/5 px-4 py-6 text-sm font-medium text-cyan transition hover:border-cyan hover:bg-cyan/10"
           >
             <span aria-hidden="true">＋</span>
-            选择 CSV 文件
+            选择 CSV 或 XLSX 文件
           </label>
           <input
             id={inputId}
-            aria-label="选择 CSV 文件"
+            aria-label="选择 CSV 或 XLSX 文件"
             className="sr-only"
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             disabled={isParsing}
             onChange={handleFileChange}
           />
@@ -415,7 +442,11 @@ export function CsvImportPanel() {
 
         <div className="card" aria-live="polite">
           {uploadState.status === "success" ? (
-            <CsvResult fileName={uploadState.fileName} result={uploadState.result} />
+            <CsvResult
+              fileName={uploadState.fileName}
+              format={uploadState.format}
+              result={uploadState.result}
+            />
           ) : (
             <EmptyPreview />
           )}

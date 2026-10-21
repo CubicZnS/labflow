@@ -107,7 +107,7 @@ function App() {
                 className="rounded-xl bg-cyan px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan/20 transition hover:bg-cyan-800"
                 href="#import"
               >
-                上传 CSV 数据
+                上传实验数据
               </a>
               <a
                 className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:border-slate-400"
@@ -204,9 +204,9 @@ function App() {
           <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
             <div className="card">
               <p className="eyebrow">Current phase</p>
-              <h2 className="mt-3 text-2xl font-semibold text-ink">Phase 1 · CSV 导入与预览</h2>
+              <h2 className="mt-3 text-2xl font-semibold text-ink">Phase 1 · CSV / XLSX 导入与预览</h2>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                CSV 上传、数值列识别、缺失/重复警告与数据预览已就位。
+                CSV / XLSX 上传、数值列识别、缺失/重复警告与数据预览已就位。
                 下一阶段从列选择、单位确认和基础统计开始。
               </p>
               <div className="mt-5 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -265,7 +265,7 @@ function App() {
       <footer className="border-t border-slate-200/70 py-8">
         <div className="container-page flex flex-col gap-2 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <p>LabFlow · 科研数据分析与绘图</p>
-          <p>Phase 1 · CSV 导入与预览 · 结果可复现优先</p>
+          <p>Phase 1 · CSV / XLSX 导入与预览 · 结果可复现优先</p>
         </div>
       </footer>
     </div>
