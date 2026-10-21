@@ -501,3 +501,17 @@ git log --oneline --decorate dev
   - 数据量大时仍渲染全部散点；暂无抽稀或分页。PNG/SVG 导出仍未实现。
   - 继承限制：布尔列按 0/1 参与配对；混合对象列会跳过日期行；仅导入第一个 XLSX worksheet；10 MB 文件在大小检查前已被读取；手工表格录入仍未实现；中文 UI 内部分服务端校验消息/警告仍为英文。
 - 下一轮：完成 Phase 3.3 多系列叠加；随后 Phase 3.4 实现 PNG/SVG 导出，继续复用现有确定性坐标与样式控件。
+
+### 独立 QA FAIL 闭环（MAC-53）
+
+- QA 结论：MAC-52 独立 QA 判定 FAIL 并阻断合并。功能主体、标签唯一性、字号、网格与 5 个 gate 均通过；唯一阻断项为刻度密度会改变坐标域——`generateDensityTicks` 在域内没有满足数量的整齐步长时选择 `bestExpanded`，把刻度边界扩张成新的 `domain`，该域随后被用于坐标轴、点位、拟合曲线与误差棒，导致切换 sparse/dense 时图形缩放。
+- F1 根因：坐标域计算与刻度生成耦合在 `buildAxis` 内；密度分支返回的 `domain` 直接流入 `domainAttributes`、`scaleX/scaleY`、`buildFitCurve` 与误差棒坐标，因此“样式”实际改变了数据几何。
+- 修复：`computeDomain` 每轴只执行一次，`buildAxis` 始终返回该固定域；稀疏/密集档只在域内挑选整齐步长，若没有 3–4 / 6–9 个域内刻度则改用域内均匀分数刻度（sparse 4 个、dense 8 个），不再扩张 domain。标准档继续沿用迭代 #10 的域内步长算法，无合适步长时回退为 5 个域内分数刻度。三档密度现在输出完全相同的 X/Y 域、点位、拟合曲线 `points` 与误差棒坐标。
+- 复现证据：
+  - 6 点小数据 `{x:0..10, y:0.05..0.25}`：三档 X 域均为 `[-0.5, 10.5]`，Y 域均为 `[0.04, 0.26]`；首点/末点 `cy` 三档一致（约 `283.636` / `36.364`）。修复前 sparse 的 Y 域为 `[0, 0.30000000000000004]`。
+  - `5e6 ± 5` 数据：三档 X/Y 域均为 `[4999994.5, 5000005.5]`，`cx` 三档一致（约 `100.36` / `587.64`）。修复前 dense 的 X 域为 `[4999994, 5000006]`。
+- 新增测试：`ScatterPlot.test.tsx` 增加两组三档一致性回归（6 点数据、`5e6 ± 5`，均含拟合曲线与 Y 误差棒），逐字节比较 `data-domain-*`、每个点 `cx/cy`、拟合曲线 `points`、误差棒坐标；同时断言三档刻度数量、有限性、唯一性与域内约束，dense 在无整齐步长时仍为 6–9 个。前端测试由 60 增至 62。
+- 修复提交：`a3285fa6823456c7317852cf532d05acf45060ea`
+  https://github.com/CubicZnS/labflow/commit/a3285fa6823456c7317852cf532d05acf45060ea
+- 修复后 gate：`pnpm typecheck`、`pnpm test:run`（62 passed）、`pnpm build`、`pytest -q`（155 passed）、`ruff check app tests` 全部通过。
+- 最终 HEAD / 合并 SHA：待 Lead 补写。
