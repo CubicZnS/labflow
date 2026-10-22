@@ -308,3 +308,5 @@ git show <SHA>
 - 最终交付：[iter/21 最终 HEAD](https://github.com/CubicZnS/labflow/commits/iter/21)；实际推送时间、不可变最终 SHA 与 GitHub commit 链接在 MAC-100 和 MAC-99 交付评论记录（提交内无法自引用自身 SHA）。本次仅文档/附件修复，运行 `git diff --check`、附件闭合校验、远端 SHA 与 GitHub API 核验；产品门禁沿用上轮记录，未重跑。交回 QA 复验，不宣布 PASS、不合并。
 
 - QA 清单与署名修复提交：[720f425c44beb2613afffda063dbfab94532692a](https://github.com/CubicZnS/labflow/commit/720f425c44beb2613afffda063dbfab94532692a)；推送时间：2026-10-22 23:01:07 Asia/Shanghai。
+
+迭代 #21 集成状态：独立 QA 已对最终候选 c18121e 给出 PASS，已合并并推送 dev（[d4ebf58](https://github.com/CubicZnS/labflow/commit/d4ebf58c60c9429d2633a34d8263db7d57943379)）。上方“交回 QA”描述为修复交付时的历史状态；合并及记录提交另行只读复核。下一轮优先仅补 T10 离线与重试验证，其他浏览器、T09 与外部验收仍待执行。

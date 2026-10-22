@@ -1009,3 +1009,14 @@ git log --oneline --decorate dev
 - 最终交付：[iter/21 最终 HEAD](https://github.com/CubicZnS/labflow/commits/iter/21)；实际推送时间、不可变最终 SHA 与 GitHub commit 链接在 MAC-100 和 MAC-99 交付评论记录（提交内无法自引用自身 SHA）。本次仅文档/附件修复，运行 `git diff --check`、附件闭合校验、远端 SHA 与 GitHub API 核验；产品门禁沿用上轮记录，未重跑。交回 QA 复验，不宣布 PASS、不合并。
 
 - QA 清单与署名修复提交：[720f425c44beb2613afffda063dbfab94532692a](https://github.com/CubicZnS/labflow/commit/720f425c44beb2613afffda063dbfab94532692a)；推送时间：2026-10-22 23:01:07 Asia/Shanghai。
+
+
+### 迭代 #21 独立验收与合并收尾
+
+- 恢复核对：本次唤醒发现本轮已经完成 Dev 实现、独立 QA 与远端合并，因此复用真实历史，不重复开轮或合并。
+- 独立 QA：[MAC-99](/MAC/issues/MAC-99) 于 2026-10-22 23:06 Asia/Shanghai 对最终候选明确 PASS；此前清单不闭合、署名和三处英文记录问题已逐项修复。
+- 最终候选：`iter/21` / `c18121e4047c66e7ebd6a44a26534d5b7f51ac9a`，https://github.com/CubicZnS/labflow/commit/c18121e4047c66e7ebd6a44a26534d5b7f51ac9a 。
+- 已推送的 dev 合并提交：`d4ebf58c60c9429d2633a34d8263db7d57943379`，https://github.com/CubicZnS/labflow/commit/d4ebf58c60c9429d2633a34d8263db7d57943379 。父提交为 `cb18d41` 和 `c18121e`，合并树与候选一致；中文摘要及精确 Paperclip 署名已核对。
+- Lead 本次独立复核：整轮只改 README、检查清单、迭代日志三份文档；README 中文状态、限制、下一轮及 #21 四字段版本表完整。`ls-remote` 返回候选与合并完整 SHA，GitHub API 对合并 SHA 返回一致。main 仍为 `7b3c2f1153eb561241ba33fa74e06953e552e63e`。
+- 本次新运行门禁（2026-10-22 23:14–23:15 Asia/Shanghai）：backend 指定 `.venv/bin/python -m pytest -q` 退出 0，157 项（72+72+13）；ruff 退出 0；frontend 指定 pnpm 的 typecheck、test:run（174 项）、build 全部退出 0。既有 Starlette/httpx、RankWarning、React key 警告仍在；不是新的浏览器测试。
+- 下一步：由独立 QA 追加只读核验本次真实合并与记录提交；记录提交 SHA 由任务交付提供，避免自引用。下一轮只选 T10 离线恢复验证，不与 T09 或其他浏览器扩展并行；Phase 4 MVP、人工矩阵与外部验收仍未完成。
