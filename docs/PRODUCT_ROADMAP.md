@@ -116,7 +116,11 @@ Acceptance: a user can go from uploaded data to an exported publication-style fi
       reduced-motion preference, accessible parse-status announcements and `aria-busy`,
       keyboard-reachable project-open button, busy-state disables
       (iteration #17, merge `b4a3379`)
-- [ ] 4.3b Data privacy and security review; remaining user-facing error handling (next)
+- [x] 4.3b-1 Privacy review and frontend error experience: Chinese network/HTTP/non-JSON
+      messages for health checks and dataset POSTs, offline health-check retry, a verifiable
+      four-item privacy summary on the landing page, and `docs/PRIVACY.md`
+      (iteration #18)
+- [ ] 4.3b-2 Localize backend user-facing validation error messages (next iteration)
 
 Acceptance: an external test user completes the workflow without developer help.
 

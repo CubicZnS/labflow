@@ -844,3 +844,44 @@ git log --oneline --decorate dev
   - 合并后在 `dev` 重跑 5 个 gate：后端 `pytest -q -o addopts=""` **155 passed**、`ruff check app tests` 通过；前端 `typecheck` 通过、`test:run` **156 passed**、`build` 成功。
   - 推送核验：`git ls-remote origin refs/heads/dev` 与 `gh api` 对合并 SHA `b4a33797b480af81212522d13542770dc36ff4c9` 返回一致；`main` 保持 `7b3c2f1153eb561241ba33fa74e06953e552e63e` 未改动；无 force push、无历史改写。
   - 阶段状态：Phase 4.3a（可访问性基础与状态播报）完成并合并；Phase 4 MVP 产品化仍在进行，下一轮进入 Phase 4.3b 隐私复核与剩余错误处理。
+
+## 迭代 #18 — Phase 4.3b-1 隐私复核与前端错误体验统一
+
+- 日期：2026-10-22（README 推送时间按实际推送记为 2026-10-22 09:04 Asia/Shanghai）
+- 目标：完成 Phase 4.3b-1——基于仓库事实的隐私复核文档、首页数据/隐私说明、健康检查离线重试，以及前端网络/HTTP/非 JSON 错误文案统一；纯前端与文档增量，不新增依赖、不改后端代码/契约、不做后端持久化、不上传用户数据。
+- 任务选择：MAC-76（迭代 #18，Phase 4.3b-1）。
+- 分支：`iter/18`，基于 `dev` 的 `a8e0542e0e59ea4e9438130b0791eb23d777a7fc`。只在该分支提交并 push，不合并、不 force push、不改写历史。
+- 产品决策：
+  - 本轮只做 Phase 4.3b-1；后端英文校验错误文案中文化留到 4.3b-2，axe/WCAG 审计与图表/分析/导出/项目快照行为不变。
+  - 错误处理抽取共享助手，保持各 HTTP 状态、`detail` 解析、兜底文案、导出名称/类型/请求字段与端点完全不变；请求取消（`AbortError`）必须原样抛出。
+  - 隐私说明只写代码可核验的事实，不增加“绝对安全”等未经验证的承诺；详细证据集中在 `docs/PRIVACY.md`。
+- 已完成：
+  - `frontend/src/lib/api.ts`：
+    - 新增内部常量 `NETWORK_ERROR_MESSAGE` 与非 JSON 文案常量，新增 `isAbortError` 与通用表单 POST 助手 `postFormJson`。
+    - `uploadDataset`、`createSeries`、`createFit` 改用 `postFormJson`，保持 `AbortError` 原样抛出、`detail` 字符串/数组（`；` 连接）解析、各动作中文兜底、200 非 JSON 中文解析错误与 `CsvUploadError.status`。
+    - `fetchHealth` 网络失败返回“无法连接分析服务，请确认后端已启动后重试。”；非 2xx 返回“分析服务不可用（HTTP n），请确认后端已启动后重试。”；200 非 JSON 返回“服务器返回了无法解析的响应，请稍后重试。”；`AbortError` 原样抛出。
+    - 所有既有导出名称、类型、请求字段和端点保持不变。
+  - `frontend/src/App.tsx`：
+    - 健康检查抽取为 `checkHealth`，`useEffect` 首次调用；失败显示 `API 未连接`、`data-testid="api-offline-hint"` 的本机地址提示与 `data-testid="api-retry"` 的“重试连接”按钮。
+    - 重试时徽标显示“正在检查 API”且按钮禁用；成功后提示与按钮消失、徽标显示 `API 已连接 · v<version>`；失败保持离线态并可再次重试。
+    - `#trust` 正文改为恰好 4 条 `data-testid="privacy-list"` 中文隐私说明，覆盖本机 `/api/datasets/*`、无第三方统计/AI、后端不保存文件/不写数据库、`.labflow.json` 只含配置与 SHA-256 指纹。
+    - `#roadmap` 剩余工作改为“后端校验错误文案中文化，以及外部试用与跨浏览器验证”，不再列出已完成的“示例与引导”和“隐私复核”；保留 skip-link、锚点、响应式布局、Phase 4 标题与既有 testid。
+  - `frontend/src/lib/api.test.ts`（新建，15 项）：覆盖 `fetchHealth` 成功/503/网络失败/200 非 JSON/AbortError，上传网络失败、`detail` 字符串与数组、500 非 JSON、200 非 JSON、AbortError 原对象，以及 `createSeries`/`createFit` 的网络错误与各自兜底文案。
+  - `frontend/src/App.test.tsx`：新增离线提示、重试中禁用、恢复在线后提示/按钮消失；隐私列表恰好 4 条与关键信息；路线图不再出现“示例与引导”“隐私复核”且包含“后端校验错误文案中文化”。
+  - `docs/PRIVACY.md`（新建，中文）：记录复核范围与结论、6 条数据流、内存处理/10 MB/无落盘/无浏览器存储、无第三方脚本与追踪、项目文件内容清单、已知限制，以及本轮实际执行的 grep/文件检查命令与结果。
+  - 文档：更新 `docs/PRODUCT_ROADMAP.md`（拆分 4.3b-1/4.3b-2）、中文 `README.md`（状态、能力、测试、限制、下一轮、版本迭代表）与本记录。
+- 测试：
+  - 后端：`.venv/bin/python -m pytest -q -o addopts=""` **155 passed**；`.venv/bin/ruff check app tests` 通过；本轮未改后端。
+  - 前端：`pnpm typecheck` 通过；`pnpm test:run` **174 passed**；`pnpm build` 成功。
+  - 新增覆盖：健康检查四种失败/成功路径与 AbortError；三类 POST 的网络错误、detail 透出/数组连接、非 JSON 兜底与 AbortError 原对象；首页离线重试状态机；隐私列表数量/内容；路线图过期文案移除。
+- 已知限制：
+  - 后端用户可见校验错误（如 CSV/XLSX 超限、内容类型不支持）仍可能为英文，安排在 4.3b-2。
+  - 本地 MVP 默认无 TLS、鉴权、速率限制或租户隔离；部署到真实服务器前需重新做隐私与安全复核。
+  - 离线提示固定指向 `http://127.0.0.1:8000`；更换主机或端口需同步修改文案。
+  - 未做 axe/WCAG 审计、渗透测试或真实服务器部署验证；浏览器/系统下载记录不在应用控制内。
+  - 仍不做后端持久化、账户、云同步或跨设备共享；本轮不改变分析、绘图、导出或项目快照计算行为。
+- 下一轮：Phase 4.3b-2 后端用户可见校验错误文案中文化，保持状态码与响应结构不变，并补充后端与前端断言；随后进入外部试用与跨浏览器验证。
+- Git：
+  - `iter/18` 功能与测试提交：`6a1c5636fb86e025934c52d25bcff53d08c5a50b`
+    https://github.com/CubicZnS/labflow/commit/6a1c5636fb86e025934c52d25bcff53d08c5a50b
+  - `iter/18` 文档提交：推送后补记。
