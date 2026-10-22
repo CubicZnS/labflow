@@ -1089,3 +1089,13 @@ git log --oneline --decorate dev
 - 真实合并提交：`74b8ba8def5a942315560eb6fcd8ded85143c474`，https://github.com/CubicZnS/labflow/commit/74b8ba8def5a942315560eb6fcd8ded85143c474 ，2026-10-23 Asia/Shanghai 已推送 origin/dev。无历史改写、未推main。
 - 本次收尾只更新README/路线图实际集成状态及中文日志，产品代码未再变更，复用独立QA门禁结果；运行git diff --check。记录提交自身SHA通过任务交付提供，避免虚构自引用；合并/记录提交中文摘要及远端SHA交独立QA追加只读核验。
 - 已知问题及下一轮：纯键盘激活、焦点遮挡、200%真实缩放仍待单独收敛，Chrome/Safari/Firefox人工矩阵和外部验收未完成。T09整体与Phase4 MVP未完成；下一轮只选择一个剩余缺口，不扩大功能或部署。
+
+
+## 迭代 #25：纯键盘配对、拟合与项目保存路径复核
+
+- 真实目标：区分#23脚本/Remote键盘分派问题与产品缺陷，不修产品。分支iter/25，已存在基线 [f01c5c5918aeaa78926648830009a3e9f161b50e](https://github.com/CubicZnS/labflow/commit/f01c5c5918aeaa78926648830009a3e9f161b50e)。本轮真实最终SHA/链接/推送时间由[交付任务](/MAC/issues/MAC-119)记录，避免自身SHA自引用。
+- 改动：只更新README、路线图、迭代日志、浏览器清单；README中文状态/限制/下一轮与连续#25四字段表同步，启动和五项测试命令复核仍准确。不改产品代码、依赖、CI、配置或宿主。
+- 结果：严格路径FAIL；普通非React校准页也复现可信方向键到达但下拉值不变。Actions严格路径上传200后X/Y均x、配对禁用。直接BiDi加字符y的超范围补充能配对200、Space拟合200、Shift+Tab返回保存和Enter实际下载669字节v2；degree实际仍1，无degree2请求，不能记严格键盘PASS。未定位Firefox/macOS/Remote内部根因，不认定产品缺陷或反推#23所有失败同因。环境、四次原始失败/补充、截图、请求响应及快照见[本轮浏览器记录](BROWSER_TRIAL_CHECKLIST.md#迭代-25纯键盘路径复核验证fail)。
+- 证据附件c79493c0-9ed4-4446-a58f-2488fc3213a6，1,451,970字节，SHA256 eed8734eba61768f942fdc01cac9437356715c3027ff63bfebbfa945ad5cecf5；回下载ZIP与manifest87项路径/大小/哈希闭合验证通过。原生文件选择器只合成注入，非人工验收。
+- 门禁：backend pytest157项/ruff、frontend typecheck/test:run174项/build全部退出0，原始日志与退出码随附件交付；保留既有弃用、RankWarning、React key警告。git diff --check通过。验证FAIL与代码门禁成功分别报告。
+- 已知问题/下一轮：二次拟合方向键路径未完成；由Lead依据校准对照收敛后续最小验证，焦点遮挡/200%缩放/其他浏览器/人工矩阵/外部验收不在本轮，T09整体与MVP未完成。只推iter/25，交Lead独立审查后另建QA，不自行合并、不创建QA、不改父任务。
