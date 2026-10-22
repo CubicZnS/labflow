@@ -787,7 +787,7 @@ git log --oneline --decorate dev
 
 ## 迭代 #17 — Phase 4.3a 可访问性与状态播报
 
-- 日期：2026-10-22
+- 日期：2026-10-22（README 推送时间按实际推送记为 2026-10-22 08:04 Asia/Shanghai）
 - 目标：补齐键盘与屏幕阅读器可访问性基础，并让异步解析状态可被辅助技术感知；纯前端增量，不新增依赖、不改后端契约、不上传用户数据、不做后端持久化。
 - 任务选择：MAC-73（迭代 #17，Phase 4.3a）。
 - 分支：`iter/17`，基于 `dev` 的 `884e7c2d1291bbe22b67e84029cfe3b93a9e4e9b`。只在该分支提交并 push，不合并、不 force push、不改写历史。
@@ -833,5 +833,5 @@ git log --oneline --decorate dev
     https://github.com/CubicZnS/labflow/commit/9f5ff1f82a054f05045315c2d0ba5a80662b0d91
   - `iter/17` 文档/迭代记录提交：`d2188a9f3e96b8c6cc84ed9a9f2561061470773e`
     https://github.com/CubicZnS/labflow/commit/d2188a9f3e96b8c6cc84ed9a9f2561061470773e
-  - `iter/17` 最终 HEAD：以推送后 `git ls-remote origin refs/heads/iter/17` 为准；本条记录的原生提交为 `d2188a9f3e96b8c6cc84ed9a9f2561061470773e`，其后仅补入本 SHA 与本说明。
+  - `iter/17` 最终 HEAD：以推送后 `git ls-remote origin refs/heads/iter/17` 为准；`d2188a9f3e96b8c6cc84ed9a9f2561061470773e` 为文档提交，其后补记 SHAs 与推送时间校正。
   - 独立 QA 与 `dev` 合并 SHA：留给 Lead，不在本记录中编造。
