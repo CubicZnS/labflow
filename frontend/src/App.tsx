@@ -64,6 +64,9 @@ function App() {
 
   return (
     <div className="min-h-screen">
+      <a href="#import" className="skip-link">
+        跳到主要内容
+      </a>
       <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-mist/80 backdrop-blur">
         <div className="container-page flex h-16 items-center justify-between">
           <a className="flex items-center gap-3" href="#top" aria-label="LabFlow 首页">

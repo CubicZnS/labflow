@@ -405,10 +405,15 @@ export function CsvImportPanel() {
   }
 
   return (
-    <section id="import" className="container-page py-16">
+    <section
+      id="import"
+      className="container-page py-16"
+      tabIndex={-1}
+      aria-labelledby="import-title"
+    >
       <div className="max-w-2xl">
         <p className="eyebrow">Data import</p>
-        <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink">
+        <h2 id="import-title" className="mt-3 text-3xl font-semibold tracking-tight text-ink">
           导入 CSV 或 XLSX，先看清数据再分析
         </h2>
         <p className="mt-3 text-slate-600">
@@ -522,9 +527,23 @@ export function CsvImportPanel() {
             </a>
             体验导入流程。
           </p>
+
+          <p
+            role="status"
+            aria-live="polite"
+            className="sr-only"
+            data-testid="parse-status"
+          >
+            {uploadState.status === "success"
+              ? `解析完成：${uploadState.fileName}，共 ${rowFormatter.format(uploadState.result.row_count)} 行，${uploadState.result.numeric_columns.length} 个数值列。`
+              : ""}
+          </p>
         </div>
 
-        <div className="card" aria-live="polite">
+        <div
+          className="card"
+          aria-busy={uploadState.status === "parsing" || isSampleLoading}
+        >
           {uploadState.status === "success" ? (
             <CsvResult
               fileName={uploadState.fileName}

@@ -580,6 +580,7 @@ describe("SeriesPanel project snapshot", () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId("save-project")).toBeDisabled();
     expect(screen.getByTestId("open-project")).toBeDisabled();
+    expect(screen.getByTestId("open-project-button")).toBeDisabled();
     expect(
       screen.getByRole("button", { name: /配对数据/ }),
     ).toBeDisabled();
@@ -607,6 +608,7 @@ describe("SeriesPanel project snapshot", () => {
     expect(screen.getByTestId("project-name-input")).toBeEnabled();
     expect(screen.getByTestId("project-note-input")).toBeEnabled();
     expect(screen.getByTestId("png-scale-select")).toBeEnabled();
+    expect(screen.getByTestId("open-project-button")).toBeEnabled();
   });
 
   it("keeps project metadata and PNG scale when regenerating pairs", async () => {
@@ -632,6 +634,59 @@ describe("SeriesPanel project snapshot", () => {
     expect(screen.getByTestId("project-note-input")).toHaveValue("保留备注");
     expect(screen.getByTestId("png-scale-select")).toHaveValue("1");
     expect(screen.getByTestId("export-png")).toHaveTextContent("导出 PNG（1×）");
+  });
+
+  it("uses a keyboard-reachable button to open the hidden project file input", async () => {
+    createSeriesMock.mockResolvedValue(mainSeries);
+    renderPanel();
+    await generateMain();
+
+    const button = screen.getByTestId("open-project-button");
+    expect(button).toHaveAttribute("type", "button");
+    expect(button).toBeEnabled();
+    button.focus();
+    expect(button).toHaveFocus();
+
+    const input = screen.getByTestId("open-project");
+    expect(input).toHaveAttribute("type", "file");
+    const clickSpy = vi.spyOn(input as HTMLInputElement, "click");
+    fireEvent.click(button);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    clickSpy.mockRestore();
+  });
+
+  it("disables the remove control while an extra series is being added", async () => {
+    let resolveSecondExtra: ((response: SeriesResponse) => void) | undefined;
+    createSeriesMock
+      .mockResolvedValueOnce(mainSeries)
+      .mockResolvedValueOnce(temperatureSeries)
+      .mockImplementationOnce(
+        () =>
+          new Promise<SeriesResponse>((resolve) => {
+            resolveSecondExtra = resolve;
+          }),
+      );
+    renderPanel();
+    await generateMain();
+
+    fireEvent.click(screen.getByTestId("add-extra-series"));
+    await waitFor(() =>
+      expect(screen.getByTestId("remove-extra-series")).toBeEnabled(),
+    );
+
+    fireEvent.click(screen.getByTestId("add-extra-series"));
+    await waitFor(() => {
+      const removeButtons = screen.getAllByTestId("remove-extra-series");
+      expect(removeButtons).toHaveLength(1);
+      expect(removeButtons[0]).toBeDisabled();
+    });
+
+    resolveSecondExtra?.(pressureSeries);
+    await waitFor(() => {
+      const removeButtons = screen.getAllByTestId("remove-extra-series");
+      expect(removeButtons).toHaveLength(2);
+      removeButtons.forEach((button) => expect(button).toBeEnabled());
+    });
   });
 
   it("opens a legacy v1 project and applies the default metadata and 2x scale", async () => {

@@ -115,7 +115,6 @@ export function SeriesPanel({
   const showGridId = useId();
   const extraYSelectId = useId();
   const extraNameId = useId();
-  const projectFileInputId = useId();
   const projectNameId = useId();
   const projectNoteId = useId();
   const pngScaleId = useId();
@@ -154,6 +153,7 @@ export function SeriesPanel({
   const seriesRunRef = useRef(0);
   const extraCounterRef = useRef(0);
   const extraLoadingRef = useRef(false);
+  const projectFileInputRef = useRef<HTMLInputElement>(null);
   const projectOpenRef = useRef(false);
 
   const isLoading = seriesState.status === "loading";
@@ -710,6 +710,7 @@ export function SeriesPanel({
         <div
           className="mt-4 rounded-xl border border-slate-200 bg-white p-4"
           data-testid="project-section"
+          aria-busy={projectBusy}
         >
           <h5 className="text-sm font-semibold text-ink">项目</h5>
           <p className="mt-1 text-xs leading-5 text-slate-500">
@@ -789,15 +790,17 @@ export function SeriesPanel({
             >
               {projectSaving ? "正在保存…" : "保存项目"}
             </button>
-            <label
-              htmlFor={projectFileInputId}
-              aria-disabled={!canOpenProject}
-              className="cursor-pointer rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-center text-sm font-semibold text-ink transition hover:border-cyan-300 hover:text-cyan-700 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            <button
+              type="button"
+              onClick={() => projectFileInputRef.current?.click()}
+              disabled={!canOpenProject}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+              data-testid="open-project-button"
             >
               打开项目
-            </label>
+            </button>
             <input
-              id={projectFileInputId}
+              ref={projectFileInputRef}
               type="file"
               accept=".json,.labflow.json,application/json"
               disabled={!canOpenProject}
@@ -1066,8 +1069,9 @@ export function SeriesPanel({
                     <button
                       type="button"
                       onClick={() => handleRemoveExtra(series.id)}
+                      disabled={extraLoading || projectBusy}
                       aria-label={`移除系列 ${series.name}`}
-                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-600 transition hover:border-rose-300 hover:text-rose-700"
+                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-600 transition hover:border-rose-300 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
                       data-testid="remove-extra-series"
                     >
                       移除

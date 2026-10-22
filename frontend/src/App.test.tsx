@@ -185,8 +185,65 @@ describe("App", () => {
     expect(await screen.findByText(/API 已连接/)).toBeInTheDocument();
   });
 
-  it("shows the API connection state", async () => {
+  it("puts a Chinese skip link first in the tab order and points it at the import section", async () => {
+    const { container } = render(<App />);
+
+    const skipLink = screen.getByRole("link", { name: "跳到主要内容" });
+    expect(skipLink).toHaveAttribute("href", "#import");
+    expect(skipLink).toHaveClass("skip-link");
+
+    const focusable = container.querySelectorAll<HTMLElement>(
+      'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    expect(focusable[0]).toBe(skipLink);
+
+    const importSection = container.querySelector("#import");
+    expect(importSection).toHaveAttribute("tabindex", "-1");
+    expect(importSection).toHaveAttribute("aria-labelledby", "import-title");
+    expect(await screen.findByText(/API 已连接/)).toBeInTheDocument();
+  });
+
+  it("announces parse results and marks the result card busy while parsing", async () => {
+    let resolveUpload: (response: Response) => void = () => {};
+    const uploadPromise = new Promise<Response>((resolve) => {
+      resolveUpload = resolve;
+    });
+    installFetchMock(() => uploadPromise);
+    const { container } = render(<App />);
+
+    chooseFile();
+    startUpload();
+
+    const resultCard = container.querySelector("[aria-busy]");
+    expect(resultCard).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByTestId("parse-status")).toHaveTextContent("");
+
+    await act(async () => {
+      resolveUpload(jsonResponse(csvPayload));
+    });
+
+    expect(await screen.findByTestId("preview-table")).toBeInTheDocument();
+    const status = screen.getByTestId("parse-status");
+    expect(status).toHaveAttribute("role", "status");
+    expect(status).toHaveTextContent(
+      "解析完成：experiment.csv，共 3 行，2 个数值列。",
+    );
+    expect(resultCard).toHaveAttribute("aria-busy", "false");
+  });
+
+  it("does not announce an upload error through the parse status line", async () => {
+    installFetchMock(() => jsonResponse({ detail: "解析失败" }, 422));
     render(<App />);
+
+    chooseFile();
+    startUpload();
+
+    expect(await screen.findByTestId("upload-error")).toBeInTheDocument();
+    expect(screen.getByTestId("upload-error").closest('[role="alert"]')).not.toBeNull();
+    expect(screen.getByTestId("parse-status")).toHaveTextContent("");
+  });
+
+  it("shows the API connection state", async () => {    render(<App />);
     expect(await screen.findByText(/API 已连接/)).toBeInTheDocument();
   });
 
