@@ -215,3 +215,29 @@ PY
 [MAC-104 证据 ZIP](/api/attachments/3519ad83-07ce-4460-961f-8d5247366912/content?download=1)，附件 ID `3519ad83-07ce-4460-961f-8d5247366912`，1,550,249 字节，SHA-256 `e63f1e50accf6d9f933030982a81a7ff7f8be4d6cb6c39706c9e8fe2e1c33fa1`。上传后已回下载：ZIP 哈希一致，manifest 的 48 项路径、字节数与 SHA256 逐项通过，ZIP 无额外未列载荷（manifest 自身不自引用）。
 
 证据中页面 error/unhandledrejection 数组为空，仅是运行时异常监听，不代表完整浏览器控制台审计；预期网络500/阻断已单独记录。此次为 T10 单浏览器自动化实测断言通过，独立 Lead/QA 尚待审查，不宣称产品 QA PASS。没有实现或验证请求超时、无限 pending 的自动恢复、离线分析。T09、Chrome/Safari、Firefox 有头人工矩阵与外部验收仍未完成，Phase 4 MVP 尚未完成。
+
+
+## 迭代 #23：T09 键盘与布局实测（未通过）
+
+- 执行：2026-10-23 01:02–01:09 Asia/Shanghai；分支 `iter/23`，核对完整基线 [b3271f739e87e4b1764a462544fab90e01215f0b](https://github.com/CubicZnS/labflow/commit/b3271f739e87e4b1764a462544fab90e01215f0b)。真实 Mozilla Firefox **158.0.1 / buildID 20261019185856**；geckodriver **0.37.1**（300705c65d1b）、Selenium **4.51.0**；macOS **27.0.1 (26A434)**，WebDriver平台27.0.0与UA兼容字符串不替代OS版本。
+- Browser plugin not available；使用已提供宿主 Remote `http://127.0.0.1:4444`，`-headless` + BiDi；页面 `http://127.0.0.1:5173/`，后端8000。未启动/停止他人服务，未修改产品、配置、权限或依赖。URL/标题“LabFlow · 科研数据分析”正确、页面非空，截图无框架覆盖层；error/unhandledrejection为空，仅此范围，不声称完整控制台审计。
+
+| 子项 | 实际结果与证据（不是人工验收） |
+|---|---|
+| 刷新/跳转链接 | PASS（自动化）：首次 Tab“跳到主要内容”，Enter 焦点进入 `#import` SECTION、3px青色outline；`keyboard-final/01-skip-focus.*`、`02-skip-target.*` |
+| CSV/配对/方向键 | 注入合成trial.csv后Space上传200、6行；键盘x/y选择及Enter配对200、5点跳过1行。方向键未完成拟合次数2选择（实际仍1），脚本明确记录Select非键盘回退，不能记纯键盘PASS |
+| 拟合/保存键盘 | 未通过：Space“运行拟合”无fit请求；正向Tab反复在下部控件/仓库链接之间，Shift+Tab能回保存；保存Enter后20秒无文件。`keyboard-final/focus-sequence.json`、requests.json、run.log在上级keyboard-final.log。未确认是产品还是Remote键盘分派/焦点问题；不能宣称绝对陷阱或全程焦点清晰。多数取样:focus-visible=false，保留原始结果 |
+| 项目/下载补充 | **点击建立状态，非纯键盘PASS**：CSV→配对→fit各200；保存v2、注入文件打开后series/fit200；SVG7208字节640×360、PNG32001字节1280×720（2×），实际落盘、Firefox file URL解码截图。`supplement/requests.json`、results.json、downloads/、svg-opened.png、png-opened.png。原生文件选择器键盘人工验收未执行 |
+| 忙时禁用 | BiDi只暂挂本轮fit最多8秒观察后释放；打开项目及fit选择/运行disabled，保存、SVG/PNG、主列、追加系列仍enabled。精确清单在supplement/results.json，截图fit-controlled-busy.png。没有假称全部按钮禁用；是否属于冲突由Lead收敛后续范围 |
+| 320 CSS px | **FAIL**：外窗请求320实际最小500，supplement/width-320-*是500，不冒充320；随后BiDi `browsingContext.setViewport`设置真实内容320×915，outerWidth1440、DPR1、scrollWidth773。45步Tab有32个有效尺寸控件中心hit-test失败，输入/配对/导出裁切。`viewport320/traversal.json`、bidi-320-focus-*.png。长表以外页面也横向溢出 |
+| 768 / 1280 CSS px | innerWidth分别768/1280、innerHeight915、DPR1，scrollWidth分别768/1280。各50步Tab+12步ShiftTab，768有1次中心hit失败：chart-title-input x108/y−9.5/w601.23/h38，顶部栏遮挡待复核；1280为0。仅几何取样，不证明全部控件无陷阱/遮挡；supplement/traversal-*.json、width-*-focus-*.png |
+| 200%真实缩放 | **未执行**：Remote Command+'+'后innerWidth1280/DPR1均未变，无200%证据；CSS zoom始终1。未使用CSS zoom冒充或修改宿主配置获取特权；supplement/results.json、zoom-attempt.* |
+| 减少动态效果 | Firefox会话偏好ui.prefersReducedMotion=1，matchMedia=true、html scrollBehavior=auto；截图状态JSON。非OS设置界面或有头人工验收 |
+
+精确复现：合成CSV上传→X=x/Y=y配对→一次拟合→Firefox BiDi内容视口320×915→Tab到项目/导出控件；页面宽773，PNG按钮等位于可见宽度之外。截图支持横向裁切，不证明所有裁切控件绝对无法经页面横滚访问。768遮挡取样及Remote键盘激活失败保持待复核；本轮只报告，不修产品。准备失败（下拉框未确认、跳转目标假设错误、文件框send_keys(Tab)被当路径、并发Remote新会话被拒）均保留在ZIP，不能算产品FAIL或新PASS；最终结论以keyboard-final、supplement和viewport320各自声明方式为准。
+
+[本任务证据 ZIP](/api/attachments/c13f5aab-b62b-4772-84d5-54ddb3af8934/content?download=1)，附件 `c13f5aab-b62b-4772-84d5-54ddb3af8934`，7,722,033字节，SHA-256 `8a324632c55ef6e100cc827a32bc30903df4e5ba9f3dfc26cff4e7475acec99b`。上传后回下载ZIP哈希一致；manifest.json的292个载荷路径/大小/SHA256全部核验，集合闭合、无额外文件，manifest自身不自引用。包内说明.md区分尝试与最终证据，全部输入为合成数据。上传helper因系统临时目录不可写未发出上传请求，改用技能文档规定的附件API与明确可写临时文件，未修改权限。
+
+命令：临时脚本 `/tmp/labflow-browser/venv/bin/python /tmp/labflow-browser/evidence/iter23/{keyboard-final,supplement,viewport320}.py`（分别执行，不用花括号当单个脚本）；完整脚本/日志在ZIP。keyboard-final退出1（保存超时）；supplement和viewport320退出0。backend工作目录`.venv/bin/python -m pytest -q`退出0，157项（72+72+13），Starlette/httpx弃用、NumPy RankWarning；`.venv/bin/ruff check app tests`退出0。frontend指定pnpm typecheck、test:run（6文件174项，React key警告）、build（36模块）均退出0，*.exit/log保留原始状态及输出。未新增镜像测试；提交前另运行git diff --check。
+
+T09整体未通过；只是自动化证据交付，非屏幕阅读器审计、非Firefox有头人工矩阵、非三浏览器或外部用户验收。200%仍缺，Phase4 MVP未完成。下一轮由Lead选择320px溢出修复及键盘/焦点问题复核的最小范围，本轮不擅自开轮、合并或创建QA。

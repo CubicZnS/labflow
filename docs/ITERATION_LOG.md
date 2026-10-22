@@ -1040,3 +1040,14 @@ git log --oneline --decorate dev
 - 合并提交：`3f1c20b0c272d59e634a23cb3171f4a9832023ea`，https://github.com/CubicZnS/labflow/commit/3f1c20b0c272d59e634a23cb3171f4a9832023ea ，已推送 dev；ls-remote 与 GitHub API 均核验一致。main 仍为 `7b3c2f1153eb561241ba33fa74e06953e552e63e`，无历史改写。
 - 本记录提交同步 README 与路线图当前集成状态；中文合并/记录提交及真实远端 SHA 交独立 QA 追加只读检查，记录提交自身 SHA 在任务交付提供，不虚构自引用。
 - 已知边界仍为单浏览器自动化 T10；T09、其他浏览器、人工矩阵及外部验收未完成，Phase 4 MVP 未完成。下一轮优先只补 T09，不与其他浏览器或产品功能并行。
+
+
+## 迭代 #23：Firefox T09 键盘与布局实测（交付，未通过）
+
+- 目标/分支：仅补Phase4.4b T09；iter/23完整基线及真实已存在提交 [b3271f739e87e4b1764a462544fab90e01215f0b](https://github.com/CubicZnS/labflow/commit/b3271f739e87e4b1764a462544fab90e01215f0b)。本轮最终提交SHA/链接在[本任务交付](/MAC/issues/MAC-109)提交后记录，避免自引用虚构SHA。
+- 改动：只更新README、浏览器清单、迭代日志、路线图；不改产品、配置、依赖或CI。README中文状态/限制/下一轮、连续版本表#23已更新；功能、接口、标准启动/五项测试命令仍准确。
+- 执行：2026-10-23 01:02–01:09 Asia/Shanghai，Firefox158.0.1/build20261019185856、geckodriver0.37.1、Selenium4.51.0、macOS27.0.1(26A434)，Remote headless/BiDi。共享5173/8000/4444服务未管理；文件全合成、自动注入，非原生选择器人工验收。
+- 结果：刷新Tab跳转链接/Enter#import通过，CSV与配对200；纯键盘拟合次数选择失败且运行拟合无请求，保存Enter无下载，保留失败与Remote焦点边界，不宣称键盘PASS。点击补充验证拟合/项目重跑/真实SVG与2×PNG下载及解码；忙时打开项目/拟合禁用，保存/导出等仍启用。320真实BiDi内容视口页面宽773、关键控件裁切；768/1280页面宽正常，768有一次焦点中心遮挡取样。200%真实缩放未执行；减少动态效果会话偏好生效。完整序列/截图/断言及精确复现在浏览器清单#23。
+- 证据：[本任务证据 ZIP](/api/attachments/c13f5aab-b62b-4772-84d5-54ddb3af8934/content?download=1)，7,722,033字节，SHA256 `8a324632c55ef6e100cc827a32bc30903df4e5ba9f3dfc26cff4e7475acec99b`。回下载292载荷路径/大小/哈希全部通过且无额外载荷；helper临时目录权限失败，按技能规定附件API上传并创建artifact工作产品，无权限绕过。
+- 门禁：backend指定python pytest退出0（157项），ruff退出0；frontend指定pnpm typecheck、test:run（174项/6文件）、build均退出0；git diff --check提交前检查。既有Starlette/httpx、NumPy RankWarning、React key警告保留，未新增镜像测试。
+- 问题/下一轮：T09未通过，320溢出只记录不修；Remote键盘激活/焦点与768遮挡待复核，200%未执行。由Lead收敛下一修复范围并独立审查/另建QA；本任务done只指文档证据交付，不代表QA PASS。人工矩阵/其他浏览器/屏幕阅读器/外部验收仍待执行，Phase4未完成。仅推iter/23，不合并、不创建QA、不写父任务。
