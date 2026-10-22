@@ -1061,3 +1061,12 @@ git log --oneline --decorate dev
 - QA 独立新运行后端157项/ruff、前端typecheck/174项/build全部退出0，真实复现320px页面宽773及裁切；Lead复用此验证，不冒充再次运行。292项证据闭合由Lead和QA分别校验。
 - 已知问题：320px溢出；键盘激活与768焦点遮挡待复核；200%未执行。本轮只集成发现文档；下一轮只收敛320px溢出修复。
 - 中文合并/记录提交及真实远端SHA交独立QA追加只读核验；本记录自身SHA由任务交付提供。main保持原SHA，无历史改写。
+
+
+## 迭代 #24：320px布局修复
+
+- 目标：只修320×915页面横向溢出与关键控件裁切，分支iter/24。基线为已存在的 [e3140656a5dd168074bdb1980e745caebd58a671](https://github.com/CubicZnS/labflow/commit/e3140656a5dd168074bdb1980e745caebd58a671)；最终SHA/链接与实际推送时间提交后在[交付任务](/MAC/issues/MAC-113)据实记录。
+- 改动：仅CsvImportPanel的Grid轨道/卡片最小宽度和FitPanel的单列Grid/长数值换行；README中文状态、版本表、限制与下一轮同步，标准启动/接口/五项命令仍准确。未改backend、依赖、配置、CI或计算/导出/快照契约。
+- 实测：真实Firefox158.0.1/macOS27.0.1，BiDi内容视口320/768/1280×915；修复前页面宽773/785/1280，修复后320/768/1280。每档上传合成CSV→配对→拟合，控件水平边界全部在视口、长表内部横滚；实际项目v2保存/注入重开、SVG640×360、PNG1280×720；数值y=2x+1保持。可复跑浏览器断言脚本与前后截图交附件，不以JSDOM冒充布局。
+- 门禁：backend pytest157项/ruff、frontend typecheck/174项test:run/build全部退出0；git diff --check通过。原有弃用/RankWarning/React key警告保留。附件98载荷已回下载核验路径/大小/SHA256闭合，详见[浏览器清单](BROWSER_TRIAL_CHECKLIST.md#迭代-24修复320px页面溢出)。
+- 已知边界与下一轮：仅本轮布局自动化通过，Lead独立审查及另建QA待执行；键盘激活、焦点遮挡、200%缩放、人工矩阵/其他浏览器/外部验收仍待单独收敛。T09整体与MVP未完成。不合并、不创建QA、不写父任务。

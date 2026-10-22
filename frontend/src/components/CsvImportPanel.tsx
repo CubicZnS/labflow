@@ -421,8 +421,8 @@ export function CsvImportPanel() {
         </p>
       </div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
-        <div className="card">
+      <div className="mt-8 grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+        <div className="card min-w-0">
           <h3 className="text-base font-semibold text-ink">1. 选择文件</h3>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             支持 UTF-8 编码的 CSV 与 XLSX（导入首个工作表），单文件最大 10 MB。文件只用于本地解析。
@@ -541,7 +541,7 @@ export function CsvImportPanel() {
         </div>
 
         <div
-          className="card"
+          className="card min-w-0"
           aria-busy={uploadState.status === "parsing" || isSampleLoading}
         >
           {uploadState.status === "success" ? (

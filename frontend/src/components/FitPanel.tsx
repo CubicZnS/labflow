@@ -60,11 +60,11 @@ function FitResult({ result }: { result: FitResponse }) {
       className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4"
       data-testid="fit-result"
     >
-      <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <dt className="text-xs text-slate-500">拟合方程</dt>
           <dd
-            className="mt-1 text-base font-semibold text-ink"
+            className="mt-1 break-words text-base font-semibold text-ink"
             data-testid="fit-equation"
           >
             {result.equation}
@@ -72,20 +72,20 @@ function FitResult({ result }: { result: FitResponse }) {
         </div>
         <div>
           <dt className="text-xs text-slate-500">R²</dt>
-          <dd className="mt-1 text-base font-semibold text-ink" data-testid="fit-r2">
+          <dd className="mt-1 break-words text-base font-semibold text-ink" data-testid="fit-r2">
             {result.r_squared.toFixed(4)}
           </dd>
         </div>
         <div>
           <dt className="text-xs text-slate-500">RMSE</dt>
-          <dd className="mt-1 text-base font-semibold text-ink" data-testid="fit-rmse">
+          <dd className="mt-1 break-words text-base font-semibold text-ink" data-testid="fit-rmse">
             {formatValue(result.rmse)}
           </dd>
         </div>
         <div>
           <dt className="text-xs text-slate-500">最大绝对残差</dt>
           <dd
-            className="mt-1 text-base font-semibold text-ink"
+            className="mt-1 break-words text-base font-semibold text-ink"
             data-testid="fit-max-residual"
           >
             {formatValue(result.max_abs_residual)}
@@ -112,7 +112,7 @@ function FitResult({ result }: { result: FitResponse }) {
         <div>
           <dt className="text-xs text-slate-500">Y 误差列</dt>
           <dd
-            className="mt-1 text-base font-semibold text-ink"
+            className="mt-1 break-words text-base font-semibold text-ink"
             data-testid="fit-error-column"
           >
             {result.y_error_column ?? "未使用"}
@@ -121,7 +121,7 @@ function FitResult({ result }: { result: FitResponse }) {
         <div>
           <dt className="text-xs text-slate-500">Y 误差单位</dt>
           <dd
-            className="mt-1 text-base font-semibold text-ink"
+            className="mt-1 break-words text-base font-semibold text-ink"
             data-testid="fit-error-unit"
           >
             {result.y_error_unit ?? "未标注"}
@@ -130,7 +130,7 @@ function FitResult({ result }: { result: FitResponse }) {
         <div>
           <dt className="text-xs text-slate-500">χ²</dt>
           <dd
-            className="mt-1 text-base font-semibold text-ink"
+            className="mt-1 break-words text-base font-semibold text-ink"
             data-testid="fit-chi-squared"
           >
             {result.chi_squared === null ? "—" : formatValue(result.chi_squared)}
@@ -139,7 +139,7 @@ function FitResult({ result }: { result: FitResponse }) {
         <div>
           <dt className="text-xs text-slate-500">约化 χ²</dt>
           <dd
-            className="mt-1 text-base font-semibold text-ink"
+            className="mt-1 break-words text-base font-semibold text-ink"
             data-testid="fit-reduced-chi2"
           >
             {result.reduced_chi_squared === null
@@ -224,7 +224,7 @@ function FitResult({ result }: { result: FitResponse }) {
         <div>
           <dt className="text-xs text-slate-500">残差自由度</dt>
           <dd
-            className="mt-1 text-base font-semibold text-ink"
+            className="mt-1 break-words text-base font-semibold text-ink"
             data-testid="fit-residual-dof"
           >
             {uncertainty.residual_dof}
@@ -233,7 +233,7 @@ function FitResult({ result }: { result: FitResponse }) {
         <div>
           <dt className="text-xs text-slate-500">条件数</dt>
           <dd
-            className="mt-1 text-base font-semibold text-ink"
+            className="mt-1 break-words text-base font-semibold text-ink"
             data-testid="fit-condition-number"
           >
             {uncertainty.condition_number === null

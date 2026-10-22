@@ -241,3 +241,24 @@ PY
 命令：临时脚本 `/tmp/labflow-browser/venv/bin/python /tmp/labflow-browser/evidence/iter23/{keyboard-final,supplement,viewport320}.py`（分别执行，不用花括号当单个脚本）；完整脚本/日志在ZIP。keyboard-final退出1（保存超时）；supplement和viewport320退出0。backend工作目录`.venv/bin/python -m pytest -q`退出0，157项（72+72+13），Starlette/httpx弃用、NumPy RankWarning；`.venv/bin/ruff check app tests`退出0。frontend指定pnpm typecheck、test:run（6文件174项，React key警告）、build（36模块）均退出0，*.exit/log保留原始状态及输出。未新增镜像测试；提交前另运行git diff --check。
 
 T09整体未通过；只是自动化证据交付，非屏幕阅读器审计、非Firefox有头人工矩阵、非三浏览器或外部用户验收。200%仍缺，Phase4 MVP未完成。下一轮由Lead选择320px溢出修复及键盘/焦点问题复核的最小范围，本轮不擅自开轮、合并或创建QA。
+
+
+## 迭代 #24：修复320px页面溢出
+
+- 分支 `iter/24`，已存在基线 [e3140656a5dd168074bdb1980e745caebd58a671](https://github.com/CubicZnS/labflow/commit/e3140656a5dd168074bdb1980e745caebd58a671)。最终不可变提交与实际推送时间将在提交后的任务交付记录，不能在自身提交内虚构自引用。
+- 环境：2026-10-23 01:59–02:04 Asia/Shanghai；macOS 27.0.1 (26A434)，Firefox158.0.1 / buildID20261019185856、geckodriver0.37.1、Selenium4.51.0，headless Remote4444 + BiDi；页面5173、后端8000，未启停共享服务。BiDi直接设内容视口320/768/1280×915、DPR1，未使用CSS zoom。Browser plugin not available，沿用宿主真实浏览器。
+- 根因证据：`before/320-metrics.json` 中导入卡片min-width:auto、宽753.22，右边缘773.22；未声明单列轨道的Grid被长表/子控件的最小内容宽撑开。修复后曾剩329px，进一步测得拟合结果长RMSE/最大残差字符串溢出其94px内容区。最小修改只在CsvImportPanel与FitPanel：显式可收缩单列/大屏轨道和卡片min-w-0；拟合单列轨道及长数值换行。没有页面overflow-x:hidden，没有改计算/导出/快照逻辑。
+
+| 内容视口 | 修复前页面scrollWidth | 修复后页面scrollWidth / clientWidth |
+|---|---|---|
+| 320×915 | 773 | 320 / 320 |
+| 768×915 | 785 | 768 / 768 |
+| 1280×915 | 1280 | 1280 / 1280 |
+
+本轮768为BiDi精确内容视口，复现前宽785；上轮768外窗模式未观察到此值，不覆盖旧证据。前后同合成CSV上传→X=x/Y=y→拟合场景；修复后每档先设真实内容视口、刷新并重新完成上传/配对/拟合。`after/*-controls.json`验证所有可见按钮/输入/选择/文本域水平边界位于视口，截图包括导入、配对、拟合、项目及导出；实际点击上传/配对/拟合、保存、SVG/PNG，项目打开使用文件注入。`*-tables.json`实测表格父容器可横滚，320下scrollLeft>0。拟合5点、斜率2/截距1（1e-10容差），保存快照schemaVersion=2、重开重跑成功，SVG viewBox640×360、PNG头尺寸1280×720。图表仍随容器缩放，导出不受页面宽度影响；既有174项前端测试保护其他契约。
+
+复跑：解压证据后，将`run24.py`放入`/tmp/labflow-browser/`，在仓库根目录运行 `/tmp/labflow-browser/venv/bin/python /tmp/labflow-browser/run24.py after`。需要已有真实Firefox/Remote4444、5173/8000和Selenium环境；脚本会创建独立会话并退出，不改仓库配置或依赖。断言页面宽度、可见控件边界、表内滚动、拟合数值/快照/导出尺寸；退回旧布局会触发页面宽度或控件边界失败，非CSS/JSDOM镜像断言。`before-run.py`保存修复前采集脚本；`before/`与`after/`含前后截图及容器测量，`after.log`三档通过。
+
+- 门禁：backend指定python pytest退出0（157项），ruff退出0；frontend指定pnpm typecheck、test:run（6文件174项）、build均退出0。完整输出/退出码在checks/，保留既有Starlette/httpx弃用、NumPy RankWarning、React key警告；git diff --check通过。未添加JSDOM布局断言，浏览器回归脚本作为附件交付。
+- 证据：[迭代 #24 证据 ZIP](/api/attachments/fb4bdda8-31e8-43ae-bc27-7b5dc539724d/content?download=1)，3,870,126字节，SHA256 `4ff2893012e6ef51ecdfecd04395c8e4c17e8d4397e8791eb8490cee3c1adf3c`；上传后回下载ZIP哈希一致，manifest98项路径/大小/SHA256逐项核对、无遗漏/额外载荷、自身不自引用。artifact工作产品`ec68519a-1702-419e-bce4-47edfdffc577`。helper因宿主系统临时目录不可写未发出请求，按技能规定附件API上传，无权限修改。
+- 边界：仅Firefox headless自动化，文件为合成注入，非原生选择器或有头人工验收；键盘激活、焦点遮挡、200%缩放未纳入本轮，Chrome/Safari/屏幕阅读器/人工矩阵/外部验收仍待执行。error监听不代表完整控制台审计。T09整体、Phase4 MVP未完成；Lead独立审查后另建QA，PASS后才合并。本轮只推iter/24、不创建QA、不改父任务。
