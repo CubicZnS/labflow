@@ -1080,3 +1080,12 @@ git log --oneline --decorate dev
 - 真实修复：仅删除 README 版本表 #23 与 #24 之间的空行，使 #24 回到同一个连续 Markdown 管道表块；保留既有 #24 四字段及原真实推送时间，不新增迭代，不改产品、依赖、配置或证据结论。
 - 验证：按连续管道表块解析，确认表头、#23、#24 同块，#24 四字段非空，时间列可按 Asia/Shanghai 解析；`git diff --check` 通过。按任务要求不重跑产品五项门禁，沿用 Lead 在基线独立运行的后端 157 项/ruff、前端 174 项/typecheck/build 通过结果，不宣称本次重新执行。
 - 修复提交的真实推送完成时间、最终不可变 SHA、GitHub 链接及 ls-remote/指定 gh API 核验结果在本任务交付评论中记录，避免自引用。交回 Lead 审查后另建独立 QA，本次不宣称 QA PASS，不合并或推送 dev/main。
+
+
+### 迭代 #24：独立验收与合并收尾
+
+- Lead 独立审查后，[MAC-116](/MAC/issues/MAC-116) 独立 QA PASS：五项门禁新运行通过，后端157项/ruff、前端174项/typecheck/build；真实 Firefox/BiDi 320/768/1280 三档布局、项目保存重开及SVG/PNG导出独立回归通过。98项原证据闭合通过；不把自动化当成人工矩阵。
+- 最终候选：`iter/24` / `4fdef3ccc91f5f103f866ea74786672a2f6c7f00`，https://github.com/CubicZnS/labflow/commit/4fdef3ccc91f5f103f866ea74786672a2f6c7f00 。README版本表连续性已修复并经独立QA检查。
+- 真实合并提交：`74b8ba8def5a942315560eb6fcd8ded85143c474`，https://github.com/CubicZnS/labflow/commit/74b8ba8def5a942315560eb6fcd8ded85143c474 ，2026-10-23 Asia/Shanghai 已推送 origin/dev。无历史改写、未推main。
+- 本次收尾只更新README/路线图实际集成状态及中文日志，产品代码未再变更，复用独立QA门禁结果；运行git diff --check。记录提交自身SHA通过任务交付提供，避免虚构自引用；合并/记录提交中文摘要及远端SHA交独立QA追加只读核验。
+- 已知问题及下一轮：纯键盘激活、焦点遮挡、200%真实缩放仍待单独收敛，Chrome/Safari/Firefox人工矩阵和外部验收未完成。T09整体与Phase4 MVP未完成；下一轮只选择一个剩余缺口，不扩大功能或部署。
