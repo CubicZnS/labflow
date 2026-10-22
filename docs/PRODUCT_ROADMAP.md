@@ -112,7 +112,11 @@ Acceptance: a user can go from uploaded data to an exported publication-style fi
 - [x] 4.2 Sample datasets and onboarding: one-click load of the built-in demo CSV, landing
       page copy aligned with current Phase 4 capabilities, and a first-run step guide
       (iteration #16, merge `aa5268e`)
-- [ ] 4.3 Error handling and accessibility pass; data privacy and security review (next)
+- [x] 4.3a Accessibility foundation and status announcements: skip link, global visible focus,
+      reduced-motion preference, accessible parse-status announcements and `aria-busy`,
+      keyboard-reachable project-open button, busy-state disables
+      (iteration #17, merge `b4a3379`)
+- [ ] 4.3b Data privacy and security review; remaining user-facing error handling (next)
 
 Acceptance: an external test user completes the workflow without developer help.
 

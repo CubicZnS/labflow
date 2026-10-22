@@ -833,5 +833,14 @@ git log --oneline --decorate dev
     https://github.com/CubicZnS/labflow/commit/9f5ff1f82a054f05045315c2d0ba5a80662b0d91
   - `iter/17` 文档/迭代记录提交：`d2188a9f3e96b8c6cc84ed9a9f2561061470773e`
     https://github.com/CubicZnS/labflow/commit/d2188a9f3e96b8c6cc84ed9a9f2561061470773e
-  - `iter/17` 最终 HEAD：以推送后 `git ls-remote origin refs/heads/iter/17` 为准；`d2188a9f3e96b8c6cc84ed9a9f2561061470773e` 为文档提交，其后补记 SHAs 与推送时间校正。
-  - 独立 QA 与 `dev` 合并 SHA：留给 Lead，不在本记录中编造。
+  - `iter/17` 补记文档提交 SHA：`f38140652609f324b2cc517e5c1d4c915927850c`
+    https://github.com/CubicZnS/labflow/commit/f38140652609f324b2cc517e5c1d4c915927850c
+  - `iter/17` 时间校正提交（最终 HEAD）：`5c3182338d5217c6887eb61d0382fd7509c16d5c`
+    https://github.com/CubicZnS/labflow/commit/5c3182338d5217c6887eb61d0382fd7509c16d5c
+    （`git ls-remote origin refs/heads/iter/17` 与 `gh api` 对最终 HEAD 返回一致）。
+  - 独立 QA：MAC-74 **PASS**。QA 独立核验 A1–A3、B4–B9、C10–C14、D15–D18 共 18 项：远端 4 个提交与基线、8 个允许文件、无依赖/后端改动、skip-link 首个焦点与 `#import` 关联、全局焦点样式与减少动态偏好、解析状态播报与 `aria-busy`、键盘可达的项目打开按钮、忙时移除禁用、5 项 gate、中文 README/版本迭代表/迭代记录，以及 4 项实现变异抽查（删除实现后对应新测试失败）。无阻断问题；3 项非阻断观察：既有测试一行两语句格式、未做 axe/WCAG/人工读屏、补记提交未逐一列出链接（本记录已补入）。
+  - `dev` 合并提交：`b4a33797b480af81212522d13542770dc36ff4c9`
+    https://github.com/CubicZnS/labflow/commit/b4a33797b480af81212522d13542770dc36ff4c9
+  - 合并后在 `dev` 重跑 5 个 gate：后端 `pytest -q -o addopts=""` **155 passed**、`ruff check app tests` 通过；前端 `typecheck` 通过、`test:run` **156 passed**、`build` 成功。
+  - 推送核验：`git ls-remote origin refs/heads/dev` 与 `gh api` 对合并 SHA `b4a33797b480af81212522d13542770dc36ff4c9` 返回一致；`main` 保持 `7b3c2f1153eb561241ba33fa74e06953e552e63e` 未改动；无 force push、无历史改写。
+  - 阶段状态：Phase 4.3a（可访问性基础与状态播报）完成并合并；Phase 4 MVP 产品化仍在进行，下一轮进入 Phase 4.3b 隐私复核与剩余错误处理。
