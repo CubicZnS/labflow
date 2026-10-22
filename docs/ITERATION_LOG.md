@@ -936,7 +936,15 @@ git log --oneline --decorate dev
 - Git：
   - `iter/19` 实现、测试与 README 提交：`18dcc92dfd9cd09ba2ac9816af56a431d33a5caf`
     https://github.com/CubicZnS/labflow/commit/18dcc92dfd9cd09ba2ac9816af56a431d33a5caf
-  - 推送核验：`git ls-remote origin refs/heads/iter/19` 返回
-    `18dcc92dfd9cd09ba2ac9816af56a431d33a5caf`，`gh api repos/CubicZnS/labflow/commits/18dcc92dfd9cd09ba2ac9816af56a431d33a5caf --jq .sha` 返回同一 SHA；`dev` 与 `main` 未改动。
-  - 独立 QA：待 MAC-80 创建 QA 任务并验收；QA PASS 前不合并 `dev`。
-  - 阶段状态：Phase 4.3b-2 实现完成，等待独立 QA；Phase 4 MVP 产品化仍在进行。
+  - `iter/19` 迭代记录与路线图提交（QA 前 HEAD）：`e26a268f7a5bf2f8dfe00e0267fb264c264b1950`
+    https://github.com/CubicZnS/labflow/commit/e26a268f7a5bf2f8dfe00e0267fb264c264b1950
+  - 推送核验：`git ls-remote origin refs/heads/iter/19` 在合并前返回
+    `e26a268f7a5bf2f8dfe00e0267fb264c264b1950`；`gh api` 对 `e26a268` 与 `18dcc92dfd9cd09ba2ac9816af56a431d33a5caf`
+    返回一致；`main` 保持 `7b3c2f1153eb561241ba33fa74e06953e552e63e` 未改动；无 force push、无历史改写。
+  - 独立 QA：MAC-81 **PASS**。QA 独立核验 A1–A8 共 8 组：远端 SHA 与基线（`dev` 27ad96e、`main` 7b3c2f1、ahead 2）、12 个变更文件与禁止路径零改动、全部 `detail`/`warnings` 中文化且无遗漏英文、状态码计数与响应契约不变、断言更新与新增回归、2 项变异抽查（英文文案回退、413 改 400）均能捕获失败并恢复干净、后端 157 passed + ruff、前端 typecheck/174 passed/build、中文 README/版本迭代表/迭代记录/路线图。结论无阻断问题。
+  - QA 非阻断观察：第三方库异常正文可能含英文（外层中文前缀）；`content_type` 为空显示 `unknown`；路线图正文仍为英文（强制中文范围仅 README 与迭代记录）。
+  - `dev` 合并提交：`afaf85e08688ffd97eb29cf8ef326500ed9eefaf`
+    https://github.com/CubicZnS/labflow/commit/afaf85e08688ffd97eb29cf8ef326500ed9eefaf
+  - 合并后在 `dev` 重跑 5 个 gate：后端 `pytest -q -o addopts=""` **157 passed**、`ruff check app tests` 通过；前端 `typecheck` 通过、`test:run` **174 passed**、`build` 成功。
+  - 推送核验：`git ls-remote origin refs/heads/dev` 返回合并提交 `afaf85e08688ffd97eb29cf8ef326500ed9eefaf`，与 `gh api` 对同一 SHA 的返回一致；`main` 未改动。
+  - 阶段状态：Phase 4.3b-2（后端用户可见校验错误与警告文案中文化）完成并合并；Phase 4 MVP 产品化仍在进行，下一轮进入 Phase 4.4 发布前跨浏览器与外部试用准备。
