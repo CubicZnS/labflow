@@ -900,3 +900,6 @@ git log --oneline --decorate dev
     https://github.com/CubicZnS/labflow/commit/05f1cdbae2e258fbd8947511e20fed6983fa5251
   - 合并后在 `dev` 重跑 5 个 gate：后端 `pytest -q -o addopts=""` **155 passed**、`ruff check app tests` 通过；前端 `typecheck` 通过、`test:run` **174 passed**、`build` 成功。
   - 阶段状态：Phase 4.3b-1（隐私复核与前端错误体验统一）完成并合并；Phase 4 MVP 产品化仍在进行，下一轮进入 Phase 4.3b-2 后端用户可见校验错误文案中文化。
+  - 迭代记录提交：`5f7f6feb19168bfcd70f653ae39eb9a91012ed0e`
+    https://github.com/CubicZnS/labflow/commit/5f7f6feb19168bfcd70f653ae39eb9a91012ed0e
+  - 推送核验：`git ls-remote origin refs/heads/dev` 在补记前返回 `5f7f6feb19168bfcd70f653ae39eb9a91012ed0e`，与 `gh api` 对合并提交 `05f1cdbae2e258fbd8947511e20fed6983fa5251` 和记录提交的返回一致；`main` 保持 `7b3c2f1153eb561241ba33fa74e06953e552e63e` 未改动；无 force push、无历史改写。本补记提交只补充上述记录提交 SHA 与推送核验，推送后 `dev` HEAD 前进到本补记提交。
