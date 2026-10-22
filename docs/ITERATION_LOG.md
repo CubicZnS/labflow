@@ -988,3 +988,15 @@ git log --oneline --decorate dev
 - 当前成果：静态兼容性证据、中文合成数据试用脚本与待执行浏览器矩阵已集成；README 中文状态、限制、测试命令及迭代 #20 四字段版本行已更新。
 - 阶段与下一轮：Phase 4 MVP 仍未完成；下一目标为执行真实 Chrome/Safari/Firefox 矩阵并记录证据。未做真实浏览器人工验证、外部招募、部署或付费；不得把文档验收 PASS 当作外部产品验收。
 - 合并后记录提交的真实 SHA/链接通过父任务及追加 QA 交付，不自引用虚构 SHA；合并与本记录提交的中文摘要、Co-Authored-By 仍由 QA 追加核验。
+
+
+## 迭代 #21 — Firefox 实际工作流与下载验证
+
+- 范围：Phase 4.4b 首个实际品牌浏览器增量，执行 T01–T08（含 T04b）；真实 Firefox 158.0.1 build 20261019185856、macOS 27.0.1 (26A434)、geckodriver 0.37.1、Selenium 4.51.0，headless + 宿主 Remote，2026-10-22 22:40–22:42 Asia/Shanghai。属于自动化执行，非人工矩阵、非三浏览器兼容承诺、非外部验收。
+- 分支：`iter/21`；基线 `cb18d41b47b9ec84a1e165519ce37358ff57ad12`。仅 README.md、docs/BROWSER_TRIAL_CHECKLIST.md、docs/ITERATION_LOG.md；没有产品代码或依赖/CI/配置改动。
+- 实测：示例/CSV/XLSX、统计、422 错误恢复、五点配对与单位、一次/二次/三次及加权拟合/非正误差拒绝、四系列上限与删除加回、样式不发请求及几何不变均符合预期。SVG 与三档 PNG 实际下载后 Firefox 打开、截图复核，640×360 / 1280×720 / 1920×1080。v2 刷新重开恢复配置并按 series×4→fit 顺序 200；v1 空元数据/2×且重存 v2；两种指纹拒绝均零新增请求，补充拒绝前后 SVG/元数据/倍率不变。
+- 证据：MAC-89 附件 `iter21-firefox-evidence.zip`，attachment `cedead60-5b9c-426e-9daf-9039670c273f`，SHA-256 `833fc9d358ddbeb7ddba3e125011864a66669b63890db28423b4b6ec9e7606c5`。下载、逐项结果/路径、环境与证据边界见检查清单末节；合成数据与临时脚本不入库。独立公式断言检查 std=√10、SEM=√2、拟合 2x+1、请求顺序、下载尺寸及迁移/拒绝通过。
+- 本轮实际门禁：backend `.venv/bin/python -m pytest -q` 退出 0，157 项通过（72+72+13）；`.venv/bin/ruff check app tests` 退出 0。frontend 指定 pnpm：typecheck 通过、test:run 6 文件 174 项通过、build 成功，命令退出 0。保留 Starlette/httpx 弃用、病态拟合 RankWarning、React key 特殊属性既有警告，不扩大范围修复。
+- 环境及脚本排障：此前本地启动 Firefox 退出134，环境提供者改为宿主 4444 Remote；Remote 默认文件上传扩展被 geckodriver 拒绝，使用共享本机路径文件检测器后可选文件；受控输入清空后默认值回填，改用全选替换。均为执行环境/脚本准备问题，未冒报产品失败或隐去未执行阶段。
+- 已知问题与边界：导出无 HTML 图例；首页阶段文案已有陈旧项；无完整控制台或响应式/无障碍审计；T09/T10、Chrome/Safari、Firefox 有头人工和外部验收均待执行，Phase 4 MVP 未完成。下一轮由 Lead 缩小后续验证/修复范围，不擅改产品代码。
+- 交付：本轮提交与实际推送 SHA/链接在首次推送后追加记录；不自引用虚构 SHA。完成实现后交 Lead 独立审查并另建 QA；QA PASS 前禁止合并。
