@@ -247,6 +247,69 @@ describe("App", () => {
     expect(await screen.findByText(/API 已连接/)).toBeInTheDocument();
   });
 
+  it("shows an offline hint and recovers after retrying the health check", async () => {
+    let healthCalls = 0;
+    let resolveRetry: (response: Response) => void = () => {};
+    const retryPromise = new Promise<Response>((resolve) => {
+      resolveRetry = resolve;
+    });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/health") {
+        healthCalls += 1;
+        if (healthCalls === 1) {
+          throw new TypeError("Failed to fetch");
+        }
+        return retryPromise;
+      }
+      throw new Error("Unexpected request: " + url);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+
+    expect(await screen.findByText("API 未连接")).toBeInTheDocument();
+    expect(screen.getByTestId("api-offline-hint")).toHaveTextContent("127.0.0.1:8000");
+    expect(screen.getByTestId("api-retry")).toBeEnabled();
+
+    fireEvent.click(screen.getByTestId("api-retry"));
+
+    expect(screen.getByText("正在检查 API")).toBeInTheDocument();
+    expect(screen.getByTestId("api-retry")).toBeDisabled();
+
+    await act(async () => {
+      resolveRetry(jsonResponse(healthPayload));
+    });
+
+    expect(await screen.findByText("API 已连接 · v0.1.0")).toBeInTheDocument();
+    expect(screen.queryByTestId("api-offline-hint")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("api-retry")).not.toBeInTheDocument();
+  });
+
+  it("shows a four-item verifiable privacy summary", async () => {
+    render(<App />);
+
+    const list = await screen.findByTestId("privacy-list");
+    expect(
+      screen.getByRole("heading", { name: "计算结果透明，用户数据留在本地。" }),
+    ).toBeInTheDocument();
+    expect(list.querySelectorAll("li")).toHaveLength(4);
+    expect(list).toHaveTextContent("/api/datasets");
+    expect(list).toHaveTextContent("第三方");
+    expect(list).toHaveTextContent("不保存上传文件");
+    expect(list).toHaveTextContent("SHA-256");
+  });
+
+  it("does not list completed Phase 4 work as remaining", async () => {
+    render(<App />);
+
+    await screen.findByText(/API 已连接/);
+    const roadmap = document.querySelector("#roadmap");
+    expect(roadmap).not.toBeNull();
+    expect(roadmap).not.toHaveTextContent("示例与引导");
+    expect(roadmap).not.toHaveTextContent("隐私复核");
+    expect(roadmap).toHaveTextContent("后端校验错误文案中文化");
+  });
+
   it("presents Phase 4 messaging and the three-step onboarding guide", async () => {
     render(<App />);
 

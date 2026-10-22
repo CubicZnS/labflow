@@ -4,12 +4,31 @@ export type HealthResponse = {
   version: string;
 };
 
+const NETWORK_ERROR_MESSAGE = "无法连接分析服务，请确认后端已启动后重试。";
+const UNPARSEABLE_RESPONSE_MESSAGE = "服务器返回了无法解析的响应，请稍后重试。";
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
 export async function fetchHealth(signal?: AbortSignal): Promise<HealthResponse> {
-  const response = await fetch("/api/health", { signal });
-  if (!response.ok) {
-    throw new Error("API health request failed with status " + response.status);
+  let response: Response;
+  try {
+    response = await fetch("/api/health", { signal });
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+    throw new Error(NETWORK_ERROR_MESSAGE);
   }
-  return (await response.json()) as HealthResponse;
+  if (!response.ok) {
+    throw new Error(`分析服务不可用（HTTP ${response.status}），请确认后端已启动后重试。`);
+  }
+  try {
+    return (await response.json()) as HealthResponse;
+  } catch {
+    throw new Error(UNPARSEABLE_RESPONSE_MESSAGE);
+  }
 }
 
 export type PreviewCell = string | number | boolean | null;
@@ -69,6 +88,43 @@ function extractErrorDetail(payload: unknown): string | null {
   return null;
 }
 
+async function postFormJson<T>(
+  endpoint: string,
+  form: FormData,
+  fallbackMessage: (status: number) => string,
+  signal?: AbortSignal,
+): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      body: form,
+      signal,
+    });
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+    throw new CsvUploadError(NETWORK_ERROR_MESSAGE);
+  }
+
+  if (!response.ok) {
+    let detail: string | null = null;
+    try {
+      detail = extractErrorDetail(await response.json());
+    } catch {
+      detail = null;
+    }
+    throw new CsvUploadError(detail ?? fallbackMessage(response.status), response.status);
+  }
+
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new CsvUploadError(UNPARSEABLE_RESPONSE_MESSAGE, response.status);
+  }
+}
+
 export type DatasetFormat = "csv" | "xlsx";
 
 const DATASET_ENDPOINTS: Record<DatasetFormat, string> = {
@@ -95,38 +151,13 @@ export async function uploadDataset(
   const form = new FormData();
   form.append("file", file);
 
-  let response: Response;
-  try {
-    response = await fetch(DATASET_ENDPOINTS[format], {
-      method: "POST",
-      body: form,
-      signal,
-    });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw error;
-    }
-    throw new CsvUploadError("无法连接分析服务，请确认后端已启动后重试。");
-  }
-
-  if (!response.ok) {
-    let detail: string | null = null;
-    try {
-      detail = extractErrorDetail(await response.json());
-    } catch {
-      detail = null;
-    }
-    throw new CsvUploadError(
-      detail ?? `${format.toUpperCase()} 上传失败（HTTP ${response.status}），请检查文件后重试。`,
-      response.status,
-    );
-  }
-
-  try {
-    return (await response.json()) as CsvImportResponse;
-  } catch {
-    throw new CsvUploadError("服务器返回了无法解析的响应，请稍后重试。", response.status);
-  }
+  return postFormJson<CsvImportResponse>(
+    DATASET_ENDPOINTS[format],
+    form,
+    (status) =>
+      `${format.toUpperCase()} 上传失败（HTTP ${status}），请检查文件后重试。`,
+    signal,
+  );
 }
 
 export function uploadCsv(file: File, signal?: AbortSignal): Promise<CsvImportResponse> {
@@ -244,38 +275,12 @@ export async function createFit(
     }
   }
 
-  let response: Response;
-  try {
-    response = await fetch("/api/datasets/fit", {
-      method: "POST",
-      body: form,
-      signal,
-    });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw error;
-    }
-    throw new CsvUploadError("无法连接分析服务，请确认后端已启动后重试。");
-  }
-
-  if (!response.ok) {
-    let detail: string | null = null;
-    try {
-      detail = extractErrorDetail(await response.json());
-    } catch {
-      detail = null;
-    }
-    throw new CsvUploadError(
-      detail ?? `拟合失败（HTTP ${response.status}），请检查数据后重试。`,
-      response.status,
-    );
-  }
-
-  try {
-    return (await response.json()) as FitResponse;
-  } catch {
-    throw new CsvUploadError("服务器返回了无法解析的响应，请稍后重试。", response.status);
-  }
+  return postFormJson<FitResponse>(
+    "/api/datasets/fit",
+    form,
+    (status) => `拟合失败（HTTP ${status}），请检查数据后重试。`,
+    signal,
+  );
 }
 
 export async function createSeries(
@@ -298,36 +303,10 @@ export async function createSeries(
     form.append("y_unit", yUnit);
   }
 
-  let response: Response;
-  try {
-    response = await fetch("/api/datasets/series", {
-      method: "POST",
-      body: form,
-      signal,
-    });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw error;
-    }
-    throw new CsvUploadError("无法连接分析服务，请确认后端已启动后重试。");
-  }
-
-  if (!response.ok) {
-    let detail: string | null = null;
-    try {
-      detail = extractErrorDetail(await response.json());
-    } catch {
-      detail = null;
-    }
-    throw new CsvUploadError(
-      detail ?? `生成配对数据失败（HTTP ${response.status}），请检查列选择后重试。`,
-      response.status,
-    );
-  }
-
-  try {
-    return (await response.json()) as SeriesResponse;
-  } catch {
-    throw new CsvUploadError("服务器返回了无法解析的响应，请稍后重试。", response.status);
-  }
+  return postFormJson<SeriesResponse>(
+    "/api/datasets/series",
+    form,
+    (status) => `生成配对数据失败（HTTP ${status}），请检查列选择后重试。`,
+    signal,
+  );
 }

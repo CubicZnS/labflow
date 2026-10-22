@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CsvImportPanel } from "./components/CsvImportPanel";
 import { fetchHealth } from "./lib/api";
 
@@ -39,21 +39,28 @@ const features = [
 function App() {
   const [apiState, setApiState] = useState<ApiState>("loading");
   const [apiVersion, setApiVersion] = useState("");
+  const [offlineNotice, setOfflineNotice] = useState(false);
+
+  const checkHealth = useCallback(async (signal?: AbortSignal) => {
+    setApiState("loading");
+    try {
+      const health = await fetchHealth(signal);
+      setApiVersion(health.version);
+      setApiState("online");
+      setOfflineNotice(false);
+    } catch {
+      if (!signal?.aborted) {
+        setApiState("offline");
+        setOfflineNotice(true);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchHealth(controller.signal)
-      .then((health) => {
-        setApiVersion(health.version);
-        setApiState("online");
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setApiState("offline");
-        }
-      });
+    void checkHealth(controller.signal);
     return () => controller.abort();
-  }, []);
+  }, [checkHealth]);
 
   const apiLabel =
     apiState === "online"
@@ -252,23 +259,46 @@ function App() {
               <h2 className="mt-3 text-2xl font-semibold text-ink">Phase 4 · MVP 产品化</h2>
               <p className="mt-3 text-sm leading-6 text-slate-600">
                 当前已可用：导入与校验、描述统计、线性/二次/三次拟合、多系列绘图、
-                PNG/SVG 导出和本地项目快照。剩余 Phase 4 工作包括示例与引导、
-                错误处理与可访问性，以及隐私复核。
+                PNG/SVG 导出和本地项目快照。剩余 Phase 4 工作：后端校验错误文案中文化，
+                以及外部试用与跨浏览器验证。
               </p>
-              <div className="mt-5 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <span className="text-sm text-slate-600">后端状态</span>
-                <span
-                  className={
-                    "pill " +
-                    (apiState === "online"
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : apiState === "offline"
-                        ? "border-amber-200 bg-amber-50 text-amber-700"
-                        : "border-slate-200 bg-white text-slate-500")
-                  }
-                >
-                  {apiLabel}
-                </span>
+              <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">后端状态</span>
+                  <span
+                    className={
+                      "pill " +
+                      (apiState === "online"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : apiState === "offline"
+                          ? "border-amber-200 bg-amber-50 text-amber-700"
+                          : "border-slate-200 bg-white text-slate-500")
+                    }
+                  >
+                    {apiLabel}
+                  </span>
+                </div>
+                {offlineNotice && (
+                  <div className="mt-3 border-t border-slate-200 pt-3">
+                    <p
+                      className="text-sm leading-6 text-slate-600"
+                      data-testid="api-offline-hint"
+                    >
+                      分析服务未连接。请确认后端已在 http://127.0.0.1:8000 启动，然后点击重试。
+                    </p>
+                    <button
+                      type="button"
+                      className="mt-3 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      data-testid="api-retry"
+                      disabled={apiState === "loading"}
+                      onClick={() => {
+                        void checkHealth();
+                      }}
+                    >
+                      重试连接
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             <div className="card">
@@ -293,9 +323,21 @@ function App() {
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Trust by design</p>
                 <h2 className="mt-3 text-2xl font-semibold sm:text-3xl">计算结果透明，用户数据留在本地。</h2>
                 <p className="mt-3 text-sm leading-6 text-slate-300">
-                  公式、单位、有效数字和拟合条件都会记录。
-                  MVP 不启用真实收费、不把实验数据送往第三方 AI。
+                  公式、单位、有效数字和拟合条件都会记录，计算由确定性算法完成。
+                  以下说明可在本仓库与浏览器网络面板中逐项核验。
                 </p>
+                <ul
+                  className="mt-5 grid list-disc gap-2 pl-5 text-sm leading-6 text-slate-300"
+                  data-testid="privacy-list"
+                >
+                  <li>上传文件只发送到本机运行的分析服务（/api/datasets/*），不经过第三方服务器。</li>
+                  <li>不接入第三方统计、分析或 AI 服务，页面没有跟踪或广告脚本。</li>
+                  <li>分析结果只在内存中处理；后端不保存上传文件、不写数据库，也没有账户体系。</li>
+                  <li>
+                    .labflow.json 项目文件由浏览器在本地生成并保存，只含配置与 SHA-256
+                    数据指纹，不含原始数据行。
+                  </li>
+                </ul>
               </div>
               <a
                 className="inline-flex shrink-0 items-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:bg-slate-100"
