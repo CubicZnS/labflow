@@ -262,3 +262,25 @@ T09整体未通过；只是自动化证据交付，非屏幕阅读器审计、�
 - 门禁：backend指定python pytest退出0（157项），ruff退出0；frontend指定pnpm typecheck、test:run（6文件174项）、build均退出0。完整输出/退出码在checks/，保留既有Starlette/httpx弃用、NumPy RankWarning、React key警告；git diff --check通过。未添加JSDOM布局断言，浏览器回归脚本作为附件交付。
 - 证据：[迭代 #24 证据 ZIP](/api/attachments/fb4bdda8-31e8-43ae-bc27-7b5dc539724d/content?download=1)，3,870,126字节，SHA256 `4ff2893012e6ef51ecdfecd04395c8e4c17e8d4397e8791eb8490cee3c1adf3c`；上传后回下载ZIP哈希一致，manifest98项路径/大小/SHA256逐项核对、无遗漏/额外载荷、自身不自引用。artifact工作产品`ec68519a-1702-419e-bce4-47edfdffc577`。helper因宿主系统临时目录不可写未发出请求，按技能规定附件API上传，无权限修改。
 - 边界：仅Firefox headless自动化，文件为合成注入，非原生选择器或有头人工验收；键盘激活、焦点遮挡、200%缩放未纳入本轮，Chrome/Safari/屏幕阅读器/人工矩阵/外部验收仍待执行。error监听不代表完整控制台审计。T09整体、Phase4 MVP未完成；Lead独立审查后另建QA，PASS后才合并。本轮只推iter/24、不创建QA、不改父任务。
+
+
+## 迭代 #25：纯键盘路径复核（验证FAIL）
+
+- 分支 `iter/25`，已存在基线 [f01c5c5918aeaa78926648830009a3e9f161b50e](https://github.com/CubicZnS/labflow/commit/f01c5c5918aeaa78926648830009a3e9f161b50e)。只更新四份获准文档，不改产品、依赖、配置或 CI。最终真实提交与推送时间见[本任务交付](/MAC/issues/MAC-119)，不虚构提交内自引用。
+- 环境：2026-10-23 04:02–04:05 Asia/Shanghai；macOS27.0.1(26A434)、Firefox158.0.1/build20261019185856、geckodriver0.37.1、Selenium4.51.0。宿主 Remote4444 + BiDi headless，页面5173/后端8000，内容视口1280×915、DPR1、安全上下文。Browser plugin not available，按任务指定用既有 Selenium；未启停共享服务、改权限或安装依赖。页面标题/URL正确、非空、无Vite错误覆盖层；运行时error/unhandledrejection为空，仅此监听范围，不声称完整控制台审计。
+
+| 路径 | 真实结果与证据 |
+|---|---|
+| 独立校准1/2 | 普通非React HTML：Tab和字符输入有效，ArrowDown/Enter可信事件已到select但1未改2；加入Space后仍1。attempt1/attempt2保留脚本、事件、截图和失败日志，退出1 |
+| 校准对照 | Actions与元素send_keys均未改变select；普通button的Space/Enter各触发可信click一次，Shift+Tab返回select。不是产品缺陷证据，未定位Firefox/macOS/Remote内部根因 |
+| 严格产品路径 | 首Tab跳转链接、Enter进入导入区；合成文件注入后Space上传200，6行。方向键后X/Y均x，生成配对按钮禁用，90步遍历不可达禁用按钮，脚本退出1。无series/fit请求、无项目下载；不称焦点陷阱。attempt3/final-requests.json、steps.json及failure.png |
+| BiDi补充（超出限定按键，不记严格PASS） | 直接input.performActions加字符y选中Y后，Enter配对200六点；拟合次数Home/ArrowDown/Enter后仍1。Space运行fit200，真实FormData degree=1，非2；Shift+Tab到保存、Enter实际落盘669字节v2。根目录steps.json、final-requests.json、02-paired/03-degree2/04-fitted/05-save-focused/06-saved截图与JSON。03-degree2文件名是尝试目标，JSON明确实际1。最终degree2请求断言失败，退出1 |
+| 项目实际内容 | downloads/labflow-trial.labflow.json，schemaVersion2、sourceFileName trial.csv、31字节数据SHA256指纹、6行、x/y列、空元数据/单位/追加系列、fit.degree1、标准图表样式、pngScale2；不含原始行或拟合结果。saved-content.json保留解析内容；不是二次拟合项目 |
+
+结论：规定的方向键选择二次拟合并请求degree=2路径 **FAIL**；后续运行/下载仅有明确标记的补充证据。Remote中存在可工作的按钮键盘激活/返回保存路径，不能把#23的无fit/无下载直接判成产品缺陷，也不能反推#23全部失败只有单一原因。下拉框默认选值问题在独立普通HTML复现，产品归因未成立；交Lead收敛后续验证，不修产品。严格路径未完成不冒报PASS；T09整体与Phase4 MVP未完成。
+
+证据：[本轮ZIP](/api/attachments/c79493c0-9ed4-4446-a58f-2488fc3213a6/content?download=1)，附件ID `c79493c0-9ed4-4446-a58f-2488fc3213a6`，1,451,970字节，SHA256 `eed8734eba61768f942fdc01cac9437356715c3027ff63bfebbfa945ad5cecf5`。上传后已回下载，ZIP字节/哈希及manifest87个载荷路径/字节/SHA256逐项一致、集合闭合，manifest自身不自引用。helper临时目录被拒，未发出请求；改用规定附件API与可写/tmp文件，未改权限。ZIP说明.md区分四次执行与超范围字符补充；失败堆栈在run.log，failure.txt为页面正文。
+
+复跑：整个iter25目录放回`/tmp/labflow-browser/evidence/iter25`，运行 `/tmp/labflow-browser/venv/bin/python /tmp/labflow-browser/evidence/iter25/run25.py`，前提已有Remote4444、5173/8000和Selenium，不安装或启动服务；预期当前环境degree2断言退出1。同名下载由浏览器自动编号，脚本只认本次新增文件。attempt1/2/3目录中的脚本分别为当时快照。注入监听/读取状态不改变焦点或值，产品操作无click、JS focus、Select API。合成文件注入不是原生文件选择器人工验收。焦点遮挡、200%缩放、其他浏览器、屏幕阅读器、人工矩阵、外部验收均未纳入本轮。
+
+门禁：backend指定python pytest退出0（157项），ruff退出0；frontend指定pnpm typecheck、test:run（6文件174项）、build退出0，原始输出与退出码在checks/。既有Starlette/httpx弃用、NumPy RankWarning、React key警告保留。提交前git diff --check通过；只推iter/25，Lead独立审查后另建QA，本轮不创建QA、不合并、不写父任务。
