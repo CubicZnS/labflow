@@ -784,3 +784,53 @@ git log --oneline --decorate dev
   - 合并后在 `dev` 重跑 5 个 gate：后端 `pytest -q -o addopts=""` **155 passed**、`ruff check app tests` 通过；前端 `typecheck` 通过、`test:run` **151 passed**、`build` 成功。
   - 推送核验：`git ls-remote origin refs/heads/dev` 与 `gh api` 对合并 SHA `aa5268e81cc7b4b9a4802ac81f0fa30dcec27c7f` 返回一致；`main` 保持 `7b3c2f1153eb561241ba33fa74e06953e552e63e` 未改动；无 force push、无历史改写。
   - 阶段状态：Phase 4.2（示例数据与新手引导）完成并合并；Phase 4 MVP 产品化仍在进行，下一轮进入 Phase 4.3 错误处理与可访问性、隐私复核。
+
+## 迭代 #17 — Phase 4.3a 可访问性与状态播报
+
+- 日期：2026-10-22
+- 目标：补齐键盘与屏幕阅读器可访问性基础，并让异步解析状态可被辅助技术感知；纯前端增量，不新增依赖、不改后端契约、不上传用户数据、不做后端持久化。
+- 任务选择：MAC-73（迭代 #17，Phase 4.3a）。
+- 分支：`iter/17`，基于 `dev` 的 `884e7c2d1291bbe22b67e84029cfe3b93a9e4e9b`。只在该分支提交并 push，不合并、不 force push、不改写历史。
+- 产品决策：
+  - 不引入 axe、eslint-plugin-jsx-a11y 或其他新依赖，使用现有 Testing Library 断言可访问名称/角色/焦点/状态。
+  - 不改变现有视觉风格和业务行为：分析计算、绘图、导出、项目快照逻辑保持不变。
+  - 所有新增文案使用中文；错误播报继续由既有 `role="alert"` 承担。
+- 已完成：
+  - `frontend/src/App.tsx`：
+    - 页面最顶部（`min-h-screen` 内、`header` 之前）新增首个可聚焦元素：中文链接“跳到主要内容”，`href="#import"`，`className="skip-link"`。
+    - 保留 `main id="top"`、导航锚点、响应式布局与全部既有文案。
+  - `frontend/src/index.css`：
+    - 新增 `.skip-link`：默认移出视口并视觉隐藏，获得焦点时固定于左上角、白底深色文字、高对比边框/阴影、`z-index: 50` 高于 sticky header，可继续 Tab 离开。
+    - 新增全局 `:focus-visible` 描边（`3px solid #0e7490`、`outline-offset: 2px`），覆盖链接、按钮、输入框、下拉框、文本域与带 `tabindex` 的元素；未全局移除 outline，也未删除组件既有 `focus:ring`。
+    - 新增 `@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }`。
+    - 未修改 Tailwind 主题或 `tailwind.config`。
+  - `frontend/src/components/CsvImportPanel.tsx`：
+    - 导入区块增加 `tabIndex={-1}`、`aria-labelledby="import-title"`，标题增加 `id="import-title"`。
+    - 右侧结果卡片移除整卡 `aria-live`，改为 `aria-busy={uploadState.status === "parsing" || isSampleLoading}`，避免每次结果变化整块播报。
+    - 左侧上传卡片新增屏幕阅读器专用 `role="status" aria-live="polite"` 状态行（`data-testid="parse-status"`）：仅在解析成功时播报“解析完成：<文件名>，共 <N> 行，<M> 个数值列。”；空闲、解析中与失败时为空。
+    - 保留解析中 `role="status"` 提示、`role="alert"` 错误、示例载入复用同一状态机与全部既有 `data-testid`。
+  - `frontend/src/components/SeriesPanel.tsx`：
+    - “打开项目”由 `<label>` 改为真实 `<button type="button">`（`data-testid="open-project-button"`），通过 `useRef` 触发隐藏 file input 的 `.click()`；`disabled={!canOpenProject}` 并保留禁用态样式。
+    - 隐藏 input 继续使用 `className="sr-only"`、原 `accept`、`disabled`、`data-testid="open-project"` 与 `onChange`，不使用 `display:none`；删除旧 label，避免重复可访问名称。
+    - 项目区块 `data-testid="project-section"` 增加 `aria-busy={projectBusy}`。
+    - 追加系列“移除”按钮增加 `disabled={extraLoading || projectBusy}` 与禁用样式，保留中文 `aria-label` 和既有 testid。
+    - 保存/打开/重跑顺序、代次隔离、错误文案与既有 `data-testid` 语义保持不变。
+  - 测试：
+    - `frontend/src/App.test.tsx` 新增：跳转链接为页面首个可聚焦元素且 `#import` 可聚焦并关联标题；解析成功状态行包含文件名/行数/数值列数，解析中结果卡 `aria-busy="true"`、完成后为 `"false"`；上传失败不通过状态行播报。
+    - `frontend/src/components/SeriesPanel.test.tsx` 新增：`open-project-button` 为真实按钮、可聚焦且点击触发隐藏 file input；项目重跑忙时按钮禁用、完成后恢复；追加系列加载中“移除”按钮禁用、完成后恢复。既有打开/重跑、项目快照与统计/绘图测试保持通过。
+  - 文档：更新中文 `README.md` 当前状态、当前能力、测试命令/数量、已知限制、下一轮与“版本迭代记录”表（迭代 #17）；本记录为中文。
+- 测试：
+  - 后端：`.venv/bin/python -m pytest -q -o addopts=""` **155 passed**；`.venv/bin/ruff check app tests` 通过；本轮未改后端。
+  - 前端：`pnpm typecheck` 通过；`pnpm test:run` **156 passed**；`pnpm build` 成功。
+  - 新增覆盖：skip-link 首个焦点与目标区块 `tabindex=-1`；解析状态中文播报与 `aria-busy` 切换；错误不进入状态行；项目打开按钮角色/焦点/点击转发/忙时禁用；追加系列忙时移除禁用。
+- 已知限制：
+  - 只覆盖基础键盘、焦点可见性与状态播报；未引入 axe 等自动化审计，也未做完整 WCAG 认证或屏幕阅读器人工实测。
+  - 结果卡在示例载入期间标记 `aria-busy`，但示例载入进度仍由按钮文案与既有状态提示表达。
+  - 仍不做后端持久化、账户、云同步或跨设备共享；本轮不改变任何分析、绘图、导出或项目快照计算行为。
+- 下一轮：Phase 4.3b 隐私复核与剩余错误处理；复核示例载入、项目快照和导出路径的隐私边界，统一面向用户的错误文案，并补足可访问性回归。
+- Git：
+  - `iter/17` 功能、测试与样式提交：`9f5ff1f82a054f05045315c2d0ba5a80662b0d91`
+    https://github.com/CubicZnS/labflow/commit/9f5ff1f82a054f05045315c2d0ba5a80662b0d91
+  - `iter/17` 文档/迭代记录提交：见随后补记提交。
+  - `iter/17` 最终 HEAD：见随后补记提交。
+  - 独立 QA 与 `dev` 合并 SHA：留给 Lead，不在本记录中编造。
