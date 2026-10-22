@@ -81,11 +81,11 @@ def test_series_pairs_known_values_and_skips_invalid_rows() -> None:
     ]
 
     parser_warnings = [
-        "Column 'absorbance' has 2 missing value(s)",
-        "Column 'absorbance' has 1 non-numeric value(s) among numeric data",
+        "列“absorbance”有 2 个缺失值",
+        "列“absorbance”在数值数据中有 1 个非数值",
     ]
     assert body["warnings"] == parser_warnings + [
-        "Pairing skipped 4 row(s) with missing, non-numeric, or non-finite values"
+        "配对时跳过了 4 行含缺失、非数值或非有限值的数据"
     ]
 
 
@@ -169,7 +169,7 @@ def test_series_rejects_xlsx_datetime_x_column() -> None:
     assert response.status_code == 422
     detail = response.json()["detail"]
     assert "when" in detail
-    assert "not numeric" in detail
+    assert "不是数值列" in detail
 
 
 def test_series_rejects_xlsx_datetime_y_column() -> None:
@@ -187,7 +187,7 @@ def test_series_rejects_xlsx_datetime_y_column() -> None:
     assert response.status_code == 422
     detail = response.json()["detail"]
     assert "when" in detail
-    assert "not numeric" in detail
+    assert "不是数值列" in detail
 
 
 def test_series_rejects_csv_iso_date_column() -> None:
@@ -196,7 +196,7 @@ def test_series_rejects_csv_iso_date_column() -> None:
     assert response.status_code == 422
     detail = response.json()["detail"]
     assert "when" in detail
-    assert "not numeric" in detail
+    assert "不是数值列" in detail
 
 
 def test_series_accepts_numeric_xlsx_columns() -> None:
@@ -225,13 +225,13 @@ def test_series_rejects_unknown_column() -> None:
     assert response.status_code == 422
     detail = response.json()["detail"]
     assert "missing" in detail
-    assert "not found" in detail
+    assert "找不到" in detail
 
 
 def test_series_rejects_same_column() -> None:
     response = post_series(b"x,y\n1,2\n2,4\n", x_column="x", y_column="x")
     assert response.status_code == 422
-    assert "differ" in response.json()["detail"]
+    assert "必须不同" in response.json()["detail"]
 
 
 def test_series_rejects_non_numeric_column() -> None:
@@ -241,13 +241,13 @@ def test_series_rejects_non_numeric_column() -> None:
     assert response.status_code == 422
     detail = response.json()["detail"]
     assert "label" in detail
-    assert "not numeric" in detail
+    assert "不是数值列" in detail
 
 
 def test_series_rejects_fewer_than_two_valid_pairs() -> None:
     response = post_series(b"x,y\n1,2\n2,\n3,abc\n")
     assert response.status_code == 422
-    assert "two valid" in response.json()["detail"].lower()
+    assert "有效的 X/Y 配对点" in response.json()["detail"]
 
 
 def test_series_rejects_unit_longer_than_32_characters() -> None:
@@ -269,7 +269,7 @@ def test_series_rejects_unsupported_content_type_for_csv() -> None:
         b"x,y\n1,2\n2,4\n", format="csv", content_type="application/pdf"
     )
     assert response.status_code == 415
-    assert "unsupported content type" in response.json()["detail"].lower()
+    assert "不支持的内容类型" in response.json()["detail"]
 
 
 def test_series_rejects_unsupported_content_type_for_xlsx() -> None:
@@ -279,40 +279,40 @@ def test_series_rejects_unsupported_content_type_for_xlsx() -> None:
         content_type="text/csv",
     )
     assert response.status_code == 415
-    assert "unsupported content type" in response.json()["detail"].lower()
+    assert "不支持的内容类型" in response.json()["detail"]
 
 
 @pytest.mark.parametrize("format_label", ["csv", "xlsx"])
 def test_series_rejects_empty_file(format_label: str) -> None:
     response = post_series(b"", format=format_label)
     assert response.status_code == 400
-    assert "empty" in response.json()["detail"].lower()
+    assert "文件为空" in response.json()["detail"]
 
 
 def test_series_rejects_oversize_csv() -> None:
     content = b"x,y\n" + b"1,2\n" * (3 * 1024 * 1024)
     response = post_series(content)
     assert response.status_code == 413
-    assert "limit" in response.json()["detail"].lower()
+    assert "上限" in response.json()["detail"]
 
 
 def test_series_rejects_oversize_xlsx() -> None:
     content = b"PK" + b"0" * (10 * 1024 * 1024)
     response = post_series(content, format="xlsx")
     assert response.status_code == 413
-    assert "limit" in response.json()["detail"].lower()
+    assert "上限" in response.json()["detail"]
 
 
 def test_series_rejects_malformed_csv() -> None:
     response = post_series(b'a,b\n1,2\n3,"4\n')
     assert response.status_code == 422
-    assert "malformed" in response.json()["detail"].lower()
+    assert "格式错误" in response.json()["detail"]
 
 
 def test_series_rejects_unsupported_format() -> None:
     response = post_series(b"x,y\n1,2\n2,4\n", format="parquet")
     assert response.status_code == 422
-    assert "unsupported format" in response.json()["detail"].lower()
+    assert "不支持的文件格式" in response.json()["detail"]
 
 
 def test_series_requires_file_and_columns() -> None:

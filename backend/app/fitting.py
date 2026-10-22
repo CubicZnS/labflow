@@ -37,14 +37,14 @@ def resolve_degree(value: str | int | None) -> int:
             degree = int(text)
         except ValueError as exc:
             raise DatasetImportError(
-                f"degree must be an integer between {MIN_DEGREE} and {MAX_DEGREE}",
+                f"拟合次数必须是 {MIN_DEGREE} 到 {MAX_DEGREE} 之间的整数",
                 status_code=422,
             ) from exc
     else:
         degree = int(value)
     if degree < MIN_DEGREE or degree > MAX_DEGREE:
         raise DatasetImportError(
-            f"degree must be between {MIN_DEGREE} and {MAX_DEGREE}; got {degree}",
+            f"拟合次数必须在 {MIN_DEGREE} 到 {MAX_DEGREE} 之间；当前为 {degree}",
             status_code=422,
         )
     return degree
@@ -71,11 +71,11 @@ def build_fit(
 
     if y_error_column is not None and not y_error_column.strip():
         raise DatasetImportError(
-            "Y error column must not be blank", status_code=422
+            "Y 误差列不能为空", status_code=422
         )
     if y_error_column is None and y_error_unit is not None:
         raise DatasetImportError(
-            "Y error unit requires a Y error column", status_code=422
+            "填写 Y 误差单位时必须同时指定 Y 误差列", status_code=422
         )
 
     series = build_series(
@@ -90,8 +90,8 @@ def build_fit(
     pair_count = int(series["pair_count"])
     if pair_count <= resolved_degree:
         raise DatasetImportError(
-            f"degree {resolved_degree} requires more than {resolved_degree} valid "
-            f"X/Y pairs; got {pair_count}",
+            f"{resolved_degree} 次拟合需要多于 {resolved_degree} 个有效 "
+            f"X/Y 配对点；当前只有 {pair_count} 个",
             status_code=422,
         )
 
@@ -99,7 +99,7 @@ def build_fit(
     y_values = np.asarray([pair["y"] for pair in series["pairs"]], dtype=float)
     if float(np.ptp(x_values)) == 0.0:
         raise DatasetImportError(
-            "X values must vary to fit a polynomial", status_code=422
+            "X 值必须有变化才能进行多项式拟合", status_code=422
         )
 
     resolved_error_column: str | None = None
@@ -109,8 +109,8 @@ def build_fit(
         resolved_error_column = y_error_column.strip()
         if resolved_error_column in (series["x_column"], series["y_column"]):
             raise DatasetImportError(
-                "Y error column must differ from the X and Y columns; "
-                f"got '{resolved_error_column}'",
+                f"Y 误差列必须不同于 X 列和 Y 列；"
+                f"当前为“{resolved_error_column}”",
                 status_code=422,
             )
         resolved_error_column = resolve_numeric_column(
@@ -124,8 +124,8 @@ def build_fit(
         invalid_count = int(np.count_nonzero(invalid))
         if invalid_count > 0:
             raise DatasetImportError(
-                f"Y error column '{resolved_error_column}' has {invalid_count} "
-                "retained row(s) with missing, non-finite, or non-positive values",
+                f"Y 误差列“{resolved_error_column}”在保留行中有 {invalid_count} "
+                "个缺失、非有限或非正值",
                 status_code=422,
             )
         with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
@@ -133,8 +133,8 @@ def build_fit(
         non_finite_weights = int(np.count_nonzero(~np.isfinite(weights)))
         if non_finite_weights > 0:
             raise DatasetImportError(
-                f"Y error column '{resolved_error_column}' has {non_finite_weights} "
-                "retained row(s) whose 1/sigma^2 weight is not finite",
+                f"Y 误差列“{resolved_error_column}”在保留行中有 {non_finite_weights} "
+                "个值的 1/σ² 权重不是有限数",
                 status_code=422,
             )
         errors = error_values
@@ -160,7 +160,7 @@ def build_fit(
     warnings = list(series["warnings"])
     if uncertainty["residual_dof"] == 0:
         warnings.append(
-            "X/Y pairs exactly determine the fit; coefficient standard errors are unavailable"
+            "X/Y 配对点恰好确定拟合；系数标准误不可用"
         )
     if uncertainty["ill_conditioned"]:
         condition_number = uncertainty["condition_number"]
@@ -168,8 +168,8 @@ def build_fit(
             "non-finite" if condition_number is None else f"{condition_number:.6g}"
         )
         warnings.append(
-            f"Fit design matrix is ill-conditioned (condition number {formatted}); "
-            "coefficient estimates may be numerically unstable"
+            f"拟合设计矩阵病态（条件数 {formatted}）；"
+            "系数估计可能数值不稳定"
         )
     if (
         errors is not None
@@ -178,8 +178,8 @@ def build_fit(
         and not 0.1 <= reduced_chi_squared <= 10.0
     ):
         warnings.append(
-            f"Reduced chi-squared {reduced_chi_squared:.6g} suggests the supplied "
-            "Y errors may be inconsistent with the fit residuals"
+            f"约化 χ² 为 {reduced_chi_squared:.6g}，提示所填 "
+            "Y 误差可能与拟合残差不一致"
         )
 
     return {

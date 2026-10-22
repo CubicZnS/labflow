@@ -162,9 +162,9 @@ def test_fit_keeps_series_warnings_and_skipped_count() -> None:
     assert body["skipped_count"] == 1
     assert body["pairs"] == [{"x": 0.0, "y": 1.0}, {"x": 2.0, "y": 3.0}]
     assert body["warnings"] == [
-        "Column 'y' has 1 missing value(s)",
-        "Pairing skipped 1 row(s) with missing, non-numeric, or non-finite values",
-        "X/Y pairs exactly determine the fit; coefficient standard errors are unavailable",
+        "列“y”有 1 个缺失值",
+        "配对时跳过了 1 行含缺失、非数值或非有限值的数据",
+        "X/Y 配对点恰好确定拟合；系数标准误不可用",
     ]
 
 
@@ -186,7 +186,7 @@ def test_fit_rejects_invalid_degree(degree: str) -> None:
     response = post_fit(b"x,y\n1,2\n2,4\n3,6\n4,8\n", degree=degree)
     assert response.status_code == 422
     detail = response.json()["detail"].lower()
-    assert "degree" in detail
+    assert "拟合次数" in detail
 
 
 @pytest.mark.parametrize(
@@ -200,14 +200,14 @@ def test_fit_rejects_underdetermined_degree(degree: str, content: bytes) -> None
     response = post_fit(content, degree=degree)
     assert response.status_code == 422
     detail = response.json()["detail"].lower()
-    assert "degree" in detail
-    assert "pairs" in detail
+    assert "次拟合" in detail
+    assert "配对点" in detail
 
 
 def test_fit_rejects_constant_x() -> None:
     response = post_fit(b"x,y\n5,1\n5,2\n5,3\n5,4\n", degree="1")
     assert response.status_code == 422
-    assert "vary" in response.json()["detail"].lower()
+    assert "X 值必须有变化" in response.json()["detail"]
 
 
 def test_fit_rejects_unknown_column() -> None:
@@ -215,13 +215,13 @@ def test_fit_rejects_unknown_column() -> None:
     assert response.status_code == 422
     detail = response.json()["detail"].lower()
     assert "missing" in detail
-    assert "not found" in detail
+    assert "找不到" in detail
 
 
 def test_fit_rejects_identical_columns() -> None:
     response = post_fit(b"x,y\n1,2\n2,4\n3,6\n", x_column="x", y_column="x")
     assert response.status_code == 422
-    assert "differ" in response.json()["detail"].lower()
+    assert "必须不同" in response.json()["detail"]
 
 
 def test_fit_rejects_non_numeric_column() -> None:
@@ -231,7 +231,7 @@ def test_fit_rejects_non_numeric_column() -> None:
     assert response.status_code == 422
     detail = response.json()["detail"].lower()
     assert "label" in detail
-    assert "not numeric" in detail
+    assert "不是数值列" in detail
 
 
 def test_fit_rejects_unit_longer_than_32_characters() -> None:
@@ -243,7 +243,7 @@ def test_fit_rejects_unit_longer_than_32_characters() -> None:
 def test_fit_rejects_unsupported_format() -> None:
     response = post_fit(b"x,y\n1,2\n2,4\n3,6\n", format="parquet")
     assert response.status_code == 422
-    assert "unsupported format" in response.json()["detail"].lower()
+    assert "不支持的文件格式" in response.json()["detail"]
 
 
 def test_fit_rejects_unsupported_content_type() -> None:
@@ -253,31 +253,29 @@ def test_fit_rejects_unsupported_content_type() -> None:
         content_type="application/pdf",
     )
     assert response.status_code == 415
-    assert "unsupported content type" in response.json()["detail"].lower()
+    assert "不支持的内容类型" in response.json()["detail"]
 
 
 @pytest.mark.parametrize("format_label", ["csv", "xlsx"])
 def test_fit_rejects_empty_file(format_label: str) -> None:
     response = post_fit(b"", format=format_label)
     assert response.status_code == 400
-    assert "empty" in response.json()["detail"].lower()
+    assert "文件为空" in response.json()["detail"]
 
 
 def test_fit_rejects_malformed_csv() -> None:
     response = post_fit(b'a,b\n1,2\n3,"4\n', degree="1")
     assert response.status_code == 422
-    assert "malformed" in response.json()["detail"].lower()
+    assert "格式错误" in response.json()["detail"]
 
 
 def test_fit_rejects_malformed_xlsx() -> None:
     response = post_fit(b"not an xlsx workbook", format="xlsx")
     assert response.status_code == 422
-    assert "malformed" in response.json()["detail"].lower()
+    assert "格式错误" in response.json()["detail"]
 
 
-UNCERTAINTY_WARNING = (
-    "X/Y pairs exactly determine the fit; coefficient standard errors are unavailable"
-)
+UNCERTAINTY_WARNING = "X/Y 配对点恰好确定拟合；系数标准误不可用"
 
 
 def test_fit_two_point_line_is_determined_and_reports_no_uncertainty() -> None:
@@ -325,7 +323,7 @@ def test_fit_reports_uncertainty_for_noisy_line() -> None:
         assert interval["low"] == pytest.approx(coefficient - interval_width(interval) / 2)
         assert interval["high"] == pytest.approx(coefficient + interval_width(interval) / 2)
     assert uncertainty["ill_conditioned"] is False
-    assert not any("ill-conditioned" in warning for warning in body["warnings"])
+    assert not any("病态" in warning for warning in body["warnings"])
 
 
 def interval_width(interval: dict[str, float]) -> float:
@@ -345,7 +343,7 @@ def test_fit_flags_ill_conditioned_design_and_stays_serializable() -> None:
 
     assert uncertainty["residual_dof"] == 1
     assert uncertainty["ill_conditioned"] is True
-    assert any("ill-conditioned" in warning for warning in body["warnings"])
+    assert any("病态" in warning for warning in body["warnings"])
     assert "NaN" not in response.text
     assert "Infinity" not in response.text
     if uncertainty["condition_number"] is not None:
@@ -467,56 +465,56 @@ def test_fit_weighted_validates_only_retained_x_y_rows() -> None:
 @pytest.mark.parametrize(
     ("content", "kwargs", "fragment"),
     [
-        (b"x,y\n1,2\n2,4\n3,6\n", {"y_error_column": "missing"}, "not found"),
+        (b"x,y\n1,2\n2,4\n3,6\n", {"y_error_column": "missing"}, "找不到"),
         (
             b"x,y,err\n1,2,a\n2,4,b\n3,6,c\n",
             {"y_error_column": "err"},
-            "not numeric",
+            "不是数值列",
         ),
         (
             b"x,y,err\n1,2,0.1\n2,4,0\n3,6,0.3\n",
             {"y_error_column": "err"},
-            "1 retained row",
+            "在保留行中有 1 个",
         ),
         (
             b"x,y,err\n1,2,0.1\n2,4,-0.2\n3,6,0.3\n",
             {"y_error_column": "err"},
-            "1 retained row",
+            "在保留行中有 1 个",
         ),
         (
             b"x,y,err\n1,2,0.1\n2,4,\n3,6,0.3\n",
             {"y_error_column": "err"},
-            "1 retained row",
+            "在保留行中有 1 个",
         ),
         (
             b"x,y,err\n1,2,0.1\n2,4,0.2\n3,6,0.3\n",
             {"y_error_column": ""},
-            "blank",
+            "不能为空",
         ),
         (
             b"x,y,err\n1,2,0.1\n2,4,0.2\n3,6,0.3\n",
             {"y_error_column": "   "},
-            "blank",
+            "不能为空",
         ),
         (
             b"x,y,err\n1,2,0.1\n2,4,0.2\n3,6,0.3\n",
             {"y_error_unit": ""},
-            "requires",
+            "必须同时指定",
         ),
         (
             b"x,y,err\n1,2,0.1\n2,4,0.2\n3,6,0.3\n",
             {"y_error_column": "x"},
-            "differ",
+            "必须不同",
         ),
         (
             b"x,y,err\n1,2,0.1\n2,4,0.2\n3,6,0.3\n",
             {"y_error_column": "y"},
-            "differ",
+            "必须不同",
         ),
         (
             b"x,y,err\n1,2,0.1\n2,4,0.2\n3,6,0.3\n",
             {"y_error_unit": "mV"},
-            "requires",
+            "必须同时指定",
         ),
         (
             b"x,y,err\n1,2,0.1\n2,4,0.2\n3,6,0.3\n",
@@ -526,7 +524,7 @@ def test_fit_weighted_validates_only_retained_x_y_rows() -> None:
         (
             b"x,y,err\n1,2,1e-200\n2,4,0.2\n3,6,0.3\n",
             {"y_error_column": "err"},
-            "1/sigma^2",
+            "1/σ²",
         ),
     ],
 )
@@ -541,13 +539,13 @@ def test_fit_rejects_invalid_y_error_inputs(
 def test_fit_rejects_explicit_blank_y_error_column_instead_of_falling_back() -> None:
     response = post_fit(WEIGHTED_CSV, degree="1", y_error_column="")
     assert response.status_code == 422
-    assert response.json()["detail"] == "Y error column must not be blank"
+    assert response.json()["detail"] == "Y 误差列不能为空"
 
 
 def test_fit_rejects_explicit_blank_y_error_unit_without_error_column() -> None:
     response = post_fit(WEIGHTED_CSV, degree="1", y_error_unit="")
     assert response.status_code == 422
-    assert response.json()["detail"] == "Y error unit requires a Y error column"
+    assert response.json()["detail"] == "填写 Y 误差单位时必须同时指定 Y 误差列"
 
 
 def test_fit_treats_blank_y_error_unit_as_null_when_error_column_is_valid() -> None:
@@ -578,11 +576,11 @@ def test_fit_reduced_chi_squared_warning_thresholds(
     assert response.status_code == 200
     body = response.json()
     chi_warnings = [
-        warning for warning in body["warnings"] if warning.startswith("Reduced chi-squared")
+        warning for warning in body["warnings"] if warning.startswith("约化 χ²")
     ]
     if expect_warning:
         assert len(chi_warnings) == 1
-        assert "supplied Y errors may be inconsistent" in chi_warnings[0]
+        assert "Y 误差可能与拟合残差不一致" in chi_warnings[0]
     else:
         assert chi_warnings == []
     assert "NaN" not in response.text

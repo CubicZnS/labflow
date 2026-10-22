@@ -87,7 +87,7 @@ def _validate_field_counts(data: bytes) -> None:
     try:
         text = data.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
-        raise DatasetImportError(f"Malformed CSV: {exc}", status_code=422) from exc
+        raise DatasetImportError(f"CSV 格式错误：{exc}", status_code=422) from exc
 
     reader = csv.reader(io.StringIO(text, newline=""))
     expected: int | None = None
@@ -100,12 +100,12 @@ def _validate_field_counts(data: bytes) -> None:
                 continue
             if len(record) != expected:
                 raise DatasetImportError(
-                    f"Malformed CSV: row {reader.line_num} has {len(record)} field(s) "
-                    f"but the header has {expected}",
+                    f"CSV 格式错误：第 {reader.line_num} 行有 {len(record)} 个字段，"
+                    f"但表头有 {expected} 个",
                     status_code=422,
                 )
     except csv.Error as exc:
-        raise DatasetImportError(f"Malformed CSV: {exc}", status_code=422) from exc
+        raise DatasetImportError(f"CSV 格式错误：{exc}", status_code=422) from exc
 
 
 def _collect_warnings(frame: pd.DataFrame) -> list[str]:
@@ -116,11 +116,11 @@ def _collect_warnings(frame: pd.DataFrame) -> list[str]:
     for column in frame.columns:
         missing = int(missing_counts[column])
         if missing > 0:
-            warnings.append(f"Column '{column}' has {missing} missing value(s)")
+            warnings.append(f"列“{column}”有 {missing} 个缺失值")
 
     duplicate_rows = int(frame.duplicated().sum())
     if duplicate_rows > 0:
-        warnings.append(f"Dataset contains {duplicate_rows} duplicate row(s)")
+        warnings.append(f"数据集包含 {duplicate_rows} 个重复行")
 
     for column in frame.columns:
         series = frame[column]
@@ -135,7 +135,7 @@ def _build_payload(
 ) -> dict[str, Any]:
     """Shared validation, warnings, statistics, and preview for every format."""
     if frame.empty:
-        raise DatasetImportError(f"{format_label} contains no data rows", status_code=422)
+        raise DatasetImportError(f"{format_label} 文件不含数据行", status_code=422)
 
     columns = [str(column) for column in frame.columns]
 
@@ -171,10 +171,10 @@ def _build_payload(
 def load_csv_frame(data: bytes) -> tuple[pd.DataFrame, list[str]]:
     """Validate raw CSV bytes and return the parsed frame plus parser warnings."""
     if not data or not data.strip():
-        raise DatasetImportError("CSV file is empty", status_code=400)
+        raise DatasetImportError("CSV 文件为空", status_code=400)
     if len(data) > MAX_UPLOAD_BYTES:
         raise DatasetImportError(
-            f"CSV file exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
+            f"CSV 文件超过 {MAX_UPLOAD_BYTES // (1024 * 1024)} MB 上限",
             status_code=413,
         )
 
@@ -183,7 +183,7 @@ def load_csv_frame(data: bytes) -> tuple[pd.DataFrame, list[str]]:
     try:
         frame = pd.read_csv(io.BytesIO(data), encoding="utf-8-sig", index_col=False)
     except (pd.errors.EmptyDataError, pd.errors.ParserError, UnicodeDecodeError, ValueError) as exc:
-        raise DatasetImportError(f"Malformed CSV: {exc}", status_code=422) from exc
+        raise DatasetImportError(f"CSV 格式错误：{exc}", status_code=422) from exc
 
     return frame, []
 
@@ -237,12 +237,12 @@ def _read_xlsx_rows(data: bytes) -> tuple[list[str], list[list[Any]]]:
         TypeError,
         ValueError,
     ) as exc:
-        raise DatasetImportError(f"Malformed XLSX: {exc}", status_code=422) from exc
+        raise DatasetImportError(f"XLSX 格式错误：{exc}", status_code=422) from exc
 
     try:
         sheet_names = list(workbook.sheetnames)
         if not sheet_names:
-            raise DatasetImportError("XLSX workbook contains no worksheets", status_code=422)
+            raise DatasetImportError("XLSX 工作簿不含工作表", status_code=422)
         sheet = workbook[sheet_names[0]]
         rows = [list(row) for row in sheet.iter_rows(values_only=True)]
     finally:
@@ -263,7 +263,7 @@ def _xlsx_frame(sheet_name: str, rows: list[list[Any]]) -> pd.DataFrame:
         normalized.append(values)
     if not normalized or width == 0:
         raise DatasetImportError(
-            f"Worksheet '{sheet_name}' contains no data rows", status_code=422
+            f"工作表“{sheet_name}”不含数据行", status_code=422
         )
 
     header, *body = normalized
@@ -282,10 +282,10 @@ def _xlsx_frame(sheet_name: str, rows: list[list[Any]]) -> pd.DataFrame:
 def load_xlsx_frame(data: bytes) -> tuple[pd.DataFrame, list[str]]:
     """Validate raw XLSX bytes and return the first-sheet frame plus parser warnings."""
     if not data or not data.strip():
-        raise DatasetImportError("XLSX file is empty", status_code=400)
+        raise DatasetImportError("XLSX 文件为空", status_code=400)
     if len(data) > MAX_UPLOAD_BYTES:
         raise DatasetImportError(
-            f"XLSX file exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
+            f"XLSX 文件超过 {MAX_UPLOAD_BYTES // (1024 * 1024)} MB 上限",
             status_code=413,
         )
 
@@ -295,8 +295,8 @@ def load_xlsx_frame(data: bytes) -> tuple[pd.DataFrame, list[str]]:
     warnings: list[str] = []
     if len(sheet_names) > 1:
         warnings.append(
-            f"Workbook contains {len(sheet_names)} worksheets; "
-            f"imported the first worksheet '{sheet_names[0]}'"
+            f"工作簿包含 {len(sheet_names)} 个工作表；"
+            f"已导入第一个工作表“{sheet_names[0]}”"
         )
 
     return frame, warnings
@@ -320,7 +320,7 @@ def _describe_non_numeric(series: pd.Series, column: str, warnings: list[str]) -
     non_numeric = int(coerced.isna().sum())
     if non_numeric > 0 and non_numeric < len(present):
         warnings.append(
-            f"Column '{column}' has {non_numeric} non-numeric value(s) among numeric data"
+            f"列“{column}”在数值数据中有 {non_numeric} 个非数值"
         )
 
 
@@ -330,4 +330,4 @@ def _describe_non_finite(series: pd.Series, column: str, warnings: list[str]) ->
     values = series.dropna().to_numpy(dtype=float)
     non_finite = int((~np.isfinite(values)).sum())
     if non_finite > 0:
-        warnings.append(f"Column '{column}' has {non_finite} non-finite value(s)")
+        warnings.append(f"列“{column}”有 {non_finite} 个非有限值")

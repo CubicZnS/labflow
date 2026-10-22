@@ -19,11 +19,11 @@ CONDITION_NUMBER_LIMIT = 1e12
 def _float_array(values: Iterable[float], name: str) -> np.ndarray:
     array = np.asarray(list(values), dtype=float)
     if array.ndim != 1:
-        raise ValueError(f"{name} must be one-dimensional")
+        raise ValueError(f"{name} 必须是一维数据")
     if array.size == 0:
-        raise ValueError(f"{name} must not be empty")
+        raise ValueError(f"{name} 不能为空")
     if not np.all(np.isfinite(array)):
-        raise ValueError(f"{name} contains non-finite values")
+        raise ValueError(f"{name} 包含非有限值")
     return array
 
 
@@ -31,9 +31,9 @@ def _paired_arrays(x: Iterable[float], y: Iterable[float]) -> tuple[np.ndarray, 
     x_array = _float_array(x, "x")
     y_array = _float_array(y, "y")
     if x_array.size != y_array.size:
-        raise ValueError("x and y must have the same length")
+        raise ValueError("x 与 y 的长度必须相同")
     if x_array.size < 2:
-        raise ValueError("at least two data points are required")
+        raise ValueError("至少需要 2 个数据点")
     return x_array, y_array
 
 
@@ -155,13 +155,13 @@ def _error_weights(
     """Validate absolute Y errors and return them with their 1/sigma^2 weights."""
     errors = _float_array(y_errors, "y_errors")
     if errors.size != size:
-        raise ValueError("y_errors must have the same length as x and y")
+        raise ValueError("y_errors 的长度必须与 x、y 相同")
     if not np.all(errors > 0.0):
-        raise ValueError("y_errors must be strictly positive")
+        raise ValueError("y_errors 必须全部为正值")
     with np.errstate(divide="ignore", over="ignore", invalid="ignore"):
         weights = 1.0 / (errors**2)
     if not np.all(np.isfinite(weights)):
-        raise ValueError("y_errors are too small to yield finite 1/sigma^2 weights")
+        raise ValueError("y_errors 过小，无法得到有限的 1/σ² 权重")
     return errors, weights
 
 
@@ -181,7 +181,7 @@ def _weighted_least_squares(
     residuals = y_array - design @ coefficients
     chi_squared = float(np.sum(weights * residuals**2))
     if not math.isfinite(chi_squared):
-        raise ValueError("weighted fit produced a non-finite chi-squared")
+        raise ValueError("加权拟合得到非有限的 χ²")
     uncertainty = _fit_uncertainty(
         x_array, y_array, coefficients, degree, weights=weights
     )
@@ -194,7 +194,7 @@ def summary_stats(values: Iterable[float]) -> dict[str, float | int]:
     """Return n, mean, sample standard deviation, and standard error of the mean."""
     array = _float_array(values, "values")
     if array.size < 2:
-        raise ValueError("at least two values are required for a sample standard deviation")
+        raise ValueError("计算样本标准差至少需要 2 个值")
     mean = float(np.mean(array))
     std = float(np.std(array, ddof=1))
     sem = std / math.sqrt(array.size)
@@ -215,7 +215,7 @@ def linear_fit(
     """
     x_array, y_array = _paired_arrays(x, y)
     if float(np.ptp(x_array)) == 0.0:
-        raise ValueError("x values must vary to fit a line")
+        raise ValueError("X 值必须有变化才能进行线性拟合")
     if y_errors is None:
         slope, intercept = np.polyfit(x_array, y_array, 1)
         coefficients = np.asarray([slope, intercept])
@@ -257,12 +257,12 @@ def polynomial_fit(
     unchanged.
     """
     if degree not in (2, 3):
-        raise ValueError("degree must be 2 or 3")
+        raise ValueError("多项式拟合次数必须是 2 或 3")
     x_array, y_array = _paired_arrays(x, y)
     if x_array.size <= degree:
-        raise ValueError(f"degree {degree} requires more than {degree} data points")
+        raise ValueError(f"{degree} 次拟合需要多于 {degree} 个数据点")
     if float(np.ptp(x_array)) == 0.0:
-        raise ValueError("x values must vary to fit a polynomial")
+        raise ValueError("X 值必须有变化才能进行多项式拟合")
     if y_errors is None:
         coefficients = np.polyfit(x_array, y_array, degree)
         uncertainty = _fit_uncertainty(x_array, y_array, coefficients, int(degree))

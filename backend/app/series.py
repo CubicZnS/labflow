@@ -33,10 +33,10 @@ def load_series_frame(format_label: str, data: bytes) -> tuple[pd.DataFrame, lis
         label = "XLSX"
     else:
         raise DatasetImportError(
-            f"Unsupported format '{format_label}'; use 'csv' or 'xlsx'", status_code=422
+            f"不支持的文件格式“{format_label}”；请使用 csv 或 xlsx", status_code=422
         )
     if frame.empty:
-        raise DatasetImportError(f"{label} contains no data rows", status_code=422)
+        raise DatasetImportError(f"{label} 文件不含数据行", status_code=422)
     return frame, warnings
 
 
@@ -70,7 +70,7 @@ def normalize_unit(value: str | None, axis: str) -> str | None:
         return None
     if len(trimmed) > MAX_UNIT_LENGTH:
         raise DatasetImportError(
-            f"{axis} unit must be {MAX_UNIT_LENGTH} characters or fewer", status_code=422
+            f"{axis} 单位不得超过 {MAX_UNIT_LENGTH} 个字符", status_code=422
         )
     return trimmed
 
@@ -92,11 +92,11 @@ def resolve_numeric_column(frame: pd.DataFrame, column: str, axis: str) -> str:
     """Validate that a column exists and is numeric under the shared detection rules."""
     if column not in frame.columns:
         raise DatasetImportError(
-            f"{axis} column '{column}' was not found in the dataset", status_code=422
+            f"数据集中找不到 {axis} 列“{column}”", status_code=422
         )
     if not _is_numeric_detectable(frame[column]):
         raise DatasetImportError(
-            f"{axis} column '{column}' is not numeric", status_code=422
+            f"{axis} 列“{column}”不是数值列", status_code=422
         )
     return column
 
@@ -123,7 +123,7 @@ def build_series(
     """Build the paired series payload from an already-parsed dataset frame."""
     if x_column == y_column:
         raise DatasetImportError(
-            f"X and Y columns must differ; both are '{x_column}'", status_code=422
+            f"X 列与 Y 列必须不同；当前均为“{x_column}”", status_code=422
         )
 
     resolved_x = resolve_numeric_column(frame, x_column, "X")
@@ -139,7 +139,7 @@ def build_series(
     pair_count = int(x_paired.size)
     if pair_count < 2:
         raise DatasetImportError(
-            "At least two valid X/Y pairs are required", status_code=422
+            "至少需要 2 个有效的 X/Y 配对点", status_code=422
         )
 
     pairs = [
@@ -152,8 +152,7 @@ def build_series(
     warnings.extend(_collect_warnings(frame))
     if skipped_count > 0:
         warnings.append(
-            f"Pairing skipped {skipped_count} row(s) with missing, non-numeric, "
-            "or non-finite values"
+            f"配对时跳过了 {skipped_count} 行含缺失、非数值或非有限值的数据"
         )
 
     return {

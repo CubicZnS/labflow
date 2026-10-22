@@ -94,8 +94,8 @@ def test_csv_import_warns_about_missing_and_duplicate_rows() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["row_count"] == 3
-    assert any("missing" in warning for warning in body["warnings"])
-    assert any("duplicate" in warning for warning in body["warnings"])
+    assert any("缺失值" in warning for warning in body["warnings"])
+    assert any("重复行" in warning for warning in body["warnings"])
     assert body["preview"][2] == {"sample": "B", "value": None}
 
 
@@ -104,25 +104,31 @@ def test_csv_import_warns_about_non_numeric_values_in_numeric_column() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["numeric_columns"] == []
-    assert any("non-numeric" in warning for warning in body["warnings"])
+    assert any("非数值" in warning for warning in body["warnings"])
 
 
 def test_csv_import_rejects_empty_file() -> None:
     response = upload(b"")
     assert response.status_code == 400
-    assert "empty" in response.json()["detail"].lower()
+    assert "文件为空" in response.json()["detail"]
+
+
+def test_csv_import_rejects_oversize_upload() -> None:
+    response = upload(b"a,b\n" + b"1,2\n" * (3 * 1024 * 1024))
+    assert response.status_code == 413
+    assert response.json()["detail"] == "CSV 文件超过 10 MB 上限"
 
 
 def test_csv_import_rejects_header_only_file() -> None:
     response = upload(b"a,b\n")
     assert response.status_code == 422
-    assert "no data rows" in response.json()["detail"].lower()
+    assert "不含数据行" in response.json()["detail"]
 
 
 def test_csv_import_rejects_malformed_csv() -> None:
     response = upload(b'a,b\n1,2\n3,"4\n')
     assert response.status_code == 422
-    assert "malformed" in response.json()["detail"].lower()
+    assert "格式错误" in response.json()["detail"]
 
 
 @pytest.mark.parametrize(
@@ -140,8 +146,8 @@ def test_csv_import_rejects_ragged_rows(content: bytes) -> None:
     response = upload(content)
     assert response.status_code == 422
     detail = response.json()["detail"].lower()
-    assert "malformed csv" in detail
-    assert "field" in detail
+    assert "csv 格式错误" in detail
+    assert "字段" in detail
 
 
 def test_csv_import_accepts_quoted_commas_and_newlines() -> None:
@@ -159,7 +165,7 @@ def test_csv_import_accepts_quoted_commas_and_newlines() -> None:
 def test_csv_import_rejects_unsupported_content_type() -> None:
     response = upload(b"a,b\n1,2\n", content_type="application/pdf")
     assert response.status_code == 415
-    assert "unsupported content type" in response.json()["detail"].lower()
+    assert "不支持的内容类型" in response.json()["detail"]
 
 
 def test_csv_import_accepts_utf8_bom() -> None:
@@ -180,7 +186,7 @@ def test_csv_import_preview_serializes_non_finite_values_as_null() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["preview"][0] == {"x": 1, "y": None}
-    assert any("non-finite" in warning for warning in body["warnings"])
+    assert any("非有限值" in warning for warning in body["warnings"])
 
 
 @pytest.mark.parametrize("content_type", ["text/csv; charset=utf-8", "text/plain"])
@@ -314,9 +320,9 @@ def test_xlsx_warns_about_missing_duplicate_and_mixed_numeric_values() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["row_count"] == 5
-    assert any("missing" in warning for warning in body["warnings"])
-    assert any("duplicate" in warning for warning in body["warnings"])
-    assert any("non-numeric" in warning for warning in body["warnings"])
+    assert any("缺失值" in warning for warning in body["warnings"])
+    assert any("重复行" in warning for warning in body["warnings"])
+    assert any("非数值" in warning for warning in body["warnings"])
     assert body["numeric_columns"] == []
 
 
@@ -329,7 +335,7 @@ def test_xlsx_warns_about_and_excludes_non_finite_values() -> None:
     response = upload_xlsx(content)
     assert response.status_code == 200
     body = response.json()
-    assert any("non-finite" in warning for warning in body["warnings"])
+    assert any("非有限值" in warning for warning in body["warnings"])
     assert body["preview"][0]["y"] is None
     stats = body["column_stats"]["y"]
     assert stats["n"] == 2
@@ -365,7 +371,7 @@ def test_xlsx_multi_sheet_imports_sheet_one_with_exactly_one_warning() -> None:
     assert body["columns"] == ["time", "value"]
     assert all("other" not in column for column in body["columns"])
     multi_sheet_warnings = [
-        warning for warning in body["warnings"] if "worksheet" in warning.lower()
+        warning for warning in body["warnings"] if "工作表" in warning
     ]
     assert len(multi_sheet_warnings) == 1
     assert "Sheet1" in multi_sheet_warnings[0]
@@ -376,25 +382,39 @@ def test_xlsx_rejects_empty_first_worksheet_even_with_other_sheets() -> None:
     content = build_xlsx([], {"Sheet2": [["x"], [1]]})
     response = upload_xlsx(content)
     assert response.status_code == 422
-    assert "no data rows" in response.json()["detail"].lower()
+    assert "不含数据行" in response.json()["detail"]
 
 
 def test_xlsx_rejects_header_only_worksheet() -> None:
     response = upload_xlsx(build_xlsx([["a", "b"]]))
     assert response.status_code == 422
-    assert "no data rows" in response.json()["detail"].lower()
+    assert "不含数据行" in response.json()["detail"]
 
 
 def test_xlsx_rejects_empty_upload() -> None:
     response = upload_xlsx(b"")
     assert response.status_code == 400
-    assert "empty" in response.json()["detail"].lower()
+    assert "文件为空" in response.json()["detail"]
 
 
 def test_xlsx_rejects_oversize_upload() -> None:
     response = upload_xlsx(b"PK" + b"0" * (10 * 1024 * 1024))
     assert response.status_code == 413
-    assert "limit" in response.json()["detail"].lower()
+    assert "上限" in response.json()["detail"]
+
+
+def test_xlsx_rejects_workbook_without_worksheets(monkeypatch: pytest.MonkeyPatch) -> None:
+    class EmptyWorkbook:
+        def __init__(self) -> None:
+            self.sheetnames: list[str] = []
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("app.datasets.load_workbook", lambda *args, **kwargs: EmptyWorkbook())
+    response = upload_xlsx(b"PK\x03\x04placeholder")
+    assert response.status_code == 422
+    assert response.json()["detail"] == "XLSX 工作簿不含工作表"
 
 
 def test_xlsx_rejects_corrupt_payload() -> None:
@@ -409,7 +429,7 @@ def test_xlsx_rejects_unsupported_content_type() -> None:
     content = build_xlsx([["a", "b"], [1, 2]])
     response = upload_xlsx(content, content_type="text/csv")
     assert response.status_code == 415
-    assert "unsupported content type" in response.json()["detail"].lower()
+    assert "不支持的内容类型" in response.json()["detail"]
 
 
 def test_xlsx_accepts_octet_stream() -> None:
