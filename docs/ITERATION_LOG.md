@@ -1020,3 +1020,14 @@ git log --oneline --decorate dev
 - Lead 本次独立复核：整轮只改 README、检查清单、迭代日志三份文档；README 中文状态、限制、下一轮及 #21 四字段版本表完整。`ls-remote` 返回候选与合并完整 SHA，GitHub API 对合并 SHA 返回一致。main 仍为 `7b3c2f1153eb561241ba33fa74e06953e552e63e`。
 - 本次新运行门禁（2026-10-22 23:14–23:15 Asia/Shanghai）：backend 指定 `.venv/bin/python -m pytest -q` 退出 0，157 项（72+72+13）；ruff 退出 0；frontend 指定 pnpm 的 typecheck、test:run（174 项）、build 全部退出 0。既有 Starlette/httpx、RankWarning、React key 警告仍在；不是新的浏览器测试。
 - 下一步：由独立 QA 追加只读核验本次真实合并与记录提交；记录提交 SHA 由任务交付提供，避免自引用。下一轮只选 T10 离线恢复验证，不与 T09 或其他浏览器扩展并行；Phase 4 MVP、人工矩阵与外部验收仍未完成。
+
+
+## 迭代 #22：T10 离线失败与重试恢复实测（待独立审查）
+
+- 真实目标：仅验证 Phase 4.4b T10，不改产品代码、依赖、CI或配置；分支 `iter/22`，基线及已存在提交 [70bf3bf489a443e0366932cfa505dae928a7ef11](https://github.com/CubicZnS/labflow/commit/70bf3bf489a443e0366932cfa505dae928a7ef11)。本轮最终 SHA 在 MAC-104 提交后交付，避免自引用。
+- 执行：2026-10-23 00:03–00:04 Asia/Shanghai，真实Firefox158.0.1 headless + Selenium Remote/BiDi、macOS27.0.1；独立5174前端持续运行，只停止/恢复本轮8001后端，已有服务未触碰。重跑纠正临时启动器工作目录导致的缺样式；未发现需要产品代码修复的问题。
+- 结果：刷新离线提示、重试检查中禁用、失败可重试、上传无假成功；恢复后重导6行合成CSV，5点配对，一次拟合y=2x+1/R²=1；只阻断示例GET，中文失败、项目文本/SVG保留，解除后GET/解析均200。详细逐项证据见浏览器清单#22。
+- [MAC-104 证据 ZIP](/api/attachments/3519ad83-07ce-4460-961f-8d5247366912/content?download=1)，附件 ID `3519ad83-07ce-4460-961f-8d5247366912`，1,550,249 字节，SHA-256 `e63f1e50accf6d9f933030982a81a7ff7f8be4d6cb6c39706c9e8fe2e1c33fa1`。上传后已回下载：ZIP 哈希一致，manifest 的 48 项路径、字节数与 SHA256 逐项通过，ZIP 无额外未列载荷（manifest 自身不自引用）。
+- 门禁：backend指定python pytest退出0（157项），ruff退出0；frontend指定pnpm typecheck、test:run（174项）、build均退出0；git diff --check退出0。既有Starlette/httpx弃用、NumPy RankWarning、React key警告仍在，未修改。日志在ZIP；最初一次测试命令在backend目录多写backend前缀退出127，已按正确指定命令重跑成功。
+- 边界：Vite把连接拒绝转为500；BiDi暂挂只用来观察pending时禁用，不是实现超时。仅合成数据；无离线分析、无限pending恢复保证；非完整控制台审计，非人工验收。T09、其他浏览器/人工矩阵/外部验收未完成，Phase4 MVP未完成。
+- 交付：仅README、浏览器清单、迭代日志、路线图四份文档；中文提交及远端SHA核验后交Lead独立审查，另建QA，QA PASS后才允许Lead合并。下一轮由Lead选择T09或其他浏览器，禁止本轮自行扩展。

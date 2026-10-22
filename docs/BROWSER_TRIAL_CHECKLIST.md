@@ -189,10 +189,29 @@ PY
 
 页面标题与 URL 正确、非空，无 Vite 错误覆盖层；注入的 `error/unhandledrejection` 记录为空。这只覆盖页面运行时异常，不等于完整浏览器控制台、可访问性或响应式审计。首页“后端校验错误文案中文化”仍列为剩余工作及“导出数据”措辞已有静态记录，本轮不修产品文案。
 
-边界：T09/T10 未执行；Chrome、Safari 未实测；Firefox 有头人工测试、三浏览器人工矩阵、外部用户验收未完成。没有证明所有浏览器立即回收 object URL 均可靠，也未测超时/离线失败路径。下一轮由 Lead 选择补齐这些范围；本轮不标 Phase 4 MVP 完成。
+迭代 #21 当时边界：T09/T10 未执行（T10 后续见 #22）；Chrome、Safari 未实测；Firefox 有头人工测试、三浏览器人工矩阵、外部用户验收未完成。没有证明所有浏览器立即回收 object URL 均可靠，也未测超时/离线失败路径。下一轮由 Lead 选择补齐这些范围；本轮不标 Phase 4 MVP 完成。
 
 - QA 修复：旧附件 `cedead60-5b9c-426e-9daf-9039670c273f`（SHA-256 `833fc9d358ddbeb7ddba3e125011864a66669b63890db28423b4b6ec9e7606c5`）明确作废。新附件 [MAC-100 闭合证据包](/api/attachments/0cfdbd50-a2ce-44b6-a377-a564054faf8a/content?download=1)，SHA-256 `e256156cada09c7d0b6549930816898c40a05af9e708b69e4cff508252d30b1a`；上传后重新下载核验，102 个载荷文件的存在性、字节数和 SHA-256 全部一致，manifest 自身不列入校验表。路径相对 `iter21/manifest.json` 所在目录，`../scripts/` 和 `../iter21-*.log` 指向包内同级脚本及日志；删除原清单中 4 条不存在记录，补入原包中 5 个未列脚本/日志，不补造失败证据。
 - 署名处理：旧提交 `2c8cf5c`、`b94d698` 原样保留；新增中文修复提交，最终 HEAD 正文末尾包含 `Co-Authored-By: Paperclip <noreply@paperclip.ing>`，不重写历史、不 force push。若 QA 要求修改旧提交署名，须升级给 Lead/用户决定。
 - 最终交付：[iter/21 最终 HEAD](https://github.com/CubicZnS/labflow/commits/iter/21)；实际推送时间、不可变最终 SHA 与 GitHub commit 链接在 MAC-100 和 MAC-99 交付评论记录（提交内无法自引用自身 SHA）。本次仅文档/附件修复，运行 `git diff --check`、附件闭合校验、远端 SHA 与 GitHub API 核验；产品门禁沿用上轮记录，未重跑。交回 QA 复验，不宣布 PASS、不合并。
 
 - QA 清单与署名修复提交：[720f425c44beb2613afffda063dbfab94532692a](https://github.com/CubicZnS/labflow/commit/720f425c44beb2613afffda063dbfab94532692a)；推送时间：2026-10-22 23:01:07 Asia/Shanghai。
+
+## 迭代 #22：T10 离线失败与重试恢复实测
+
+- 目标路径：首页健康连接 → 停止本轮后端 → 刷新/重试/上传失败 → 恢复后端 → 健康重试 → 重导合成 CSV、配对、拟合 → 单独阻断示例 GET → 保留结果 → 解除后重试。
+- 环境：2026-10-23 00:03–00:04 Asia/Shanghai；Mozilla Firefox 158.0.1，buildID 20261019185856；macOS 27.0.1 (26A434)；geckodriver 0.37.1、Selenium 4.51.0；Remote headless + WebDriver BiDi，1440×1000 外窗、1440×915 内容区域，非人工试用。Browser plugin not available，沿用宿主真实 Firefox，不安装浏览器依赖或付费服务。
+- URL http://127.0.0.1:5174/，标题“LabFlow · 科研数据分析”，页面非空；截图无 Vite 覆盖层。临时启动器从 frontend 工作目录运行，使用原 Vite 配置并在进程内覆盖代理至8001，不改仓库配置。已有8000/5173进程未停止。本轮仅停止自行创建的8001进程；前端始终运行至流程结束。首次临时启动目录错误造成 Tailwind 缺样式，纠正后全流程重跑，当前证据为重跑；属测试准备问题，无产品修复。
+
+| 逐项检查 | 实际观察 | 证据 |
+|---|---|---|
+| 停后端、刷新 | 8001直接探测 Errno 61 Connection refused；Vite 代理返回500；API 未连接及中文启动提示 | network-actions.json、frontend.log、T10-refreshed-offline.* |
+| 重试中及失败 | BiDi 只暂挂健康 GET 以观察“正在检查 API”和 disabled；释放后真实500，恢复可点；没有假成功 | T10-checking-controlled-pending.*、T10-retry-failed.* |
+| 离线上传 | CSV POST500，中文上传失败；无列选择/配对入口，不能继续配对 | T10-upload-failed.* |
+| 后端恢复 | 健康200、提示消失；CSV200六行，配对200五点/跳过一行，拟合200，y=2x+1、R²=1，数值容差1e-10 | T10-analysis-recovered.*、verify.py/log |
+| 仅示例GET阻断 | BiDi failRequest 精确匹配 /samples/labflow-demo.csv；中文网络失败，未触发解析POST；项目区文本与所有SVG前后相同 | T10-sample-blocked.*、assertions.json、network-actions.json |
+| 解除阻断重试 | 移除拦截后示例GET200、CSV POST200，失败提示消失 | T10-sample-recovered.* |
+
+[MAC-104 证据 ZIP](/api/attachments/3519ad83-07ce-4460-961f-8d5247366912/content?download=1)，附件 ID `3519ad83-07ce-4460-961f-8d5247366912`，1,550,249 字节，SHA-256 `e63f1e50accf6d9f933030982a81a7ff7f8be4d6cb6c39706c9e8fe2e1c33fa1`。上传后已回下载：ZIP 哈希一致，manifest 的 48 项路径、字节数与 SHA256 逐项通过，ZIP 无额外未列载荷（manifest 自身不自引用）。
+
+证据中页面 error/unhandledrejection 数组为空，仅是运行时异常监听，不代表完整浏览器控制台审计；预期网络500/阻断已单独记录。此次为 T10 单浏览器自动化实测断言通过，独立 Lead/QA 尚待审查，不宣称产品 QA PASS。没有实现或验证请求超时、无限 pending 的自动恢复、离线分析。T09、Chrome/Safari、Firefox 有头人工矩阵与外部验收仍未完成，Phase 4 MVP 尚未完成。
