@@ -167,4 +167,4 @@ Until real data exists, metrics are reported as `暂无数据`; assumptions are 
 
 ## 迭代 #22 实际状态（2026-10-23 Asia/Shanghai）
 
-Phase 4.4b 的 T10 已完成 Firefox 158.0.1 headless + Selenium Remote/BiDi 自动化实测：后端停止后的中文失败/重试状态、恢复重导配对拟合，以及单独阻断示例 GET 时结果保留/解除重试。证据与边界见 [浏览器清单](BROWSER_TRIAL_CHECKLIST.md#迭代-22t10-离线失败与重试恢复实测)。待 Lead 独立审查及独立 QA，不宣称产品 QA PASS。T09、Chrome/Safari、Firefox 有头人工矩阵与真实外部验收仍待执行，Phase 4 MVP 未完成。无离线分析或请求超时能力承诺；下一轮由 Lead 只选一个未完成项。
+Phase 4.4b 的 T10 已完成 Firefox 158.0.1 headless + Selenium Remote/BiDi 自动化实测：后端停止后的中文失败/重试状态、恢复重导配对拟合，以及单独阻断示例 GET 时结果保留/解除重试。证据与边界见 [浏览器清单](BROWSER_TRIAL_CHECKLIST.md#迭代-22t10-离线失败与重试恢复实测)。Lead 独立审查及 MAC-105/MAC-106 独立 QA 已 PASS，已合并 dev；此结论仅覆盖本轮 T10 证据和文档。T09、Chrome/Safari、Firefox 有头人工矩阵与真实外部验收仍待执行，Phase 4 MVP 未完成。无离线分析或请求超时能力承诺；下一轮由 Lead 只选一个未完成项。

@@ -1031,3 +1031,12 @@ git log --oneline --decorate dev
 - 门禁：backend指定python pytest退出0（157项），ruff退出0；frontend指定pnpm typecheck、test:run（174项）、build均退出0；git diff --check退出0。既有Starlette/httpx弃用、NumPy RankWarning、React key警告仍在，未修改。日志在ZIP；最初一次测试命令在backend目录多写backend前缀退出127，已按正确指定命令重跑成功。
 - 边界：Vite把连接拒绝转为500；BiDi暂挂只用来观察pending时禁用，不是实现超时。仅合成数据；无离线分析、无限pending恢复保证；非完整控制台审计，非人工验收。T09、其他浏览器/人工矩阵/外部验收未完成，Phase4 MVP未完成。
 - 交付：仅README、浏览器清单、迭代日志、路线图四份文档；中文提交及远端SHA核验后交Lead独立审查，另建QA，QA PASS后才允许Lead合并。下一轮由Lead选择T09或其他浏览器，禁止本轮自行扩展。
+
+### 迭代 #22 独立验收与合并收尾
+
+- Lead 已独立审查四份授权文档差异、中文 README 版本表、证据边界及远端候选；未发现阻断。
+- 独立 QA：[MAC-105](/MAC/issues/MAC-105) PASS；Lead 审查后另建 [MAC-106](/MAC/issues/MAC-106)，固定候选确认 PASS。复用 QA 实际运行的后端 157 项/ruff、前端 typecheck/174 项/build 全部退出 0 结果；本次未重复运行门禁或浏览器。
+- 最终候选：`1cae12f4b13cc307173511e6fe200c8d18527f1a`，https://github.com/CubicZnS/labflow/commit/1cae12f4b13cc307173511e6fe200c8d18527f1a ，分支 `iter/22`。
+- 合并提交：`3f1c20b0c272d59e634a23cb3171f4a9832023ea`，https://github.com/CubicZnS/labflow/commit/3f1c20b0c272d59e634a23cb3171f4a9832023ea ，已推送 dev；ls-remote 与 GitHub API 均核验一致。main 仍为 `7b3c2f1153eb561241ba33fa74e06953e552e63e`，无历史改写。
+- 本记录提交同步 README 与路线图当前集成状态；中文合并/记录提交及真实远端 SHA 交独立 QA 追加只读检查，记录提交自身 SHA 在任务交付提供，不虚构自引用。
+- 已知边界仍为单浏览器自动化 T10；T09、其他浏览器、人工矩阵及外部验收未完成，Phase 4 MVP 未完成。下一轮优先只补 T09，不与其他浏览器或产品功能并行。
