@@ -976,5 +976,5 @@ git log --oneline --decorate dev
 - 静态对照证据：SeriesPanel.tsx 的 mainResult 仅来自 seriesState success（约 164 行），项目区条件为 success/opening/rerunning/projectError（约 705 行），canOpenProject 要求无 busy/loading（约 168 行）；CsvImportPanel.tsx 重导后重新挂载 SeriesPanel。因此先成功配对才能首次看到项目入口，打开后仍由快照重跑；拒绝指纹请求的网络观察从该前置配对完成后开始。
 - 实际检查：用 Python 解析 README 的连续 Markdown 管道表块，确认 #19/#20 为同一版本表内相邻行，表头及 #20 均为四字段；逐项核对重导后的全部项目操作，并运行 git diff --check。均通过；不是浏览器实测。
 - 完整门禁复用：候选 `9e2c6d10b71a2e79cd79087702273ea79fa7d73e` 的已完成检查（本 Dev 上轮实际运行；MAC-85 描述亦记录 Lead 独立运行）：backend pytest -q 157 项与 ruff、frontend typecheck/test:run 174 项/build 通过。本次纯文档修复未重复运行，未宣称新运行；候选后产品代码、依赖、CI、配置无变更。
-- 修复真实 SHA/链接及实际 Asia/Shanghai 推送时间：提交推送核验后记录在 MAC-84 交付评论，不虚构自引用 SHA。
+- 修复真实提交：`8aee65eaa1a7eb4bd35acc5462f5eff1e474a8de`，https://github.com/CubicZnS/labflow/commit/8aee65eaa1a7eb4bd35acc5462f5eff1e474a8de ；实际推送完成时间 2026-10-22 11:55:34 Asia/Shanghai。ls-remote 与 gh api 均核验一致。本记录提交仅补记已存在的修复证据，最终记录提交 SHA 在 MAC-84 交付评论记录。
 - 仍待 Lead 另建独立复验；产品尚未通过，禁止合并。Chrome/Safari/Firefox 人工矩阵及外部验收继续待执行。
