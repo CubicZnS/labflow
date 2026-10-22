@@ -1070,3 +1070,5 @@ git log --oneline --decorate dev
 - 实测：真实Firefox158.0.1/macOS27.0.1，BiDi内容视口320/768/1280×915；修复前页面宽773/785/1280，修复后320/768/1280。每档上传合成CSV→配对→拟合，控件水平边界全部在视口、长表内部横滚；实际项目v2保存/注入重开、SVG640×360、PNG1280×720；数值y=2x+1保持。可复跑浏览器断言脚本与前后截图交附件，不以JSDOM冒充布局。
 - 门禁：backend pytest157项/ruff、frontend typecheck/174项test:run/build全部退出0；git diff --check通过。原有弃用/RankWarning/React key警告保留。附件98载荷已回下载核验路径/大小/SHA256闭合，详见[浏览器清单](BROWSER_TRIAL_CHECKLIST.md#迭代-24修复320px页面溢出)。
 - 已知边界与下一轮：仅本轮布局自动化通过，Lead独立审查及另建QA待执行；键盘激活、焦点遮挡、200%缩放、人工矩阵/其他浏览器/外部验收仍待单独收敛。T09整体与MVP未完成。不合并、不创建QA、不写父任务。
+
+- 本轮功能提交已真实推送：[656952914ae61a9d6c57d6e3d74624ce03c9c30b](https://github.com/CubicZnS/labflow/commit/656952914ae61a9d6c57d6e3d74624ce03c9c30b)；实际完成推送时间2026-10-23 02:05:59 Asia/Shanghai。`git ls-remote origin refs/heads/iter/24`与`/Users/zhangzimo/.local/bin/gh api repos/CubicZnS/labflow/commits/iter%2F24 --jq .sha`均返回上述完整SHA。本次补记只修改README实际时间与本日志，`git diff --check`通过；产品五项门禁与浏览器证据沿用该功能提交的真实执行结果。最终文档补记HEAD由任务交付报告提供，不自引用。
