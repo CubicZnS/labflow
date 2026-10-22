@@ -39,12 +39,12 @@ def test_summary_stats_known_values() -> None:
 
 
 def test_summary_stats_requires_two_values() -> None:
-    with pytest.raises(ValueError, match="at least two"):
+    with pytest.raises(ValueError, match="至少需要 2 个值"):
         summary_stats([1.0])
 
 
 def test_summary_stats_rejects_non_finite() -> None:
-    with pytest.raises(ValueError, match="non-finite"):
+    with pytest.raises(ValueError, match="非有限值"):
         summary_stats([1.0, float("nan")])
 
 
@@ -60,12 +60,12 @@ def test_linear_fit_exact_line() -> None:
 
 
 def test_linear_fit_rejects_constant_x() -> None:
-    with pytest.raises(ValueError, match="x values must vary"):
+    with pytest.raises(ValueError, match="X 值必须有变化"):
         linear_fit([1.0, 1.0, 1.0], [1.0, 2.0, 3.0])
 
 
 def test_linear_fit_rejects_length_mismatch() -> None:
-    with pytest.raises(ValueError, match="same length"):
+    with pytest.raises(ValueError, match="长度必须相同"):
         linear_fit([1.0, 2.0, 3.0], [1.0, 2.0])
 
 
@@ -94,12 +94,12 @@ def test_cubic_fit_exact_cubic() -> None:
 
 
 def test_polynomial_rejects_degree_outside_supported_range() -> None:
-    with pytest.raises(ValueError, match="degree must be 2 or 3"):
+    with pytest.raises(ValueError, match="多项式拟合次数必须是 2 或 3"):
         polynomial_fit([0.0, 1.0, 2.0], [0.0, 1.0, 4.0], 1)
 
 
 def test_polynomial_requires_enough_points() -> None:
-    with pytest.raises(ValueError, match="requires more than"):
+    with pytest.raises(ValueError, match="需要多于"):
         polynomial_fit([0.0, 1.0, 2.0], [0.0, 1.0, 4.0], 3)
 
 def test_linear_uncertainty_matches_scipy_linregress() -> None:

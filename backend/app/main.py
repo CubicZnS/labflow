@@ -85,7 +85,7 @@ async def import_csv(file: Annotated[UploadFile, File()]) -> CsvImportResponse:
     if content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(
             status_code=415,
-            detail=f"Unsupported content type '{content_type or 'unknown'}'; upload a CSV file",
+            detail=f"不支持的内容类型“{content_type or 'unknown'}”；请上传 CSV 文件",
         )
     data = await file.read()
     await file.close()
@@ -102,7 +102,7 @@ async def import_xlsx(file: Annotated[UploadFile, File()]) -> CsvImportResponse:
     if content_type not in ALLOWED_XLSX_CONTENT_TYPES:
         raise HTTPException(
             status_code=415,
-            detail=f"Unsupported content type '{content_type or 'unknown'}'; upload an XLSX file",
+            detail=f"不支持的内容类型“{content_type or 'unknown'}”；请上传 XLSX 文件",
         )
     data = await file.read()
     await file.close()
@@ -126,7 +126,7 @@ async def import_series(
     if format_label not in SUPPORTED_SERIES_FORMATS:
         raise HTTPException(
             status_code=422,
-            detail=f"Unsupported format '{format}'; use 'csv' or 'xlsx'",
+            detail=f"不支持的文件格式“{format}”；请使用 csv 或 xlsx",
         )
 
     content_type = (file.content_type or "").split(";")[0].strip().lower()
@@ -139,8 +139,8 @@ async def import_series(
     if content_type not in allowed_types:
         raise HTTPException(
             status_code=415,
-            detail=f"Unsupported content type '{content_type or 'unknown'}'; "
-            f"upload a {expected} file",
+            detail=f"不支持的内容类型“{content_type or 'unknown'}”；"
+            f"请上传 {expected} 文件",
         )
 
     data = await file.read()
@@ -183,7 +183,7 @@ async def dataset_fit(
     if format_label not in SUPPORTED_SERIES_FORMATS:
         raise HTTPException(
             status_code=422,
-            detail=f"Unsupported format '{format}'; use 'csv' or 'xlsx'",
+            detail=f"不支持的文件格式“{format}”；请使用 csv 或 xlsx",
         )
 
     content_type = (file.content_type or "").split(";")[0].strip().lower()
@@ -196,8 +196,8 @@ async def dataset_fit(
     if content_type not in allowed_types:
         raise HTTPException(
             status_code=415,
-            detail=f"Unsupported content type '{content_type or 'unknown'}'; "
-            f"upload a {expected} file",
+            detail=f"不支持的内容类型“{content_type or 'unknown'}”；"
+            f"请上传 {expected} 文件",
         )
 
     data = await file.read()
