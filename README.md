@@ -48,6 +48,7 @@ LabFlow 是面向大学生、研究生、科研工作者和实验室的科研数
 | 迭代 #19 | 2026-10-22 10:03 | Phase 4.3b-2 后端用户可见校验错误与导入/配对/拟合警告文案中文化；状态码、响应字段与数值结果不变 | 无独立修复提交 |
 | 迭代 #20 | 2026-10-22 11:47 | 静态兼容性复核、中文浏览器矩阵与本地试用脚本（人工验证待执行） | 修复版本表断行、补足项目重开前的成功配对步骤 |
 | 迭代 #21 | 2026-10-22 22:44 | Firefox headless 实际工作流 T01–T08、SVG/三档 PNG 落盘打开、项目重开/迁移/指纹拒绝证据 | manifest 闭合重打包、附件替换及最终 HEAD 补署名 |
+| 迭代 #21 QA 修复 | 2026-10-22 23:01（实际完成时间见任务交付评论） | 保留旧提交，最终 HEAD 补记署名 | manifest 覆盖全部 102 个实际载荷，更新附件及校验值 |
 
 > 版本号当前使用迭代号（尚未打语义化 Git tag）；推送时间取该轮 README 更新提交的实际推送时间（Asia/Shanghai；迭代 #14 为 2026-10-22 05:06，迭代 #15 为 2026-10-22 06:03，迭代 #16 为 2026-10-22 07:03，迭代 #17 为 2026-10-22 08:04，迭代 #18 为 2026-10-22 09:04，迭代 #19 为 2026-10-22 10:03）。完整证据、commit SHA 和 GitHub 链接见 [迭代记录](docs/ITERATION_LOG.md)。
 
@@ -306,6 +307,4 @@ git show <SHA>
 - 署名处理：旧提交 `2c8cf5c`、`b94d698` 原样保留；新增中文修复提交，最终 HEAD 正文末尾包含 `Co-Authored-By: Paperclip <noreply@paperclip.ing>`，不重写历史、不 force push。若 QA 要求修改旧提交署名，须升级给 Lead/用户决定。
 - 最终交付：[iter/21 最终 HEAD](https://github.com/CubicZnS/labflow/commits/iter/21)；实际推送时间、不可变最终 SHA 与 GitHub commit 链接在 MAC-100 和 MAC-99 交付评论记录（提交内无法自引用自身 SHA）。本次仅文档/附件修复，运行 `git diff --check`、附件闭合校验、远端 SHA 与 GitHub API 核验；产品门禁沿用上轮记录，未重跑。交回 QA 复验，不宣布 PASS、不合并。
 
-| 版本号 | 推送时间（Asia/Shanghai） | 新增内容 | 修复内容 |
-|---|---|---|---|
-| 迭代 #21 QA 修复 | 2026-10-22 23:01（实际完成时间见任务交付评论） | 保留旧提交，最终 HEAD 补记署名 | manifest 覆盖全部 102 个实际载荷，更新附件及校验值 |
+- QA manifest/trailer commit: [720f425c44beb2613afffda063dbfab94532692a](https://github.com/CubicZnS/labflow/commit/720f425c44beb2613afffda063dbfab94532692a), pushed 2026-10-22 23:01:07 Asia/Shanghai.
