@@ -1051,3 +1051,13 @@ git log --oneline --decorate dev
 - 证据：[本任务证据 ZIP](/api/attachments/c13f5aab-b62b-4772-84d5-54ddb3af8934/content?download=1)，7,722,033字节，SHA256 `8a324632c55ef6e100cc827a32bc30903df4e5ba9f3dfc26cff4e7475acec99b`。回下载292载荷路径/大小/哈希全部通过且无额外载荷；helper临时目录权限失败，按技能规定附件API上传并创建artifact工作产品，无权限绕过。
 - 门禁：backend指定python pytest退出0（157项），ruff退出0；frontend指定pnpm typecheck、test:run（174项/6文件）、build均退出0；git diff --check提交前检查。既有Starlette/httpx、NumPy RankWarning、React key警告保留，未新增镜像测试。
 - 问题/下一轮：T09未通过，320溢出只记录不修；Remote键盘激活/焦点与768遮挡待复核，200%未执行。由Lead收敛下一修复范围并独立审查/另建QA；本任务done只指文档证据交付，不代表QA PASS。人工矩阵/其他浏览器/屏幕阅读器/外部验收仍待执行，Phase4未完成。仅推iter/23，不合并、不创建QA、不写父任务。
+
+
+### 迭代 #23 独立验收与合并收尾
+
+- Lead 独立审查后，[MAC-110](/MAC/issues/MAC-110) 对文档/证据交付给出 PASS；T09 产品验证仍未通过，Phase 4 MVP 未完成。
+- 最终候选：`iter/23` / `38510bfa37cf398ff1d6f9b8eb62b255e329369f`，https://github.com/CubicZnS/labflow/commit/38510bfa37cf398ff1d6f9b8eb62b255e329369f 。
+- 合并提交：`12ebbe8a0c19084a9f8be906f2a058b5fbee3a31`，https://github.com/CubicZnS/labflow/commit/12ebbe8a0c19084a9f8be906f2a058b5fbee3a31 ，已推送 origin/dev。
+- QA 独立新运行后端157项/ruff、前端typecheck/174项/build全部退出0，真实复现320px页面宽773及裁切；Lead复用此验证，不冒充再次运行。292项证据闭合由Lead和QA分别校验。
+- 已知问题：320px溢出；键盘激活与768焦点遮挡待复核；200%未执行。本轮只集成发现文档；下一轮只收敛320px溢出修复。
+- 中文合并/记录提交及真实远端SHA交独立QA追加只读核验；本记录自身SHA由任务交付提供。main保持原SHA，无历史改写。
