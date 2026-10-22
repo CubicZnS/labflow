@@ -1000,3 +1000,6 @@ git log --oneline --decorate dev
 - 环境及脚本排障：此前本地启动 Firefox 退出134，环境提供者改为宿主 4444 Remote；Remote 默认文件上传扩展被 geckodriver 拒绝，使用共享本机路径文件检测器后可选文件；受控输入清空后默认值回填，改用全选替换。均为执行环境/脚本准备问题，未冒报产品失败或隐去未执行阶段。
 - 已知问题与边界：导出无 HTML 图例；首页阶段文案已有陈旧项；无完整控制台或响应式/无障碍审计；T09/T10、Chrome/Safari、Firefox 有头人工和外部验收均待执行，Phase 4 MVP 未完成。下一轮由 Lead 缩小后续验证/修复范围，不擅改产品代码。
 - 交付：本轮提交与实际推送 SHA/链接在首次推送后追加记录；不自引用虚构 SHA。完成实现后交 Lead 独立审查并另建 QA；QA PASS 前禁止合并。
+
+- 首次验证文档提交：`2c8cf5c45a033ab8e9b7a67acf0aaf9e3e057f66`，https://github.com/CubicZnS/labflow/commit/2c8cf5c45a033ab8e9b7a67acf0aaf9e3e057f66 。2026-10-22 22:44:27 Asia/Shanghai 实际推送完成，README 按分钟记录 22:44；`git ls-remote origin refs/heads/iter/21` 返回同一完整 SHA，GitHub `gh api repos/CubicZnS/labflow/commits/<sha> --jq .sha` 已核验一致。
+- 本追加记录提交只引用已存在的首次推送证据；最终记录提交 SHA/链接通过 MAC-89 交付评论记录。未合并 dev/main，等待 Lead 独立审查与另建 QA。
