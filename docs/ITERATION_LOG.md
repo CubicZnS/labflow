@@ -961,5 +961,9 @@ git log --oneline --decorate dev
 - 已知限制：未做真实浏览器人工测试或外部验收；下载立即回收 object URL、无图片加载超时、无请求通用超时均只列为静态风险待复现；导出不含 HTML 图例。风险位置与复现步骤见清单。
 - 下一轮：执行人工矩阵并按真实证据处理兼容问题；招募、部署和付费服务须另行授权。Phase 4 MVP 未完成。
 - 手册命令验证：实际运行清单的合成输入生成脚本，成功生成 trial.csv/trial.xlsx/bad.csv/changed.csv/invalid-error.csv 到系统临时目录；未将其当作浏览器执行证据。
-- 提交证据：将在首次真实提交并推送核验后，以第二个记录提交补入 SHA/链接；本记录不虚构或自引用 SHA。最终记录提交 SHA 由任务交付评论记录。
+- 首次实现提交：`860a72a846fb9dfdf1f868280441ba7ca4b247e2`，
+  https://github.com/CubicZnS/labflow/commit/860a72a846fb9dfdf1f868280441ba7ca4b247e2 。
+  实际推送完成时间：2026-10-22 11:47:51 Asia/Shanghai（README 按分钟记为 11:47）。
+  `git ls-remote origin refs/heads/iter/20` 与 `gh api repos/CubicZnS/labflow/commits/<sha> --jq .sha` 均返回上述完整 SHA。
+- 本第二个记录提交仅补记已存在的首次实现提交证据，不自引用自身 SHA；最终远端 HEAD 与记录提交链接由任务交付评论记录。
 - 交付状态：实现完成后子任务 done 仅表示文档实现完成；Lead 独立审查后另建 QA，QA PASS 前禁止合并。
