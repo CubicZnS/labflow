@@ -978,3 +978,13 @@ git log --oneline --decorate dev
 - 完整门禁复用：候选 `9e2c6d10b71a2e79cd79087702273ea79fa7d73e` 的已完成检查（本 Dev 上轮实际运行；MAC-85 描述亦记录 Lead 独立运行）：backend pytest -q 157 项与 ruff、frontend typecheck/test:run 174 项/build 通过。本次纯文档修复未重复运行，未宣称新运行；候选后产品代码、依赖、CI、配置无变更。
 - 修复真实提交：`8aee65eaa1a7eb4bd35acc5462f5eff1e474a8de`，https://github.com/CubicZnS/labflow/commit/8aee65eaa1a7eb4bd35acc5462f5eff1e474a8de ；实际推送完成时间 2026-10-22 11:55:34 Asia/Shanghai。ls-remote 与 gh api 均核验一致。本记录提交仅补记已存在的修复证据，最终记录提交 SHA 在 MAC-84 交付评论记录。
 - 仍待 Lead 另建独立复验；产品尚未通过，禁止合并。Chrome/Safari/Firefox 人工矩阵及外部验收继续待执行。
+
+### 迭代 #20 独立验收与合并
+
+- 独立 QA：MAC-85 首次 FAIL；修复版本表与重开项目配对前置后，MAC-86 对候选 `a46dae6fd9d59ebe0db602231e96ac394966c05a` 复验 PASS。代码未变，复用 Lead 与首次独立 QA 实际通过的后端 157 项/ruff、前端 174 项/typecheck/build 门禁，不将复用记为新运行。
+- 最终迭代提交：`a46dae6fd9d59ebe0db602231e96ac394966c05a`，https://github.com/CubicZnS/labflow/commit/a46dae6fd9d59ebe0db602231e96ac394966c05a 。远端分支与 GitHub API 已核验一致。
+- `dev` 合并提交：`77e220957c219977592f4732aace710e1c60929c`，https://github.com/CubicZnS/labflow/commit/77e220957c219977592f4732aace710e1c60929c 。已于 2026-10-22 推送 origin/dev；首次 pull 出现瞬时 SSL 连接失败，一次重试成功后才合并，无历史改写。
+- 非阻断观察：手册 T01/T04 行末空格保留，整轮 diff --check 会报告这两项，不能声称整轮无格式问题；不影响表格或步骤执行。
+- 当前成果：静态兼容性证据、中文合成数据试用脚本与待执行浏览器矩阵已集成；README 中文状态、限制、测试命令及迭代 #20 四字段版本行已更新。
+- 阶段与下一轮：Phase 4 MVP 仍未完成；下一目标为执行真实 Chrome/Safari/Firefox 矩阵并记录证据。未做真实浏览器人工验证、外部招募、部署或付费；不得把文档验收 PASS 当作外部产品验收。
+- 合并后记录提交的真实 SHA/链接通过父任务及追加 QA 交付，不自引用虚构 SHA；合并与本记录提交的中文摘要、Co-Authored-By 仍由 QA 追加核验。
