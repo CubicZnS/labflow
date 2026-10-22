@@ -1008,4 +1008,4 @@ git log --oneline --decorate dev
 - 署名处理：旧提交 `2c8cf5c`、`b94d698` 原样保留；新增中文修复提交，最终 HEAD 正文末尾包含 `Co-Authored-By: Paperclip <noreply@paperclip.ing>`，不重写历史、不 force push。若 QA 要求修改旧提交署名，须升级给 Lead/用户决定。
 - 最终交付：[iter/21 最终 HEAD](https://github.com/CubicZnS/labflow/commits/iter/21)；实际推送时间、不可变最终 SHA 与 GitHub commit 链接在 MAC-100 和 MAC-99 交付评论记录（提交内无法自引用自身 SHA）。本次仅文档/附件修复，运行 `git diff --check`、附件闭合校验、远端 SHA 与 GitHub API 核验；产品门禁沿用上轮记录，未重跑。交回 QA 复验，不宣布 PASS、不合并。
 
-- QA manifest/trailer commit: [720f425c44beb2613afffda063dbfab94532692a](https://github.com/CubicZnS/labflow/commit/720f425c44beb2613afffda063dbfab94532692a), pushed 2026-10-22 23:01:07 Asia/Shanghai.
+- QA 清单与署名修复提交：[720f425c44beb2613afffda063dbfab94532692a](https://github.com/CubicZnS/labflow/commit/720f425c44beb2613afffda063dbfab94532692a)；推送时间：2026-10-22 23:01:07 Asia/Shanghai。
