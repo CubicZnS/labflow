@@ -165,7 +165,7 @@ PY
 - 环境：真实 Mozilla Firefox **158.0.1**，buildID `20261019185856`；geckodriver **0.37.1**；Selenium **4.51.0**；macOS **27.0.1 (26A434)**。OS 取 `sw_vers`；WebDriver 的平台版本为 27.0.0，UA 的 macOS 10.15 为兼容字符串，不作为 OS 版本。
 - 方式：宿主提供的 `http://127.0.0.1:4444` WebDriver，`webdriver.Remote` + `-headless`，外窗 1440×1000（截图内容区域 1440×915）；访问 `http://127.0.0.1:5173/`，本机后端 8000。`isSecureContext=true`、`crypto.subtle` 可用。没有 Browser 插件；没有使用 Playwright 引擎冒充品牌浏览器。
 - 前置环境失败：此前沙箱内本地启动退出 134，未进入用例；本轮切换获提供的宿主 Remote 后恢复。Remote 与应用共享文件系统，文件选择使用 Selenium `UselessFileDetector` 传实际本机路径，未使用 geckodriver 不支持的 `/se/file` 上传扩展。系列名称用全选替换默认值；两次脚本准备失败不记为产品 FAIL。
-- 证据：[MAC-89 合成数据证据包](/api/attachments/cedead60-5b9c-426e-9daf-9039670c273f/content?download=1)，SHA-256 `833fc9d358ddbeb7ddba3e125011864a66669b63890db28423b4b6ec9e7606c5`。这是 Paperclip 任务附件地址（在 GitHub 查看文档时请从 MAC-89 打开附件）。包内含合成输入、实际下载、截图、逐步页面文本/请求响应、临时执行脚本、数值断言脚本与 `manifest.json` 文件校验表；临时根目录 `/tmp/labflow-browser/evidence/iter21`，证据不入 Git。
+- 证据：[MAC-100 修复后合成数据证据包](/api/attachments/0cfdbd50-a2ce-44b6-a377-a564054faf8a/content?download=1)，SHA-256 `e256156cada09c7d0b6549930816898c40a05af9e708b69e4cff508252d30b1a`。这是 Paperclip 任务附件地址（在 GitHub 查看文档时请从 MAC-100 打开附件）。包内含合成输入、实际下载、截图、逐步页面文本/请求响应、临时执行脚本、数值断言脚本与 `manifest.json` 文件校验表；临时根目录 `/tmp/labflow-browser/evidence/iter21`，证据不入 Git。
 
 | 用例 | 本轮结果 | 观察及包内证据 |
 |---|---|---|
@@ -190,3 +190,7 @@ PY
 页面标题与 URL 正确、非空，无 Vite 错误覆盖层；注入的 `error/unhandledrejection` 记录为空。这只覆盖页面运行时异常，不等于完整浏览器控制台、可访问性或响应式审计。首页“后端校验错误文案中文化”仍列为剩余工作及“导出数据”措辞已有静态记录，本轮不修产品文案。
 
 边界：T09/T10 未执行；Chrome、Safari 未实测；Firefox 有头人工测试、三浏览器人工矩阵、外部用户验收未完成。没有证明所有浏览器立即回收 object URL 均可靠，也未测超时/离线失败路径。下一轮由 Lead 选择补齐这些范围；本轮不标 Phase 4 MVP 完成。
+
+- QA 修复：旧附件 `cedead60-5b9c-426e-9daf-9039670c273f`（SHA-256 `833fc9d358ddbeb7ddba3e125011864a66669b63890db28423b4b6ec9e7606c5`）明确作废。新附件 [MAC-100 闭合证据包](/api/attachments/0cfdbd50-a2ce-44b6-a377-a564054faf8a/content?download=1)，SHA-256 `e256156cada09c7d0b6549930816898c40a05af9e708b69e4cff508252d30b1a`；上传后重新下载核验，102 个载荷文件的存在性、字节数和 SHA-256 全部一致，manifest 自身不列入校验表。路径相对 `iter21/manifest.json` 所在目录，`../scripts/` 和 `../iter21-*.log` 指向包内同级脚本及日志；删除原清单中 4 条不存在记录，补入原包中 5 个未列脚本/日志，不补造失败证据。
+- 署名处理：旧提交 `2c8cf5c`、`b94d698` 原样保留；新增中文修复提交，最终 HEAD 正文末尾包含 `Co-Authored-By: Paperclip <noreply@paperclip.ing>`，不重写历史、不 force push。若 QA 要求修改旧提交署名，须升级给 Lead/用户决定。
+- 最终交付：[iter/21 最终 HEAD](https://github.com/CubicZnS/labflow/commits/iter/21)；实际推送时间、不可变最终 SHA 与 GitHub commit 链接在 MAC-100 和 MAC-99 交付评论记录（提交内无法自引用自身 SHA）。本次仅文档/附件修复，运行 `git diff --check`、附件闭合校验、远端 SHA 与 GitHub API 核验；产品门禁沿用上轮记录，未重跑。交回 QA 复验，不宣布 PASS、不合并。

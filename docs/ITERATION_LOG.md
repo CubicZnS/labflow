@@ -995,7 +995,7 @@ git log --oneline --decorate dev
 - 范围：Phase 4.4b 首个实际品牌浏览器增量，执行 T01–T08（含 T04b）；真实 Firefox 158.0.1 build 20261019185856、macOS 27.0.1 (26A434)、geckodriver 0.37.1、Selenium 4.51.0，headless + 宿主 Remote，2026-10-22 22:40–22:42 Asia/Shanghai。属于自动化执行，非人工矩阵、非三浏览器兼容承诺、非外部验收。
 - 分支：`iter/21`；基线 `cb18d41b47b9ec84a1e165519ce37358ff57ad12`。仅 README.md、docs/BROWSER_TRIAL_CHECKLIST.md、docs/ITERATION_LOG.md；没有产品代码或依赖/CI/配置改动。
 - 实测：示例/CSV/XLSX、统计、422 错误恢复、五点配对与单位、一次/二次/三次及加权拟合/非正误差拒绝、四系列上限与删除加回、样式不发请求及几何不变均符合预期。SVG 与三档 PNG 实际下载后 Firefox 打开、截图复核，640×360 / 1280×720 / 1920×1080。v2 刷新重开恢复配置并按 series×4→fit 顺序 200；v1 空元数据/2×且重存 v2；两种指纹拒绝均零新增请求，补充拒绝前后 SVG/元数据/倍率不变。
-- 证据：MAC-89 附件 `iter21-firefox-evidence.zip`，attachment `cedead60-5b9c-426e-9daf-9039670c273f`，SHA-256 `833fc9d358ddbeb7ddba3e125011864a66669b63890db28423b4b6ec9e7606c5`。下载、逐项结果/路径、环境与证据边界见检查清单末节；合成数据与临时脚本不入库。独立公式断言检查 std=√10、SEM=√2、拟合 2x+1、请求顺序、下载尺寸及迁移/拒绝通过。
+- 证据：MAC-100 附件 `iter21-firefox-evidence-fixed.zip`，attachment `0cfdbd50-a2ce-44b6-a377-a564054faf8a`，SHA-256 `e256156cada09c7d0b6549930816898c40a05af9e708b69e4cff508252d30b1a`。下载、逐项结果/路径、环境与证据边界见检查清单末节；合成数据与临时脚本不入库。独立公式断言检查 std=√10、SEM=√2、拟合 2x+1、请求顺序、下载尺寸及迁移/拒绝通过。
 - 本轮实际门禁：backend `.venv/bin/python -m pytest -q` 退出 0，157 项通过（72+72+13）；`.venv/bin/ruff check app tests` 退出 0。frontend 指定 pnpm：typecheck 通过、test:run 6 文件 174 项通过、build 成功，命令退出 0。保留 Starlette/httpx 弃用、病态拟合 RankWarning、React key 特殊属性既有警告，不扩大范围修复。
 - 环境及脚本排障：此前本地启动 Firefox 退出134，环境提供者改为宿主 4444 Remote；Remote 默认文件上传扩展被 geckodriver 拒绝，使用共享本机路径文件检测器后可选文件；受控输入清空后默认值回填，改用全选替换。均为执行环境/脚本准备问题，未冒报产品失败或隐去未执行阶段。
 - 已知问题与边界：导出无 HTML 图例；首页阶段文案已有陈旧项；无完整控制台或响应式/无障碍审计；T09/T10、Chrome/Safari、Firefox 有头人工和外部验收均待执行，Phase 4 MVP 未完成。下一轮由 Lead 缩小后续验证/修复范围，不擅改产品代码。
@@ -1003,3 +1003,7 @@ git log --oneline --decorate dev
 
 - 首次验证文档提交：`2c8cf5c45a033ab8e9b7a67acf0aaf9e3e057f66`，https://github.com/CubicZnS/labflow/commit/2c8cf5c45a033ab8e9b7a67acf0aaf9e3e057f66 。2026-10-22 22:44:27 Asia/Shanghai 实际推送完成，README 按分钟记录 22:44；`git ls-remote origin refs/heads/iter/21` 返回同一完整 SHA，GitHub `gh api repos/CubicZnS/labflow/commits/<sha> --jq .sha` 已核验一致。
 - 本追加记录提交只引用已存在的首次推送证据；最终记录提交 SHA/链接通过 MAC-89 交付评论记录。未合并 dev/main，等待 Lead 独立审查与另建 QA。
+
+- QA 修复：旧附件 `cedead60-5b9c-426e-9daf-9039670c273f`（SHA-256 `833fc9d358ddbeb7ddba3e125011864a66669b63890db28423b4b6ec9e7606c5`）明确作废。新附件 [MAC-100 闭合证据包](/api/attachments/0cfdbd50-a2ce-44b6-a377-a564054faf8a/content?download=1)，SHA-256 `e256156cada09c7d0b6549930816898c40a05af9e708b69e4cff508252d30b1a`；上传后重新下载核验，102 个载荷文件的存在性、字节数和 SHA-256 全部一致，manifest 自身不列入校验表。路径相对 `iter21/manifest.json` 所在目录，`../scripts/` 和 `../iter21-*.log` 指向包内同级脚本及日志；删除原清单中 4 条不存在记录，补入原包中 5 个未列脚本/日志，不补造失败证据。
+- 署名处理：旧提交 `2c8cf5c`、`b94d698` 原样保留；新增中文修复提交，最终 HEAD 正文末尾包含 `Co-Authored-By: Paperclip <noreply@paperclip.ing>`，不重写历史、不 force push。若 QA 要求修改旧提交署名，须升级给 Lead/用户决定。
+- 最终交付：[iter/21 最终 HEAD](https://github.com/CubicZnS/labflow/commits/iter/21)；实际推送时间、不可变最终 SHA 与 GitHub commit 链接在 MAC-100 和 MAC-99 交付评论记录（提交内无法自引用自身 SHA）。本次仅文档/附件修复，运行 `git diff --check`、附件闭合校验、远端 SHA 与 GitHub API 核验；产品门禁沿用上轮记录，未重跑。交回 QA 复验，不宣布 PASS、不合并。
