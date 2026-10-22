@@ -120,7 +120,13 @@ Acceptance: a user can go from uploaded data to an exported publication-style fi
       messages for health checks and dataset POSTs, offline health-check retry, a verifiable
       four-item privacy summary on the landing page, and `docs/PRIVACY.md`
       (iteration #18)
-- [ ] 4.3b-2 Localize backend user-facing validation error messages (next iteration)
+- [x] 4.3b-2 Localize backend user-facing validation error messages: all user-facing `detail`
+      strings and import/pairing/fitting warnings are Chinese, with status codes, response
+      fields, endpoints, and numeric results unchanged (iteration #19)
+- [ ] 4.4 Pre-release cross-browser and external-trial preparation: static Safari/Firefox
+      compatibility review for key CSS and download/file APIs, Chinese trial checklist and
+      manual test script; real external-user recruitment and production deployment require
+      separate approval
 
 Acceptance: an external test user completes the workflow without developer help.
 

@@ -903,3 +903,40 @@ git log --oneline --decorate dev
   - 迭代记录提交：`5f7f6feb19168bfcd70f653ae39eb9a91012ed0e`
     https://github.com/CubicZnS/labflow/commit/5f7f6feb19168bfcd70f653ae39eb9a91012ed0e
   - 推送核验：`git ls-remote origin refs/heads/dev` 在补记前返回 `5f7f6feb19168bfcd70f653ae39eb9a91012ed0e`，与 `gh api` 对合并提交 `05f1cdbae2e258fbd8947511e20fed6983fa5251` 和记录提交的返回一致；`main` 保持 `7b3c2f1153eb561241ba33fa74e06953e552e63e` 未改动；无 force push、无历史改写。本补记提交只补充上述记录提交 SHA 与推送核验，推送后 `dev` HEAD 前进到本补记提交。
+
+## 迭代 #19 — Phase 4.3b-2 后端用户可见校验错误与警告文案中文化
+
+- 日期：2026-10-22（README 推送时间按实际推送记为 2026-10-22 10:03 Asia/Shanghai）
+- 目标：把后端所有用户可见的校验错误 `detail` 与导入/配对/拟合 `warnings` 统一为中文，同时保持 HTTP 状态码、响应字段/结构、端点、计算行为与数值结果完全不变；不新增依赖、不改前端、不做后端持久化、不上传用户数据。
+- 任务选择：MAC-79（迭代 #19，Phase 4.3b-2）。
+- 分支：`iter/19`，基于 `dev` 的 `27ad96e6e75de6fb0fe3376190c1fd3c1e0e4923`。只在该分支提交并 push，不合并、不 force push、不改写历史。
+- 产品决策：
+  - 状态码（400/413/415/422/200）、响应字段、端点、数值计算和 `.labflow.json` 契约全部保持不变，只替换面向用户的文案。
+  - 技术记号按需保留英文：CSV、XLSX、X、Y、χ²、σ²、1/σ²、`y_error_column`、`degree` 的数值等；拟合方程 `equation` 是数值表达，不属于错误文案，未改动。
+  - 动态插值必须保留：列名、计数、10 MB 上限、工作表名、条件数、约化 χ² 等继续出现在中文句子中。
+  - `README.md` 虽不在实现任务原始允许文件清单内，但全局强制规范要求每轮同步中文 README 与版本迭代表，因此接受该必要例外；`docs/**` 仍由 Lead 在验收后记录。
+- 已完成：
+  - `backend/app/datasets.py`：CSV 格式错误/空文件/10 MB 超限/无数据行，XLSX 格式错误/空文件/超限/无工作表/工作表无数据，以及缺失值、重复行、非数值、非有限值、多工作表警告全部改为中文。
+  - `backend/app/series.py`：非法格式、单位超长、列不存在/非数值、X=Y、有效配对不足、配对跳过警告全部改为中文。
+  - `backend/app/fitting.py`：`degree` 非法/越界、Y 误差列为空/仅有单位、配对不足、X 值不变、误差列与 X/Y 冲突、误差列缺失/非有限/非正、1/σ² 权重非有限，以及恰好确定/病态/约化 χ² 三类警告全部改为中文。
+  - `backend/app/main.py`：内容类型不支持与文件格式不支持文案改为中文（`content_type` 为空时仍显示 `unknown`）。
+  - `backend/app/analysis.py`：纯函数校验错误全部改为中文，保留 `x`、`y`、`y_errors` 等技术标识。
+  - 测试：现有英文断言更新为中文关键字断言；新增 CSV 超限与 XLSX 无工作表回归用例；覆盖任务列出的错误与警告类别（缺失值、重复行、非数值、非有限值、多工作表、配对跳过、三类拟合警告等）。
+  - 文档：更新中文 `README.md` 当前状态、当前能力、已知限制、下一轮与“版本迭代记录”表（迭代 #19）；本记录为中文。
+- 测试：
+  - 后端：`.venv/bin/python -m pytest -q -o addopts=""` **157 passed**（基线 155，新增 2 项）；`.venv/bin/ruff check app tests` 通过。
+  - 前端：`pnpm typecheck` 通过；`pnpm test:run` **174 passed**；`pnpm build` 成功；本轮未改前端。
+  - Lead 独立复核：逐项对照任务文案映射检查 `analysis/datasets/series/fitting/main` 的实际字符串，未发现遗漏的英文用户可见 `detail`/`warnings`；确认状态码与响应结构未改；本地重跑后端 157 passed 与 ruff 通过。
+- 已知限制：
+  - 仍不做后端持久化、账户、云同步或跨设备共享；本轮不改变分析、绘图、导出或项目快照计算行为。
+  - 第三方库（pandas/openpyxl）抛出的底层异常文本可能仍含英文，但外层统一使用中文前缀（如“CSV 格式错误：…”），便于用户理解。
+  - 本地 MVP 默认无 TLS、鉴权、速率限制或租户隔离；未做 axe/WCAG、渗透测试或真实服务器部署验证。
+  - 外部试用与跨浏览器人工验证尚未开始。
+- 下一轮：Phase 4.4 发布前跨浏览器与外部试用准备。先做本地可验证的静态兼容性复核（Safari/Firefox 关键 CSS 与下载/剪贴板/文件 API 回退）与中文试用手册/检查清单，再进行真实外部试用；真实用户招募与生产部署需另行授权。
+- Git：
+  - `iter/19` 实现、测试与 README 提交：`18dcc92dfd9cd09ba2ac9816af56a431d33a5caf`
+    https://github.com/CubicZnS/labflow/commit/18dcc92dfd9cd09ba2ac9816af56a431d33a5caf
+  - 推送核验：`git ls-remote origin refs/heads/iter/19` 返回
+    `18dcc92dfd9cd09ba2ac9816af56a431d33a5caf`，`gh api repos/CubicZnS/labflow/commits/18dcc92dfd9cd09ba2ac9816af56a431d33a5caf --jq .sha` 返回同一 SHA；`dev` 与 `main` 未改动。
+  - 独立 QA：待 MAC-80 创建 QA 任务并验收；QA PASS 前不合并 `dev`。
+  - 阶段状态：Phase 4.3b-2 实现完成，等待独立 QA；Phase 4 MVP 产品化仍在进行。
