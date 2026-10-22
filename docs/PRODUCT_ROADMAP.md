@@ -168,3 +168,8 @@ Until real data exists, metrics are reported as `暂无数据`; assumptions are 
 ## 迭代 #22 实际状态（2026-10-23 Asia/Shanghai）
 
 Phase 4.4b 的 T10 已完成 Firefox 158.0.1 headless + Selenium Remote/BiDi 自动化实测：后端停止后的中文失败/重试状态、恢复重导配对拟合，以及单独阻断示例 GET 时结果保留/解除重试。证据与边界见 [浏览器清单](BROWSER_TRIAL_CHECKLIST.md#迭代-22t10-离线失败与重试恢复实测)。Lead 独立审查及 MAC-105/MAC-106 独立 QA 已 PASS，已合并 dev；此结论仅覆盖本轮 T10 证据和文档。T09、Chrome/Safari、Firefox 有头人工矩阵与真实外部验收仍待执行，Phase 4 MVP 未完成。无离线分析或请求超时能力承诺；下一轮由 Lead 只选一个未完成项。
+
+
+## 迭代 #23 实际状态（2026-10-23 Asia/Shanghai）
+
+Phase4.4b T09已补真实Firefox headless自动化证据，**整体未通过**：首焦点跳转/导入配对已观察；纯键盘拟合/保存未完成，方向键/焦点分派边界待复核。点击补充项目/下载工作流不充当键盘PASS。320×915真实BiDi内容视口测得页面宽773、关键控件裁切；768/1280宽度正常，但768有一次焦点中心被顶部栏遮挡取样。200%真实浏览器缩放未执行，减少动态效果会话偏好生效。详见[本轮清单](BROWSER_TRIAL_CHECKLIST.md#迭代-23t09-键盘与布局实测未通过)及[交付任务](/MAC/issues/MAC-109)。本轮只记录，不修产品；下一轮由Lead缩小320溢出修复及键盘/焦点复核范围，独立审查后另建QA。五项代码门禁通过不等于T09或QA PASS，人工矩阵/屏幕阅读器/三浏览器/外部验收仍未完成，Phase4 MVP未完成。
