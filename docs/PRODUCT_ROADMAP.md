@@ -123,10 +123,13 @@ Acceptance: a user can go from uploaded data to an exported publication-style fi
 - [x] 4.3b-2 Localize backend user-facing validation error messages: all user-facing `detail`
       strings and import/pairing/fitting warnings are Chinese, with status codes, response
       fields, endpoints, and numeric results unchanged (iteration #19)
-- [ ] 4.4 Pre-release cross-browser and external-trial preparation: static Safari/Firefox
-      compatibility review for key CSS and download/file APIs, Chinese trial checklist and
-      manual test script; real external-user recruitment and production deployment require
-      separate approval
+- [x] 4.4a 发布前静态代码兼容性审查与中文试用手册准备（迭代 #20）：
+      [实际能力证据、人工矩阵与本地脚本](BROWSER_TRIAL_CHECKLIST.md)。仅文档准备，不代表浏览器验证通过。
+- [ ] 4.4b 执行 Chrome/Safari/Firefox 人工矩阵，记录完整版本、OS、日期、下载文件及失败证据，
+      再处理证据支持的兼容问题；目前全部待执行。
+- [ ] 4.4c 外部用户无需开发者帮助完成工作流的真实验收；招募、部署与付费服务仍须另行授权。
+
+Phase 4 MVP 尚未完成；静态审查与手册准备完成不等于人工验证或产品接受。
 
 Acceptance: an external test user completes the workflow without developer help.
 

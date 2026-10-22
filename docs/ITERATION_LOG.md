@@ -948,3 +948,33 @@ git log --oneline --decorate dev
   - 合并后在 `dev` 重跑 5 个 gate：后端 `pytest -q -o addopts=""` **157 passed**、`ruff check app tests` 通过；前端 `typecheck` 通过、`test:run` **174 passed**、`build` 成功。
   - 推送核验：`git ls-remote origin refs/heads/dev` 返回合并提交 `afaf85e08688ffd97eb29cf8ef326500ed9eefaf`，与 `gh api` 对同一 SHA 的返回一致；`main` 未改动。
   - 阶段状态：Phase 4.3b-2（后端用户可见校验错误与警告文案中文化）完成并合并；Phase 4 MVP 产品化仍在进行，下一轮进入 Phase 4.4 发布前跨浏览器与外部试用准备。
+
+
+## 迭代 #20 — 发布前静态兼容性复核与中文试用检查清单
+
+- 目标：Phase 4.4 文档增量，将静态能力证据、可执行本地人工脚本与未完成的浏览器/外部验收分开。
+- 分支：`iter/20`；基线 `c8644e21746916f432e1d3ea6858e663df45365f`；仅本分支提交和推送，不合并。
+- 改动：新增 `docs/BROWSER_TRIAL_CHECKLIST.md`，逐项记录 CSS、SVG/XMLSerializer、下载、canvas/Image/toBlob、文件读取回退、SHA-256 与 AbortController 的实际使用和限制；提供合成 CSV/XLSX/异常输入生成命令、Chrome/Safari/Firefox 待执行矩阵、完整操作预期、v1 迁移/指纹拒绝与反馈模板。
+- 同步：README 当前状态、数据提交本机后端/项目快照本地处理、框架临时缓冲边界、测试基线、下一轮与版本表；路线图拆分静态准备、人工验证和外部验收。
+- 实际门禁（2026-10-22）：backend 目录 `.venv/bin/python -m pytest -q` 退出 0，157 项通过（进度 72+72+13，配置双 quiet 未显示汇总）；`.venv/bin/ruff check app tests` 退出 0；frontend 用 `/Users/zhangzimo/.local/bin/pnpm` 执行 typecheck、test:run、build 均退出 0，6 文件 174 项通过，Vite 构建成功。未静默覆盖 pytest 配置。
+- 已知警告：Starlette/httpx 弃用、病态拟合 RankWarning、React key 特殊属性警告；均未扩大到代码/依赖修复。本轮不新增镜像实现测试。
+- 已知限制：未做真实浏览器人工测试或外部验收；下载立即回收 object URL、无图片加载超时、无请求通用超时均只列为静态风险待复现；导出不含 HTML 图例。风险位置与复现步骤见清单。
+- 下一轮：执行人工矩阵并按真实证据处理兼容问题；招募、部署和付费服务须另行授权。Phase 4 MVP 未完成。
+- 手册命令验证：实际运行清单的合成输入生成脚本，成功生成 trial.csv/trial.xlsx/bad.csv/changed.csv/invalid-error.csv 到系统临时目录；未将其当作浏览器执行证据。
+- 首次实现提交：`860a72a846fb9dfdf1f868280441ba7ca4b247e2`，
+  https://github.com/CubicZnS/labflow/commit/860a72a846fb9dfdf1f868280441ba7ca4b247e2 。
+  实际推送完成时间：2026-10-22 11:47:51 Asia/Shanghai（README 按分钟记为 11:47）。
+  `git ls-remote origin refs/heads/iter/20` 与 `gh api repos/CubicZnS/labflow/commits/<sha> --jq .sha` 均返回上述完整 SHA。
+- 本第二个记录提交仅补记已存在的首次实现提交证据，不自引用自身 SHA；最终远端 HEAD 与记录提交链接由任务交付评论记录。
+- 交付状态：实现完成后子任务 done 仅表示文档实现完成；Lead 独立审查后另建 QA，QA PASS 前禁止合并。
+
+
+### 迭代 #20 首次 QA FAIL 修复（待独立复验）
+
+- 首次独立 QA：MAC-85 FAIL。真实原因两项：README 在 #19/#20 之间有空行，导致 #20 脱离版本表；T07、外部手册第 5 步及 T08 changed.csv 路径仅重导数据就要求打开项目，遗漏首次项目区显示所需的成功配对。
+- 修正范围：仅 README.md、docs/BROWSER_TRIAL_CHECKLIST.md、docs/ITERATION_LOG.md。删除表内空行，#20 修复栏记录上述两项实际修正，首推时间仍为 2026-10-22 11:47；补齐刷新/重导后先 X=x、Y=y 配对成功并等待空闲的操作，覆盖 T07/T08/T09/T10 与外部手册第 5 步及通用前置说明，不改产品代码。
+- 静态对照证据：SeriesPanel.tsx 的 mainResult 仅来自 seriesState success（约 164 行），项目区条件为 success/opening/rerunning/projectError（约 705 行），canOpenProject 要求无 busy/loading（约 168 行）；CsvImportPanel.tsx 重导后重新挂载 SeriesPanel。因此先成功配对才能首次看到项目入口，打开后仍由快照重跑；拒绝指纹请求的网络观察从该前置配对完成后开始。
+- 实际检查：用 Python 解析 README 的连续 Markdown 管道表块，确认 #19/#20 为同一版本表内相邻行，表头及 #20 均为四字段；逐项核对重导后的全部项目操作，并运行 git diff --check。均通过；不是浏览器实测。
+- 完整门禁复用：候选 `9e2c6d10b71a2e79cd79087702273ea79fa7d73e` 的已完成检查（本 Dev 上轮实际运行；MAC-85 描述亦记录 Lead 独立运行）：backend pytest -q 157 项与 ruff、frontend typecheck/test:run 174 项/build 通过。本次纯文档修复未重复运行，未宣称新运行；候选后产品代码、依赖、CI、配置无变更。
+- 修复真实提交：`8aee65eaa1a7eb4bd35acc5462f5eff1e474a8de`，https://github.com/CubicZnS/labflow/commit/8aee65eaa1a7eb4bd35acc5462f5eff1e474a8de ；实际推送完成时间 2026-10-22 11:55:34 Asia/Shanghai。ls-remote 与 gh api 均核验一致。本记录提交仅补记已存在的修复证据，最终记录提交 SHA 在 MAC-84 交付评论记录。
+- 仍待 Lead 另建独立复验；产品尚未通过，禁止合并。Chrome/Safari/Firefox 人工矩阵及外部验收继续待执行。
