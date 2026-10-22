@@ -176,3 +176,8 @@ Phase4.4b T09已补真实Firefox headless自动化证据，**整体未通过**�
 
 
 迭代 #23 集成状态：文档/证据独立 QA PASS，已合并 dev（[12ebbe8](https://github.com/CubicZnS/labflow/commit/12ebbe8a0c19084a9f8be906f2a058b5fbee3a31)）。T09 产品验证仍未通过；下一轮只修320px布局溢出，其他缺口单独验证，Phase 4 MVP 未完成。
+
+
+## 迭代 #24 实际状态（2026-10-23 Asia/Shanghai）
+
+已修复有证据支持的320px页面溢出：导入区Grid/卡片允许收缩，拟合长数值换行；真实Firefox BiDi 320/768/1280×915工作流回归页面宽等于视口，控件水平边界及表内滚动通过。计算、导出尺寸与快照契约不变，五项门禁通过，前后截图/脚本与闭合附件见[浏览器清单](BROWSER_TRIAL_CHECKLIST.md#迭代-24修复320px页面溢出)。候选分支iter/24，待Lead独立审查与另建QA，尚未合并。键盘、焦点遮挡、200%缩放与人工矩阵仍待单独复核；T09整体及Phase4 MVP未完成。下一轮只由Lead选择一个剩余缺口。

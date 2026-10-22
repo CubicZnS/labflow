@@ -1061,3 +1061,22 @@ git log --oneline --decorate dev
 - QA 独立新运行后端157项/ruff、前端typecheck/174项/build全部退出0，真实复现320px页面宽773及裁切；Lead复用此验证，不冒充再次运行。292项证据闭合由Lead和QA分别校验。
 - 已知问题：320px溢出；键盘激活与768焦点遮挡待复核；200%未执行。本轮只集成发现文档；下一轮只收敛320px溢出修复。
 - 中文合并/记录提交及真实远端SHA交独立QA追加只读核验；本记录自身SHA由任务交付提供。main保持原SHA，无历史改写。
+
+
+## 迭代 #24：320px布局修复
+
+- 目标：只修320×915页面横向溢出与关键控件裁切，分支iter/24。基线为已存在的 [e3140656a5dd168074bdb1980e745caebd58a671](https://github.com/CubicZnS/labflow/commit/e3140656a5dd168074bdb1980e745caebd58a671)；最终SHA/链接与实际推送时间提交后在[交付任务](/MAC/issues/MAC-113)据实记录。
+- 改动：仅CsvImportPanel的Grid轨道/卡片最小宽度和FitPanel的单列Grid/长数值换行；README中文状态、版本表、限制与下一轮同步，标准启动/接口/五项命令仍准确。未改backend、依赖、配置、CI或计算/导出/快照契约。
+- 实测：真实Firefox158.0.1/macOS27.0.1，BiDi内容视口320/768/1280×915；修复前页面宽773/785/1280，修复后320/768/1280。每档上传合成CSV→配对→拟合，控件水平边界全部在视口、长表内部横滚；实际项目v2保存/注入重开、SVG640×360、PNG1280×720；数值y=2x+1保持。可复跑浏览器断言脚本与前后截图交附件，不以JSDOM冒充布局。
+- 门禁：backend pytest157项/ruff、frontend typecheck/174项test:run/build全部退出0；git diff --check通过。原有弃用/RankWarning/React key警告保留。附件98载荷已回下载核验路径/大小/SHA256闭合，详见[浏览器清单](BROWSER_TRIAL_CHECKLIST.md#迭代-24修复320px页面溢出)。
+- 已知边界与下一轮：仅本轮布局自动化通过，Lead独立审查及另建QA待执行；键盘激活、焦点遮挡、200%缩放、人工矩阵/其他浏览器/外部验收仍待单独收敛。T09整体与MVP未完成。不合并、不创建QA、不写父任务。
+
+- 本轮功能提交已真实推送：[656952914ae61a9d6c57d6e3d74624ce03c9c30b](https://github.com/CubicZnS/labflow/commit/656952914ae61a9d6c57d6e3d74624ce03c9c30b)；实际完成推送时间2026-10-23 02:05:59 Asia/Shanghai。`git ls-remote origin refs/heads/iter/24`与`/Users/zhangzimo/.local/bin/gh api repos/CubicZnS/labflow/commits/iter%2F24 --jq .sha`均返回上述完整SHA。本次补记只修改README实际时间与本日志，`git diff --check`通过；产品五项门禁与浏览器证据沿用该功能提交的真实执行结果。最终文档补记HEAD由任务交付报告提供，不自引用。
+
+
+### 迭代 #24：版本表连续性修复（待 Lead 审查）
+
+- 关联：[本次修复 MAC-115](/MAC/issues/MAC-115)、[当前任务 MAC-114](/MAC/issues/MAC-114)、[原实现 MAC-113](/MAC/issues/MAC-113)。继续既有 `iter/24`，基线 `8c1666f00d6603b9ce503249ddbba9cfb6669529`，不改写旧提交。
+- 真实修复：仅删除 README 版本表 #23 与 #24 之间的空行，使 #24 回到同一个连续 Markdown 管道表块；保留既有 #24 四字段及原真实推送时间，不新增迭代，不改产品、依赖、配置或证据结论。
+- 验证：按连续管道表块解析，确认表头、#23、#24 同块，#24 四字段非空，时间列可按 Asia/Shanghai 解析；`git diff --check` 通过。按任务要求不重跑产品五项门禁，沿用 Lead 在基线独立运行的后端 157 项/ruff、前端 174 项/typecheck/build 通过结果，不宣称本次重新执行。
+- 修复提交的真实推送完成时间、最终不可变 SHA、GitHub 链接及 ls-remote/指定 gh API 核验结果在本任务交付评论中记录，避免自引用。交回 Lead 审查后另建独立 QA，本次不宣称 QA PASS，不合并或推送 dev/main。
