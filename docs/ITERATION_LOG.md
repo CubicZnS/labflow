@@ -831,6 +831,7 @@ git log --oneline --decorate dev
 - Git：
   - `iter/17` 功能、测试与样式提交：`9f5ff1f82a054f05045315c2d0ba5a80662b0d91`
     https://github.com/CubicZnS/labflow/commit/9f5ff1f82a054f05045315c2d0ba5a80662b0d91
-  - `iter/17` 文档/迭代记录提交：见随后补记提交。
-  - `iter/17` 最终 HEAD：见随后补记提交。
+  - `iter/17` 文档/迭代记录提交：`d2188a9f3e96b8c6cc84ed9a9f2561061470773e`
+    https://github.com/CubicZnS/labflow/commit/d2188a9f3e96b8c6cc84ed9a9f2561061470773e
+  - `iter/17` 最终 HEAD：以推送后 `git ls-remote origin refs/heads/iter/17` 为准；本条记录的原生提交为 `d2188a9f3e96b8c6cc84ed9a9f2561061470773e`，其后仅补入本 SHA 与本说明。
   - 独立 QA 与 `dev` 合并 SHA：留给 Lead，不在本记录中编造。
