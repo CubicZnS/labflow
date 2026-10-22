@@ -948,3 +948,18 @@ git log --oneline --decorate dev
   - 合并后在 `dev` 重跑 5 个 gate：后端 `pytest -q -o addopts=""` **157 passed**、`ruff check app tests` 通过；前端 `typecheck` 通过、`test:run` **174 passed**、`build` 成功。
   - 推送核验：`git ls-remote origin refs/heads/dev` 返回合并提交 `afaf85e08688ffd97eb29cf8ef326500ed9eefaf`，与 `gh api` 对同一 SHA 的返回一致；`main` 未改动。
   - 阶段状态：Phase 4.3b-2（后端用户可见校验错误与警告文案中文化）完成并合并；Phase 4 MVP 产品化仍在进行，下一轮进入 Phase 4.4 发布前跨浏览器与外部试用准备。
+
+
+## 迭代 #20 — 发布前静态兼容性复核与中文试用检查清单
+
+- 目标：Phase 4.4 文档增量，将静态能力证据、可执行本地人工脚本与未完成的浏览器/外部验收分开。
+- 分支：`iter/20`；基线 `c8644e21746916f432e1d3ea6858e663df45365f`；仅本分支提交和推送，不合并。
+- 改动：新增 `docs/BROWSER_TRIAL_CHECKLIST.md`，逐项记录 CSS、SVG/XMLSerializer、下载、canvas/Image/toBlob、文件读取回退、SHA-256 与 AbortController 的实际使用和限制；提供合成 CSV/XLSX/异常输入生成命令、Chrome/Safari/Firefox 待执行矩阵、完整操作预期、v1 迁移/指纹拒绝与反馈模板。
+- 同步：README 当前状态、数据提交本机后端/项目快照本地处理、框架临时缓冲边界、测试基线、下一轮与版本表；路线图拆分静态准备、人工验证和外部验收。
+- 实际门禁（2026-10-22）：backend 目录 `.venv/bin/python -m pytest -q` 退出 0，157 项通过（进度 72+72+13，配置双 quiet 未显示汇总）；`.venv/bin/ruff check app tests` 退出 0；frontend 用 `/Users/zhangzimo/.local/bin/pnpm` 执行 typecheck、test:run、build 均退出 0，6 文件 174 项通过，Vite 构建成功。未静默覆盖 pytest 配置。
+- 已知警告：Starlette/httpx 弃用、病态拟合 RankWarning、React key 特殊属性警告；均未扩大到代码/依赖修复。本轮不新增镜像实现测试。
+- 已知限制：未做真实浏览器人工测试或外部验收；下载立即回收 object URL、无图片加载超时、无请求通用超时均只列为静态风险待复现；导出不含 HTML 图例。风险位置与复现步骤见清单。
+- 下一轮：执行人工矩阵并按真实证据处理兼容问题；招募、部署和付费服务须另行授权。Phase 4 MVP 未完成。
+- 手册命令验证：实际运行清单的合成输入生成脚本，成功生成 trial.csv/trial.xlsx/bad.csv/changed.csv/invalid-error.csv 到系统临时目录；未将其当作浏览器执行证据。
+- 提交证据：将在首次真实提交并推送核验后，以第二个记录提交补入 SHA/链接；本记录不虚构或自引用 SHA。最终记录提交 SHA 由任务交付评论记录。
+- 交付状态：实现完成后子任务 done 仅表示文档实现完成；Lead 独立审查后另建 QA，QA PASS 前禁止合并。
