@@ -884,4 +884,10 @@ git log --oneline --decorate dev
 - Git：
   - `iter/18` 功能与测试提交：`6a1c5636fb86e025934c52d25bcff53d08c5a50b`
     https://github.com/CubicZnS/labflow/commit/6a1c5636fb86e025934c52d25bcff53d08c5a50b
-  - `iter/18` 文档提交：推送后补记。
+  - `iter/18` 文档提交：`03fde8df1ea02eec4e285f072113c1582ea82262`
+    https://github.com/CubicZnS/labflow/commit/03fde8df1ea02eec4e285f072113c1582ea82262
+  - 推送后核验：`git ls-remote origin refs/heads/iter/18` 返回
+    `03fde8df1ea02eec4e285f072113c1582ea82262`，与本地 `git rev-parse HEAD` 一致；本提交仅补记
+    上述真实 SHA 与远端 HEAD，推送后远端 HEAD 会前进到本补记提交。
+  - 推送核验：分支基于 `a8e0542e0e59ea4e9438130b0791eb23d777a7fc`，无 force push、无历史改写；
+    `dev` 与 `main` 未改动。
