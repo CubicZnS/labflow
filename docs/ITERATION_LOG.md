@@ -1072,3 +1072,11 @@ git log --oneline --decorate dev
 - 已知边界与下一轮：仅本轮布局自动化通过，Lead独立审查及另建QA待执行；键盘激活、焦点遮挡、200%缩放、人工矩阵/其他浏览器/外部验收仍待单独收敛。T09整体与MVP未完成。不合并、不创建QA、不写父任务。
 
 - 本轮功能提交已真实推送：[656952914ae61a9d6c57d6e3d74624ce03c9c30b](https://github.com/CubicZnS/labflow/commit/656952914ae61a9d6c57d6e3d74624ce03c9c30b)；实际完成推送时间2026-10-23 02:05:59 Asia/Shanghai。`git ls-remote origin refs/heads/iter/24`与`/Users/zhangzimo/.local/bin/gh api repos/CubicZnS/labflow/commits/iter%2F24 --jq .sha`均返回上述完整SHA。本次补记只修改README实际时间与本日志，`git diff --check`通过；产品五项门禁与浏览器证据沿用该功能提交的真实执行结果。最终文档补记HEAD由任务交付报告提供，不自引用。
+
+
+### 迭代 #24：版本表连续性修复（待 Lead 审查）
+
+- 关联：[本次修复 MAC-115](/MAC/issues/MAC-115)、[当前任务 MAC-114](/MAC/issues/MAC-114)、[原实现 MAC-113](/MAC/issues/MAC-113)。继续既有 `iter/24`，基线 `8c1666f00d6603b9ce503249ddbba9cfb6669529`，不改写旧提交。
+- 真实修复：仅删除 README 版本表 #23 与 #24 之间的空行，使 #24 回到同一个连续 Markdown 管道表块；保留既有 #24 四字段及原真实推送时间，不新增迭代，不改产品、依赖、配置或证据结论。
+- 验证：按连续管道表块解析，确认表头、#23、#24 同块，#24 四字段非空，时间列可按 Asia/Shanghai 解析；`git diff --check` 通过。按任务要求不重跑产品五项门禁，沿用 Lead 在基线独立运行的后端 157 项/ruff、前端 174 项/typecheck/build 通过结果，不宣称本次重新执行。
+- 修复提交的真实推送完成时间、最终不可变 SHA、GitHub 链接及 ls-remote/指定 gh API 核验结果在本任务交付评论中记录，避免自引用。交回 Lead 审查后另建独立 QA，本次不宣称 QA PASS，不合并或推送 dev/main。
