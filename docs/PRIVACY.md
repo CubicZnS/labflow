@@ -22,11 +22,12 @@
 
 - 前端所有 `fetch` 调用只出现在 `frontend/src/lib/api.ts`（健康检查、三个数据集 POST 端点）与 `frontend/src/components/CsvImportPanel.tsx`（内置示例 GET）。
 - 未发现前端请求第三方域名；唯一用户可见外链是首页“查看 GitHub 仓库”指向 `https://github.com/CubicZnS/labflow`，只有用户主动点击时才会访问。
-- 后端处理上传时先 `await file.read()` 读入内存，再交给 `io.StringIO`、`io.BytesIO` 或 `load_workbook(..., read_only=True)` 解析，没有写入临时文件或数据库。
+- 后端处理上传时先 `await file.read()` 读入内存，再交给 `io.StringIO`（CSV 字段数校验）、`pd.read_csv(io.BytesIO(...))`（CSV 解析）、`io.BytesIO` 或 `load_workbook(..., read_only=True)`（XLSX）处理；应用代码不写临时文件、不写数据库。
+- 框架层面：Starlette 的 `UploadFile` 对较大上传可能使用 `SpooledTemporaryFile`，在达到阈值后把请求体临时缓存到系统临时目录，并在请求结束时关闭/回收。这属于框架的临时缓冲，不是持久化，也不会被应用再次读取。
 
 ## 存储与留存
 
-- **上传文件**：仅在处理请求的内存中读取。CSV 使用 `io.StringIO`，XLSX 使用 `io.BytesIO` 与只读 `openpyxl` 工作簿；响应完成后不保留文件引用。
+- **上传文件**：仅在处理请求的内存中读取。CSV 的字段数校验使用 `io.StringIO`，解析使用 `pd.read_csv(io.BytesIO(...))`；XLSX 使用 `io.BytesIO` 与只读 `openpyxl` 工作簿；响应完成后不保留文件引用。如上所述，Starlette 可能对大请求使用临时缓冲，请求结束即回收。
 - **大小上限**：后端 `backend/app/datasets.py` 定义 `MAX_UPLOAD_BYTES = 10 * 1024 * 1024`（10 MB）；CSV 与 XLSX 超过上限均返回 HTTP 413。
 - **后端持久化**：`backend/app` 中没有 SQLite、数据库驱动、文件写入或 `Path` 落盘调用；`backend/pyproject.toml` 的运行依赖不包含数据库或对象存储客户端。项目至今没有账户、会话或服务端历史记录。
 - **浏览器本地存储**：前端源码中没有 `localStorage`、`sessionStorage`、`document.cookie` 或 `indexedDB` 调用。
@@ -58,6 +59,7 @@
 - 当前是本地 MVP：默认只监听本机地址，没有 TLS、鉴权、速率限制或租户隔离。部署到真实服务器前必须重新做隐私与安全复核，并重新评估传输加密、访问控制、日志与留存策略。
 - 浏览器或操作系统的下载记录、临时文件与备份不在应用控制范围内；应用只能决定“触发下载”，不能删除用户已保存的文件。
 - 第三方浏览器扩展、开发者工具或本机其他进程可能读取本机页面与网络流量，这属于运行环境风险，不在本仓库代码控制范围内。
+- 应用代码不写磁盘；Starlette 对大请求的临时缓冲由框架管理并在请求结束时回收，部署到真实服务器时仍需评估系统临时目录、反向代理与访问日志的留存策略。
 - 本轮未修复后端用户可见的英文校验错误文案；该工作安排在 Phase 4.3b-2（下一轮）。例如 CSV/XLSX 超限、内容类型不支持等错误仍可能包含英文。
 - 本轮未做 axe/WCAG 审计、渗透测试或真实服务器部署验证。
 
@@ -94,7 +96,8 @@ grep -n "MAX_UPLOAD_BYTES" -B2 -A4 backend/app/datasets.py
 
 # 7. 上传后的内存解析
 grep -rn "read()\|BytesIO\|StringIO" backend/app/datasets.py backend/app/main.py
-# 结果：file.read()、io.StringIO、io.BytesIO、load_workbook(read_only=True)；无临时文件写入
+# 结果：file.read()、io.StringIO（字段数校验）、io.BytesIO + pd.read_csv（CSV 解析）、
+#       io.BytesIO + load_workbook(read_only=True)（XLSX）；应用代码无临时文件写入
 
 # 8. 内置示例文件
 wc -l frontend/public/samples/labflow-demo.csv

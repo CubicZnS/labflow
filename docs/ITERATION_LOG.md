@@ -891,3 +891,12 @@ git log --oneline --decorate dev
     上述真实 SHA 与远端 HEAD，推送后远端 HEAD 会前进到本补记提交。
   - 推送核验：分支基于 `a8e0542e0e59ea4e9438130b0791eb23d777a7fc`，无 force push、无历史改写；
     `dev` 与 `main` 未改动。
+  - `iter/18` 最终 HEAD：`fe47c873b942bcf24e1da0f577540969435d4144`
+    https://github.com/CubicZnS/labflow/commit/fe47c873b942bcf24e1da0f577540969435d4144
+    （`git ls-remote origin refs/heads/iter/18` 与 `gh api` 一致）。
+  - 独立 QA：MAC-77 **PASS**。QA 独立核验 A1–A3、B4–B8、C9–C12、D13–D17、E18–E21 共 21 项：远端 3 个提交与 `dev`/`main` 基线、8 个允许路径、无依赖/后端/CI 改动、错误矩阵与 `AbortError` 原对象、离线重试状态机、4 条隐私说明与事实 grep、`#roadmap` 过期文案、中文 README/版本迭代表/迭代记录、5 项门禁（后端 155 passed + ruff，前端 174 passed + build），并做 3 项变异抽查（移除 AbortError 分支、删除离线提示 testid、隐私列表改为 3 条）均使对应测试失败。无阻断问题。
+  - QA 非阻断观察与处理：`api.ts` 末尾缺换行（沿袭旧文件，本轮未改）；`docs/PRIVACY.md` 对 CSV 解析与框架临时缓冲的描述不够精确，已在本轮记录提交中按 QA 反馈修正为 `io.StringIO`（字段数校验）+ `pd.read_csv(io.BytesIO)`（解析），并补充 Starlette `SpooledTemporaryFile` 的框架级临时缓冲说明，不影响“应用不持久化、不上传第三方”的结论。
+  - `dev` 合并提交：`05f1cdbae2e258fbd8947511e20fed6983fa5251`
+    https://github.com/CubicZnS/labflow/commit/05f1cdbae2e258fbd8947511e20fed6983fa5251
+  - 合并后在 `dev` 重跑 5 个 gate：后端 `pytest -q -o addopts=""` **155 passed**、`ruff check app tests` 通过；前端 `typecheck` 通过、`test:run` **174 passed**、`build` 成功。
+  - 阶段状态：Phase 4.3b-1（隐私复核与前端错误体验统一）完成并合并；Phase 4 MVP 产品化仍在进行，下一轮进入 Phase 4.3b-2 后端用户可见校验错误文案中文化。
