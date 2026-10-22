@@ -967,3 +967,14 @@ git log --oneline --decorate dev
   `git ls-remote origin refs/heads/iter/20` 与 `gh api repos/CubicZnS/labflow/commits/<sha> --jq .sha` 均返回上述完整 SHA。
 - 本第二个记录提交仅补记已存在的首次实现提交证据，不自引用自身 SHA；最终远端 HEAD 与记录提交链接由任务交付评论记录。
 - 交付状态：实现完成后子任务 done 仅表示文档实现完成；Lead 独立审查后另建 QA，QA PASS 前禁止合并。
+
+
+### 迭代 #20 首次 QA FAIL 修复（待独立复验）
+
+- 首次独立 QA：MAC-85 FAIL。真实原因两项：README 在 #19/#20 之间有空行，导致 #20 脱离版本表；T07、外部手册第 5 步及 T08 changed.csv 路径仅重导数据就要求打开项目，遗漏首次项目区显示所需的成功配对。
+- 修正范围：仅 README.md、docs/BROWSER_TRIAL_CHECKLIST.md、docs/ITERATION_LOG.md。删除表内空行，#20 修复栏记录上述两项实际修正，首推时间仍为 2026-10-22 11:47；补齐刷新/重导后先 X=x、Y=y 配对成功并等待空闲的操作，覆盖 T07/T08/T09/T10 与外部手册第 5 步及通用前置说明，不改产品代码。
+- 静态对照证据：SeriesPanel.tsx 的 mainResult 仅来自 seriesState success（约 164 行），项目区条件为 success/opening/rerunning/projectError（约 705 行），canOpenProject 要求无 busy/loading（约 168 行）；CsvImportPanel.tsx 重导后重新挂载 SeriesPanel。因此先成功配对才能首次看到项目入口，打开后仍由快照重跑；拒绝指纹请求的网络观察从该前置配对完成后开始。
+- 实际检查：用 Python 解析 README 的连续 Markdown 管道表块，确认 #19/#20 为同一版本表内相邻行，表头及 #20 均为四字段；逐项核对重导后的全部项目操作，并运行 git diff --check。均通过；不是浏览器实测。
+- 完整门禁复用：候选 `9e2c6d10b71a2e79cd79087702273ea79fa7d73e` 的已完成检查（本 Dev 上轮实际运行；MAC-85 描述亦记录 Lead 独立运行）：backend pytest -q 157 项与 ruff、frontend typecheck/test:run 174 项/build 通过。本次纯文档修复未重复运行，未宣称新运行；候选后产品代码、依赖、CI、配置无变更。
+- 修复真实 SHA/链接及实际 Asia/Shanghai 推送时间：提交推送核验后记录在 MAC-84 交付评论，不虚构自引用 SHA。
+- 仍待 Lead 另建独立复验；产品尚未通过，禁止合并。Chrome/Safari/Firefox 人工矩阵及外部验收继续待执行。
