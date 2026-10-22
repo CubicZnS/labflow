@@ -1099,3 +1099,12 @@ git log --oneline --decorate dev
 - 证据附件c79493c0-9ed4-4446-a58f-2488fc3213a6，1,451,970字节，SHA256 eed8734eba61768f942fdc01cac9437356715c3027ff63bfebbfa945ad5cecf5；回下载ZIP与manifest87项路径/大小/哈希闭合验证通过。原生文件选择器只合成注入，非人工验收。
 - 门禁：backend pytest157项/ruff、frontend typecheck/test:run174项/build全部退出0，原始日志与退出码随附件交付；保留既有弃用、RankWarning、React key警告。git diff --check通过。验证FAIL与代码门禁成功分别报告。
 - 已知问题/下一轮：二次拟合方向键路径未完成；由Lead依据校准对照收敛后续最小验证，焦点遮挡/200%缩放/其他浏览器/人工矩阵/外部验收不在本轮，T09整体与MVP未完成。只推iter/25，交Lead独立审查后另建QA，不自行合并、不创建QA、不改父任务。
+
+
+### 迭代 #25：独立验收与合并收尾
+
+- 独立 QA：[MAC-120](/MAC/issues/MAC-120) 对文档/证据交付 PASS；严格键盘产品验收仍 FAIL，不代表 T09 或 MVP 通过。QA 独立核验87项附件闭合、原始事件/请求/669字节项目文件及独立公式；未复跑浏览器，边界保留。
+- 最终候选：`iter/25` / `4b68a9deacd13f30441251bd468e01cef5276ef9`，https://github.com/CubicZnS/labflow/commit/4b68a9deacd13f30441251bd468e01cef5276ef9 。
+- 真实合并提交：`fdc10148c4b0d2d3659a6a8f283168d95e73883e`，https://github.com/CubicZnS/labflow/commit/fdc10148c4b0d2d3659a6a8f283168d95e73883e ，2026-10-23 Asia/Shanghai 已推送 origin/dev。合并摘要中文、精确 Paperclip 署名，无历史改写、未推 main。
+- Lead 与 QA 分别新运行后端157项/ruff、前端174项/typecheck/build全部退出0。此次仅同步三份文档集成状态、真实SHA与链接，复用已通过门禁并运行git diff --check；不冒充重新执行浏览器或门禁。记录提交自身SHA在任务交付记录，避免自引用；合并/记录提交交独立QA追加只读核验。
+- 已知问题及下一轮：方向键选择二次拟合路径未完成，普通HTML也复现下拉值不变，不能确认产品缺陷。下一轮只收敛Remote默认选择行为/可行按键路径，或单独选择焦点遮挡、200%缩放缺口；人工矩阵、其他浏览器及外部验收仍未完成，Phase4 MVP未完成。
