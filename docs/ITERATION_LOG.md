@@ -1140,3 +1140,14 @@ git log --oneline --decorate dev
 - 已知问题与下一轮：仅Firefox headless自动化，不宣称QA PASS。交Lead独立审查后另建QA；T09、200%缩放、方向键选择、人工矩阵与Phase4 MVP仍未完成。
 
 迭代 #27 首次真实推送：2026-10-26 13:08 Asia/Shanghai，修复提交 [22bfed09ac911371c223459668a307b56378b5c8](https://github.com/CubicZnS/labflow/commit/22bfed09ac911371c223459668a307b56378b5c8) 已推送 origin/iter/27；git ls-remote 与 GitHub commits API 返回同一完整SHA。随后仅补此已存在提交链接与实际推送时间，复用未变化产品的五项门禁和真实浏览器结果，并重新运行 git diff --check。最终分支HEAD及推送时间见任务交付；只推 iter/27，不合并，不创建QA。证据附件72项回下载闭合，297步均满足稳定判据，保留脚本准备错误的说明，不宣称独立QA PASS。
+
+
+## 迭代 #27：QA FAIL 后补齐全焦点与描边边界
+
+- 依据：[MAC-167](/MAC/issues/MAC-167)独立QA退回；初版标题独立通过，原297步退出0只覆盖标题/页面宽度，不能称全节点通过。本次目标仅修正滚动DIV与5px描边边界遗漏。
+- 分支：共享iter/27，修复前已存在候选[1acfd300676f98fd8e1d4d5eecf5977fe82c3415](https://github.com/CubicZnS/labflow/commit/1acfd300676f98fd8e1d4d5eecf5977fe82c3415)，不改历史、不新建迭代、不使用worktree。
+- 改动：App单一focusin/下一帧绝对scrollTo最小纵向校正，按真实header高度/描边测量；全局描边覆盖原生DIV及Tailwind变体，跳转链接留足视口内描边空间。无按键拦截，无计算/快照/导出修改。
+- 先失败后修复：旧候选297步、基线等效样式207步；最终统一判据离线复核旧候选131次失败（包含重复节点和透明描边，不是缺陷数量）。最终297步274次纳入0失败，另完整正向遍历/滚动可用性224步、4次横滚检查通过；全部排除项有逐节点依据，无DIV排除。详见浏览器清单和闭合附件。
+- 门禁：后端pytest157项、ruff；前端typecheck、Vitest174项、build全部退出0，git diff --check通过。README中文功能/状态/限制/下一步同步，既有启动与测试命令仍准确；新增本轮QA闭环版本行，实际推送时间和新提交SHA在真实推送后交付/追加已存在链接，避免虚构自引用。
+- 已知问题：仅Firefox headless/五点合成数据；高度超过可用视口的节点只能对齐顶部，不承诺所有长内容全框可见。真实方向键下拉选择、200%缩放、其他浏览器和人工矩阵仍未完成。保留一次选择器优先级失败后主动中断的证据，不算最终通过。
+- 下一步：交Lead重新独立审查并交原[MAC-167](/MAC/issues/MAC-167)复验，禁止自行QA PASS/merge/push dev/main，T09和MVP未完成。

@@ -356,3 +356,50 @@ T09整体未通过；只是自动化证据交付，非屏幕阅读器审计、�
 上传helper在创建宿主临时文件时被拒，curl因输出参数为空未发出请求；随后按技能规定附件API上传成功，未修改权限或配置。
 
 注意：regression/failure.txt 与 exception.png 为首次320日志打印KeyError留下的文件；最终 run.log 三档完成及297步steps.json覆盖重跑结果，不把旧异常截图当最终运行失败。
+
+
+## 迭代 #27：QA FAIL 后补齐全焦点与描边边界
+
+2026-10-26 Asia/Shanghai；共享主工作区 `iter/27`，修复前候选 [1acfd300676f98fd8e1d4d5eecf5977fe82c3415](https://github.com/CubicZnS/labflow/commit/1acfd300676f98fd8e1d4d5eecf5977fe82c3415)。独立 QA [MAC-167](/MAC/issues/MAC-167) 确认标题修复通过，但原脚本只对标题作完整可见性断言、失败候选过滤漏掉原生可聚焦 DIV，清除按钮描边亦越入顶部栏1px；因此初版 QA FAIL。上节“297步通过”仅表示旧脚本标题/宽度断言通过，不能扩展为全节点5px安全间距通过。本节替代此类扩大解读，不删除旧证据。
+
+环境仍为真实Firefox 158.0.1 / buildID 20261019185856、geckodriver 0.37.1、Selenium 4.51.0、macOS27.0.1(26A434)，headless Remote4444 + BiDi内容视口320/768/1280×915、DPR1。页面5173/后端8000已有服务，未启停。Browser plugin not available，Playwright命令未安装；依任务沿用既有真实Firefox/Selenium，不装依赖。标题、URL、非空正文、无Vite覆盖层及window error/unhandledrejection监听通过；此监听不等于完整console审计或人工验收。
+
+**根因及最小修复**：Firefox原生焦点滚动可能保留部分已可见区域；仅scroll-padding不足以保证容器与完整描边可见。App只增加一个focusin监听，下一动画帧确认仍为当前:focus-visible节点后，按实际顶部栏高度、实际描边外延及8px余量作最小纵向校正，以当前scrollY加校正量的绝对scrollTo取消进行中的平滑滚动相对目标干扰；不接管按键，不改变焦点，不按控件分别加补丁，卸载清理监听与待执行帧。CSS全局`:root :focus:focus-visible`覆盖原生滚动DIV，并明确高于编译后排在后面的Tailwind focus:outline-none（旧输入框实际为透明2px描边/2px偏移，仍有控件focus ring，不宣称完全无提示）；现在统一青色3px/偏移2px。固定跳转链接top/left改8px，5px外描边留在视口内。保留原有根scroll-padding及reduce分支。超出安全视口高度的节点只能对齐顶部，未在本轮五点合成数据上宣称超大内容全框可见。
+
+**先失败、后修复及基线对照**：red/在旧候选实际运行297步，原始几何断言记录11次失败；用最终统一判据复核原始样本（含透明描边及至少5px外延）为131次失败，不把同节点重复出现当作独立缺陷数。baseline/在改App之前运行：经git产品diff与源哈希确认#26到旧候选只增加根scroll-padding，在浏览器中将其归零作等效基线滚动样式对照，未切分支或创建worktree；207步、同一初始11步/正向前14步，反向44步。不是独立构建或发布归因，反向起点因正向步数不同不称完整路径完全相同。
+
+- 768正向系数DIV：基线等效对照top801.5/bottom942.5、20/25命中；旧候选834/975、15/25，基线亦部分裁切。
+- 320正向预览DIV：基线652/904，旧候选684.5/936.5，同一正向前缀在旧候选出现视口下沿裁切，不能笼统称全是新增或全是既有。
+- 1280清除按钮：旧候选反向index38 top69，保守5px描边上沿64<header底65；基线等效反向index38 top36.5，起点差异单独说明。实际安全边界均需修复，不以标题通过作替代。
+- 仅加scroll-margin的浏览器内探测未修复768 DIV（margin.*）。首轮统一校正几何已无失败，但描边选择器与Tailwind变体同优先级仍被覆盖，主动中断（attempt-specificity/与.log），提高选择器优先级后完整重跑。上述失败/中断均保留，不作最终PASS证据。
+
+**最终严格回归**：以document.activeElement为准，不按标签名单过滤。所有纳入节点（包含原生滚动DIV）最后两次rect/scrollY变化<0.5 CSS px判稳定，保留按键返回后即时及150/350/700ms实际elapsed，不稳定延至3秒。逐节点assert真实document.hasFocus/:focus/:focus-visible、非透明描边、完整几何加至少5px外延位于安全视口、中心与25内部点命中自身/后代、页面无水平溢出；header内链接与z50跳转链接按其真实层级检查视口边界，不误算成被header遮挡。
+
+| 内容视口 | 按键样本 / 纳入焦点 | 纳入原生DIV次数 | 清除按钮最小top | 失败 |
+|---|---:|---:|---:|---:|
+| 320×915 | 99 / 92 | 6 | 337.25 | 0 |
+| 768×915 | 99 / 91 | 4 | 337.25 | 0 |
+| 1280×915 | 99 / 91 | 4 | 78 | 0 |
+
+最终green/共297步、274次纳入、0失败；23次排除只含既有1px/CSS裁剪的sr-only文件输入及document.hasFocus/:focus不同时为true的浏览器界面边界，逐项reason/几何存于exclusions.json，无DIV排除。所有原始取样的页面宽度均等于视口。标题修复仍通过，输入框/按钮/表格容器的边界及截图分别保留，不以25点命中代替外框/描边断言。
+
+usability/另从标题用可信Shift+Tab回到跳转链接，再正向遍历至浏览器界面边界，224步、209次纳入，0失败；4次真实聚焦DIV经可信ArrowRight后scrollLeft增长、ArrowLeft可返回，滚前/后几何及命中仍通过，证明本次141px系数区、252px拟合预览等容器可聚焦/横滚/离开，不因“大容器”排除。没有使用方向键选择下拉值来扩展本轮目标。可信keydown、窗口边界原生activate、即时/稳定数据和截图完整保存。准备仍用点击/Select/合成文件注入，非原生文件选择器或全程纯键盘验收。
+
+复跑：解压所有包到同一目录；已有服务和Selenium时，在共享仓库根运行 `/tmp/labflow-browser/venv/bin/python <证据目录>/run.py green`，再运行 `.../run.py usability`，输出写各阶段目录。浏览器脚本不调用JS focus/scrollTo制造通过；产品自身统一滚动校正即被测实现。red/baseline阶段只可在原App源上重跑，脚本有源哈希护栏，禁止在新校正上伪造基线；baseline-run.py/red-run.py保存当时脚本，audit.py以最终判据审核原始数据。
+
+补充edges.py检查正常smooth的320/768/1280及reduce会话auto的768/1280，共5组：真实键盘激活跳转链接与header锚点、超高#import顶部安全可读、PageDown可阅读且不被反复拉回、Tab可离开后小控件完整可见。超高#import SECTION是有限排除：高度超过可用视口，320/768整宽区域也无法容纳外描边；不要求其整框/中心25点全可见，普通滚动DIV不适用此排除。记录即时至2秒稳定窗口与截图，不把会话reduce偏好当OS人工验收。相对scrollBy候选在此路径出现超大区域中段停留（edges-relative-failed），改绝对目标后重跑。样例路径准备失败（edges-fixture-failed）另留原始记录，不作产品FAIL。原相对调用的green-relative/usability-relative保留，但不作为最终代码结果。
+
+五项门禁本轮重跑退出0：backend指定pytest157项、ruff；frontend指定pnpm typecheck、Vitest174项、build。原始日志与命令/退出码见checks.json及*.log，既有Starlette/httpx弃用、NumPy RankWarning与React key警告保留。git diff --check通过；未改计算/导出/快照/依赖/配置/backend，无JSDOM布局替代。
+
+证据分包上传并回下载验证（QA原包已核对4,148,349字节与SHA256，附件引用见qa-reference.json，不重复打包）：
+
+| 包 | 字节 | SHA256 | manifest载荷数 |
+|---|---:|---|---:|
+| [ZIP 1](/api/attachments/071fe1ee-9766-49d1-8c0b-4726e05ef124/content?download=1) | 7487114 | `d260d035c2d04b05a89acb816d00f1f33f3c5b257002a5135769f395b4b4dccc` | 86 |
+| [ZIP 2](/api/attachments/aa1e1133-1b81-4484-90ee-1d3fb9e5679a/content?download=1) | 7459857 | `62b966db7d5ca07e319bbd9437ffb9b6f197bc1266c094d969f9c0f0c4ed3da6` | 88 |
+| [ZIP 3](/api/attachments/a687ce22-0889-4f24-b518-a1a0b743e12b/content?download=1) | 7393639 | `d165cb3538f2f303967824c315dbb29d535ed779b70a78afc1e4d430124baf60` | 131 |
+| [ZIP 4](/api/attachments/9d9170c6-c767-4502-8944-1011cbe765cf/content?download=1) | 2556740 | `e4ac8798593f17e4fbdbbd255926e2603b9ad2d95cbb7c12930439456b6e0394` | 39 |
+
+各包manifest路径集合=全部载荷+manifest自身，逐项大小/SHA256一致，manifest不自引用；global-inventory.json列出的343个原始载荷在全部包恰各出现一次，集合闭合，无重复/遗漏/额外文件。仅合成数据，无秘密或用户数据；verify_archives.py可离线核对所有ZIP。上传helper本机临时目录受限时按技能规定API上传，未改权限。
+
+本次仅开发者Firefox headless自动化复验；等待Lead重新独立审查后交原QA任务验收，无本次QA PASS。T09整体、200%缩放、方向键选择、Chrome/Safari、人工矩阵、屏幕阅读器和外部验收仍未完成，Phase4 MVP未完成。

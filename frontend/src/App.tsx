@@ -62,6 +62,39 @@ function App() {
     return () => controller.abort();
   }, [checkHealth]);
 
+  useEffect(() => {
+    let frame = 0;
+    const keepFocusVisible = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      cancelAnimationFrame(frame);
+      // Native focus scrolling can leave partly visible controls/scroll regions in place.
+      frame = requestAnimationFrame(() => {
+        if (document.activeElement !== target || !target.matches(":focus-visible")) return;
+        const header = document.querySelector("header");
+        if (header?.contains(target) || target.matches(".skip-link")) return;
+        const rect = target.getBoundingClientRect();
+        if (rect.width <= 1 && rect.height <= 1) return;
+        const style = getComputedStyle(target);
+        const clearance = Math.max(0,
+          (parseFloat(style.outlineWidth) || 0) + (parseFloat(style.outlineOffset) || 0),
+        ) + 8;
+        const top = (header?.getBoundingClientRect().bottom ?? 0) + clearance;
+        const bottom = window.innerHeight - clearance;
+        // Fit the whole outline when possible; anchor oversized regions at their top.
+        const delta = rect.top < top
+          ? rect.top - top
+          : Math.min(Math.max(0, rect.bottom - bottom), rect.top - top);
+        if (delta) window.scrollTo({ top: window.scrollY + delta, behavior: "instant" });
+      });
+    };
+    document.addEventListener("focusin", keepFocusVisible);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("focusin", keepFocusVisible);
+    };
+  }, []);
+
   const apiLabel =
     apiState === "online"
       ? "API 已连接 · v" + apiVersion
