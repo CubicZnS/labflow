@@ -284,3 +284,47 @@ T09整体未通过；只是自动化证据交付，非屏幕阅读器审计、�
 复跑：整个iter25目录放回`/tmp/labflow-browser/evidence/iter25`，运行 `/tmp/labflow-browser/venv/bin/python /tmp/labflow-browser/evidence/iter25/run25.py`，前提已有Remote4444、5173/8000和Selenium，不安装或启动服务；预期当前环境degree2断言退出1。同名下载由浏览器自动编号，脚本只认本次新增文件。attempt1/2/3目录中的脚本分别为当时快照。注入监听/读取状态不改变焦点或值，产品操作无click、JS focus、Select API。合成文件注入不是原生文件选择器人工验收。焦点遮挡、200%缩放、其他浏览器、屏幕阅读器、人工矩阵、外部验收均未纳入本轮。
 
 门禁：backend指定python pytest退出0（157项），ruff退出0；frontend指定pnpm typecheck、test:run（6文件174项）、build退出0，原始输出与退出码在checks/。既有Starlette/httpx弃用、NumPy RankWarning、React key警告保留。提交前git diff --check通过；只推iter/25，Lead独立审查后另建QA，本轮不创建QA、不合并、不写父任务。
+
+
+## 迭代 #26：键盘焦点与顶部栏稳定遮挡（验证FAIL）
+
+本轮只复核 #23 的取样，不修产品。分支按人工答复 `1896c157-f2d2-45b9-8f1d-14bf0257481c` 保留 `MAC-123-26` 并推送同名远端；不再要求 `iter/26`，未操作主工作区或启停服务。隔离 workspace `28aa2e40-d011-4577-b979-d22124bc31e6`，strategyType=`git_worktree`，baseRef=`origin/dev`，基线 [c5b61e7280d9fc7fe8e6f291e3d86c0b4e932c05](https://github.com/CubicZnS/labflow/commit/c5b61e7280d9fc7fe8e6f291e3d86c0b4e932c05)。路径为 `/Users/zhangzimo/Library/Application Support/PaperclipHost/worktrees/labflow/MAC-123-26`。复核前 backend `/api/health` 与 frontend 均 HTTP 200。
+
+环境：2026-10-24 Asia/Shanghai，macOS 27.0.1 (26A434)，Firefox 158.0.1 / buildID 20261019185856，geckodriver 0.37.1，Selenium 4.51.0；既有 Remote4444 + BiDi headless，页面 `http://127.0.0.1:5173/`、API8000。BiDi 设置实际内容视口 768/1280×915，DPR1，不以外窗或 CSS zoom 冒充。Browser plugin not available；`pnpm exec playwright --version` 退出1，`Command "playwright" not found`，沿用既有 Selenium，不安装依赖。完整能力、OS版本、时间、真实视口见 environment.json/context.json。
+
+方法与证据解释：
+
+- 合成 CSV 为5点 `y=2x+1`，文件注入、点击与 Select 仅用于准备导入/配对/拟合；实际 csv/series/fit 请求均200。待测焦点由 BiDi 可信 Tab/Shift+Tab 按键产生，未调用 JS focus、scrollIntoView、scrollTo。准备过程不是纯键盘 PASS。
+- 首轮 186 次按键：每步读取即时、计划120/350/700/950ms的 activeElement、rect、scrollY、顶部栏边界、中心命中、视口可见面积与5×5网格命中。Remote往返使实际间隔略大，samples.elapsed保留实际值。最后两次几何/scrollY差异<0.5 CSS px才记稳定，否则250ms延长至3秒；不删除即时样本。“即时”是按键命令返回后的首读，无法观察命令执行期间或首读之前的瞬态；结论仅针对后续稳定窗口。首轮部分样本 `:focus-visible=false`，不能单凭它断言完整焦点视觉表现。
+- 因此另做原生 `browsingContext.activate`/WebDriver窗口选择，非 JS 聚焦；两档从拟合按钮逆向11次按键到标题，`document.hasFocus()`、`:focus`、`:focus-visible` 均true，位置至约1秒仍不变。active-full 仅在准备后激活一次，记录到Tab越过页尾进入浏览器界面后窗口再次失焦，不能将全程当作真实焦点视觉证据。随后 native-cycle 在每步之前检测窗口失焦，仅在此浏览器界面边界原生重新激活页面（不调用JS focus），保留before与nativeContextReactivated；双向循环取样为即时/350/700ms，稳定判据相同。
+- 顶部栏内链接与顶部栏的几何交集不是遮挡。原始 uncoveredRatio 仅为视口面积减顶部栏矩形交集；不得直接将 failures.json 的几何候选数量当产品缺陷数。隐藏的1px文件输入也不能作为关键可见控件裁切。真实可见性结合中心/网格命中、元素所在层和截图判断；网格比例是离散采样，不冒充精确面积。
+
+| 标题输入框路径 | 稳定顶部 y / 中心 y | 视口内比例 | 顶部栏边界 | 实际命中与结论 |
+|---|---|---|---|---|
+| 768×915 正向 Tab | 438.5 / 457.5 | 100% | y=0…65 | 中心自身、25/25网格命中；仅该取样可见 |
+| 1280×915 正向 Tab | 733.5 / 752.5 | 100% | y=0…65 | 中心自身、25/25网格命中；仅该取样可见 |
+| 768×915 反向 Shift+Tab | −9.5 / 9.5 | 75% | y=0…65 | 中心命中header内DIV、0/25；剩余28.5px全处于顶部栏下，无遮挡可交互区域0，FAIL |
+| 1280×915 反向 Shift+Tab | −9.5 / 9.5 | 75% | y=0…65 | 中心命中header内DIV、0/25；无遮挡可交互区域0，FAIL |
+
+上表正向值来自首轮，反向值同时由窗口激活补充复现。原始 #23 `supplement/traversal-768.json` 的 −9.5 实为矩形顶边，height=38，因此中心9.5；先前“中心−9.5”的描述应纠正。#26宽度为552/486.4，与#23旧布局宽601.23不同，不伪称完全相同布局。顶部栏半透明可透出文字，不代表输入框未被命中层遮挡。窗口激活补充两档均在0…约1.1秒保持顶边−9.5、中心9.5，不是本次可观察窗口内的滚动瞬态。
+
+最小复现：使用上述环境和任一目标视口 → 注入trial.csv并点击“上传并解析” → 点击选择X=x、Y=y → 点击“生成配对数据” → 点击“运行拟合”，等待成功 → 原生激活浏览器上下文 → 11次 Shift+Tab（每步稳定等待），直到 data-testid=chart-title-input。保存 rect、header、elementFromPoint 与截图；此时真实焦点true但输入框可交互区域被遮挡。脚本 `activated/run26_activated.py` 可在原有4444/5173/8000服务下复跑；不启动服务、不修改产品。
+
+最终native-cycle共182次按键；每档拟合后正向42次（41个页面保持焦点样本+1次浏览器界面边界）、反向40次（39个保持焦点样本+1次边界），每方向均有一次边界后原生激活。标题正向/反向样本的document.hasFocus/:focus/:focus-visible均true，稳定判据通过。遍历覆盖导入、X/Y配对、拟合、项目名称/备注/保存/打开、标题/样式、追加系列、SVG/PNG导出，以及可聚焦表格容器。每档双向遍历都能离开目标并到达页面/浏览器界面边界，原始顺序在各目录 states.json。原始脚本wrapped仅表示再次遇到已记录焦点身份；native-cycle反向离开页面后原生激活可能恢复到中途控件，不把这个重复误称完整页面绕回。边界原生激活单独记录，不能冒充完全不离开页面的连续纯键盘工作流；只证明该次 Remote路径未陷在局部控件中，不证明所有状态或原生文件对话框无陷阱。其他边缘裁切/隐藏文件输入候选留在原始数据，供Lead按范围审查，不擅自扩大产品修复。
+
+页面标题/URL正确、正文非空，无Vite错误覆盖层；error/unhandledrejection数组为空，仅覆盖页面异常监听，不等于完整控制台审计。五项门禁退出0：后端pytest157项、Ruff；前端typecheck、6文件174项Vitest、build；既有弃用/RankWarning等见原始日志。git diff --check在文档提交前复核。浏览器可见性 **FAIL** 与代码门禁通过分别记录，均不称独立 QA PASS。
+
+证据已上传并逐包回下载校验（单附件上限10 MB，分6包；包1为索引/原始数据/关键截图，其余保留全部候选截图）：
+
+| 包 | 字节数 | SHA256 | manifest载荷数 |
+|---|---:|---|---:|
+| [ZIP 1](/api/attachments/69a6c282-9b2c-475e-b21b-f15923e80328/content?download=1) | 1273668 | `9a1638e848f8d0afb7e7a166a806cf261a0a3de7cfee5b7f910382cba4240155` | 91 |
+| [ZIP 2](/api/attachments/5bd91d24-b0d5-47e9-9c96-1e7d6b066d79/content?download=1) | 7602238 | `7ea629e3b7d75ac30e7665c712e5709e7da6add805631e212c15e2d399a623b8` | 49 |
+| [ZIP 3](/api/attachments/3bd597ab-5387-4ca2-a501-39bc9d0161ec/content?download=1) | 7448935 | `e3c4d03b6a3737a5aecfc18531cd78dc6df8a7653f9ac0dc722dcbf7d1dfeb94` | 53 |
+| [ZIP 4](/api/attachments/1ddc6026-4c4d-4a1d-a700-b9633d4361a2/content?download=1) | 7574442 | `b41c1511e78d693328d7207d02d1f4fb0607c850e950ee456d051ea4e77f578f` | 56 |
+| [ZIP 5](/api/attachments/b3ec5c4c-e260-431b-baa4-895c927e0e9d/content?download=1) | 7659474 | `66915a6cb61308da4fc126beab3a94069207116a846f99d85342d92f84b6dbb9` | 49 |
+| [ZIP 6](/api/attachments/adb68531-a69b-4317-8137-6ee1e4e00062/content?download=1) | 1687322 | `fb5a523eb1ea8bbccfa599a98fde603b78f4729639bad1bc85fc5f0eba3eb554` | 14 |
+
+六个ZIP字节数与SHA256均与本地一致；各ZIP路径集合严格等于manifest载荷+manifest自身，逐文件字节/哈希一致；包1 global-inventory.json列出的311个原始载荷在六包恰好各出现一次、无额外或缺失，另有索引自身（包1载荷总91项）。manifest自身不自引用。每个附件均已登记artifact工作产品。helper在临时目录创建时被沙箱拒绝、未发出请求；直接API对33,230,255字节单包返回422“Attachment is larger than the 10 MB limit”，随后拆包成功，未改权限或配置。
+
+交回Lead独立审查稳定遮挡最小复现，后续由Lead另建QA/选择一个修复任务。#25方向键选择仍FAIL；真实200%缩放、Chrome/Safari、Firefox有头人工矩阵、屏幕阅读器与外部验收未执行，本轮不宣称整个T09或Phase4 MVP完成。
