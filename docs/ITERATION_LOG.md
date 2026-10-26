@@ -1128,3 +1128,28 @@ git log --oneline --decorate dev
 - 真实合并提交：`f5c762ad7621b62ad2d9f02a263610641bbb3c0a`，https://github.com/CubicZnS/labflow/commit/f5c762ad7621b62ad2d9f02a263610641bbb3c0a ，2026-10-26 12:54 Asia/Shanghai 已推送 origin/dev；合并摘要中文、含 Paperclip 署名，未改写历史、未推 main。
 - 记录收尾：QA 独立核验候选 SHA、四文件 65+/2- diff、中文摘要/署名、六个附件与 311 项全局载荷闭合；合并后由 Lead/记录提交补入真实 merge SHA。
 - 已知限制：T09 焦点遮挡仍为产品 FAIL；方向键选择、200% 缩放、其他浏览器、人工矩阵和外部验收未完成；下一轮不得把本记录当作 T09 或 MVP 通过。
+
+
+## 迭代 #27：修复键盘焦点被顶部栏稳定遮挡
+
+- 目标：仅修复 #26 已证实的反向 Shift+Tab 到图表标题稳定遮挡，不扩展方向键或缩放。
+- 改动：index.css 根滚动容器预留顶部栏高度与描边安全间距，保留平滑滚动与减少动态效果分支，无逐控件补丁、不隐藏遮挡；计算/快照/导出逻辑未改。
+- 分支：共享主工作区 iter/27；已存在基线 [23f882a04c9ca8af10f321c2526d17070e8a4c8f](https://github.com/CubicZnS/labflow/commit/23f882a04c9ca8af10f321c2526d17070e8a4c8f)。最终真实 SHA 与实际推送时间见[交付任务](/MAC/issues/MAC-164)，提交后追加已存在提交链接，避免虚构自引用。
+- 测试：backend 指定 .venv/bin/python -m pytest -q（157项）、.venv/bin/ruff check app tests；frontend 指定 pnpm typecheck、test:run（174项）、build 均退出0；既有 Starlette/httpx 弃用、NumPy RankWarning、React key 警告保留。真实 Firefox 前后重现及三档正反遍历见浏览器清单/附件；不以 JSDOM 代替布局。
+- 文档：同步 README 当前功能/限制/下一步，既有启动与五项测试命令仍准确；路线图仅记录自动化结果。
+- 已知问题与下一轮：仅Firefox headless自动化，不宣称QA PASS。交Lead独立审查后另建QA；T09、200%缩放、方向键选择、人工矩阵与Phase4 MVP仍未完成。
+
+迭代 #27 首次真实推送：2026-10-26 13:08 Asia/Shanghai，修复提交 [22bfed09ac911371c223459668a307b56378b5c8](https://github.com/CubicZnS/labflow/commit/22bfed09ac911371c223459668a307b56378b5c8) 已推送 origin/iter/27；git ls-remote 与 GitHub commits API 返回同一完整SHA。随后仅补此已存在提交链接与实际推送时间，复用未变化产品的五项门禁和真实浏览器结果，并重新运行 git diff --check。最终分支HEAD及推送时间见任务交付；只推 iter/27，不合并，不创建QA。证据附件72项回下载闭合，297步均满足稳定判据，保留脚本准备错误的说明，不宣称独立QA PASS。
+
+
+## 迭代 #27：QA FAIL 后补齐全焦点与描边边界
+
+- 依据：[MAC-167](/MAC/issues/MAC-167)独立QA退回；初版标题独立通过，原297步退出0只覆盖标题/页面宽度，不能称全节点通过。本次目标仅修正滚动DIV与5px描边边界遗漏。
+- 分支：共享iter/27，修复前已存在候选[1acfd300676f98fd8e1d4d5eecf5977fe82c3415](https://github.com/CubicZnS/labflow/commit/1acfd300676f98fd8e1d4d5eecf5977fe82c3415)，不改历史、不新建迭代、不使用worktree。
+- 改动：App单一focusin/下一帧绝对scrollTo最小纵向校正，按真实header高度/描边测量；全局描边覆盖原生DIV及Tailwind变体，跳转链接留足视口内描边空间。无按键拦截，无计算/快照/导出修改。
+- 先失败后修复：旧候选297步、基线等效样式207步；最终统一判据离线复核旧候选131次失败（包含重复节点和透明描边，不是缺陷数量）。最终297步274次纳入0失败，另完整正向遍历/滚动可用性224步、4次横滚检查通过；全部排除项有逐节点依据，无DIV排除。详见浏览器清单和闭合附件。
+- 门禁：后端pytest157项、ruff；前端typecheck、Vitest174项、build全部退出0，git diff --check通过。README中文功能/状态/限制/下一步同步，既有启动与测试命令仍准确；新增本轮QA闭环版本行，实际推送时间和新提交SHA在真实推送后交付/追加已存在链接，避免虚构自引用。
+- 已知问题：仅Firefox headless/五点合成数据；高度超过可用视口的节点只能对齐顶部，不承诺所有长内容全框可见。真实方向键下拉选择、200%缩放、其他浏览器和人工矩阵仍未完成。保留一次选择器优先级失败后主动中断的证据，不算最终通过。
+- 下一步：交Lead重新独立审查并交原[MAC-167](/MAC/issues/MAC-167)复验，禁止自行QA PASS/merge/push dev/main，T09和MVP未完成。
+
+返工真实远端提交：[均匀焦点校正与描边修复 4dc618ccc399b21f844d9280824e9ce8c73b0e63](https://github.com/CubicZnS/labflow/commit/4dc618ccc399b21f844d9280824e9ce8c73b0e63)，推送完成核验时间 2026-10-26 16:23:00 Asia/Shanghai，origin/iter/27 与 GitHub commits API返回同一完整SHA。343项原始证据跨四包回下载闭合，最终绝对调用主回归297步、正向/横滚复验224步及5组边界检查通过，五项门禁通过。随后仅补已存在提交链接及真实推送时间，产品代码未变，复用最终检查并重跑git diff --check；最终HEAD和推送完成时间由任务交付记录，不虚构自引用。等待Lead重新审查和原QA复验，本次无独立QA PASS。
