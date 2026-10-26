@@ -1128,3 +1128,13 @@ git log --oneline --decorate dev
 - 真实合并提交：`f5c762ad7621b62ad2d9f02a263610641bbb3c0a`，https://github.com/CubicZnS/labflow/commit/f5c762ad7621b62ad2d9f02a263610641bbb3c0a ，2026-10-26 12:54 Asia/Shanghai 已推送 origin/dev；合并摘要中文、含 Paperclip 署名，未改写历史、未推 main。
 - 记录收尾：QA 独立核验候选 SHA、四文件 65+/2- diff、中文摘要/署名、六个附件与 311 项全局载荷闭合；合并后由 Lead/记录提交补入真实 merge SHA。
 - 已知限制：T09 焦点遮挡仍为产品 FAIL；方向键选择、200% 缩放、其他浏览器、人工矩阵和外部验收未完成；下一轮不得把本记录当作 T09 或 MVP 通过。
+
+
+## 迭代 #27：修复键盘焦点被顶部栏稳定遮挡
+
+- 目标：仅修复 #26 已证实的反向 Shift+Tab 到图表标题稳定遮挡，不扩展方向键或缩放。
+- 改动：index.css 根滚动容器预留顶部栏高度与描边安全间距，保留平滑滚动与减少动态效果分支，无逐控件补丁、不隐藏遮挡；计算/快照/导出逻辑未改。
+- 分支：共享主工作区 iter/27；已存在基线 [23f882a04c9ca8af10f321c2526d17070e8a4c8f](https://github.com/CubicZnS/labflow/commit/23f882a04c9ca8af10f321c2526d17070e8a4c8f)。最终真实 SHA 与实际推送时间见[交付任务](/MAC/issues/MAC-164)，提交后追加已存在提交链接，避免虚构自引用。
+- 测试：backend 指定 .venv/bin/python -m pytest -q（157项）、.venv/bin/ruff check app tests；frontend 指定 pnpm typecheck、test:run（174项）、build 均退出0；既有 Starlette/httpx 弃用、NumPy RankWarning、React key 警告保留。真实 Firefox 前后重现及三档正反遍历见浏览器清单/附件；不以 JSDOM 代替布局。
+- 文档：同步 README 当前功能/限制/下一步，既有启动与五项测试命令仍准确；路线图仅记录自动化结果。
+- 已知问题与下一轮：仅Firefox headless自动化，不宣称QA PASS。交Lead独立审查后另建QA；T09、200%缩放、方向键选择、人工矩阵与Phase4 MVP仍未完成。

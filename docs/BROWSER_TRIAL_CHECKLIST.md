@@ -328,3 +328,31 @@ T09整体未通过；只是自动化证据交付，非屏幕阅读器审计、�
 六个ZIP字节数与SHA256均与本地一致；各ZIP路径集合严格等于manifest载荷+manifest自身，逐文件字节/哈希一致；包1 global-inventory.json列出的311个原始载荷在六包恰好各出现一次、无额外或缺失，另有索引自身（包1载荷总91项）。manifest自身不自引用。每个附件均已登记artifact工作产品。helper在临时目录创建时被沙箱拒绝、未发出请求；直接API对33,230,255字节单包返回422“Attachment is larger than the 10 MB limit”，随后拆包成功，未改权限或配置。
 
 交回Lead独立审查稳定遮挡最小复现，后续由Lead另建QA/选择一个修复任务。#25方向键选择仍FAIL；真实200%缩放、Chrome/Safari、Firefox有头人工矩阵、屏幕阅读器与外部验收未执行，本轮不宣称整个T09或Phase4 MVP完成。
+
+
+## 迭代 #27：顶部栏焦点遮挡最小修复
+
+- 共享主工作区 `iter/27`，基线 [23f882a04c9ca8af10f321c2526d17070e8a4c8f](https://github.com/CubicZnS/labflow/commit/23f882a04c9ca8af10f321c2526d17070e8a4c8f)，2026-10-26 Asia/Shanghai。未启停共享服务；先阅读 Paperclip issue-workspaces，沿用已有 Remote4444、前端5173与后端8000。
+- 环境：真实 Firefox 158.0.1 / buildID 20261019185856、geckodriver 0.37.1、Selenium4.51.0、macOS27.0.1(26A434)，headless + BiDi实际内容视口，DPR1；没有用CSS zoom或JSDOM代替布局。
+- 根因：根滚动容器未为固定高度sticky顶部栏预留空间，原生键盘滚动可将控件放入顶部覆盖区。只在 `html` 设置顶部 `calc(4rem + 1px + 1rem)` 与底部 `1rem` scroll-padding，覆盖64px栏内容、1px边框和描边安全间距。保留平滑滚动/减少动态效果、导航及描边；无逐控件补丁或隐藏遮挡。若未来改顶部栏高度，应同步此间距。
+- before/与after/同路径：合成5点CSV→点击/Select准备X=x/Y=y配对→一次拟合→原生激活上下文→11次可信Shift+Tab到标题。768/1280修复前稳定顶边−9.5、中心9.5、0/25内部命中，修复后顶边471、中心490、25/25命中。两档document.hasFocus/:focus/:focus-visible均true；修复后输入框及外延5px描边完整位于header底边65之下及915px视口内。即时及后续120/350/700/950ms实际elapsed、稳定判据与前后截图均保留。
+
+| 回归内容视口 | 反向标题稳定顶边 | 内部命中 | 按键取样数（含首次11步） |
+|---|---:|---:|---:|
+| 320×915 | 290 | 25/25 | 99 |
+| 768×915 | 471 | 25/25 | 99 |
+| 1280×915 | 471 | 25/25 | 99 |
+
+每档重新上传/配对/拟合，标题检查后正向44步、反向44步；每步即时/150/350/700ms取样，最后两次rect与scrollY差<0.5判稳定，否则延长至3秒。页面scrollWidth逐步等于320/768/1280，无新增水平溢出。遍历包含项目/图表/配对/拟合及导入等控件；原始顺序、可信keydown、窗口焦点和浏览器边界后的nativeReactivated记录见regression/steps.json及states.json。准备不是纯键盘，离开页面后原生激活不是连续绕回；隐藏1px文件输入与header内部几何交集候选不当作产品FAIL。
+
+复跑：保持解压目录结构，已有上述服务与Selenium环境下运行 `/tmp/labflow-browser/venv/bin/python <解压目录>/regression/run27.py`，输出位于脚本目录。脚本断言真实标题焦点/描边安全边界、中心与25内部命中及页面宽度；不修改焦点/滚动来制造通过。before/after保存前后最小复现。一次并发Remote会话准备失败、一次320完成后日志打印KeyError保留在session-conflict.log与regression-attempt/，最终三档串行运行退出0；不作产品FAIL。
+
+五项门禁均退出0：backend指定python pytest157项、ruff；frontend指定pnpm typecheck、test:run174项、build。既有弃用/RankWarning/React key警告见checks/；git diff --check通过。不添加伪布局JSDOM断言，回归脚本随附件交付；计算/快照/导出代码与契约未改变。
+
+证据：[迭代27 ZIP](/api/attachments/2de170e5-0a5f-4918-9136-d261532a0e59/content?download=1)，附件 `2de170e5-0a5f-4918-9136-d261532a0e59`，5308301字节，SHA256 `a824f881fb30cec14c94ef1df39483683b3e11f768a080521c5e91f168898b71`。上传后回下载字节/ZIP哈希一致，manifest 72项路径/大小/SHA256逐项一致，路径集合闭合、无重复/额外文件，manifest自身不自引用。已登记artifact工作产品 `00ac1153-8699-43b8-aa5c-baa7c7e95db0`。证据仅合成CSV，无秘密或用户数据。
+
+边界：仅Firefox headless自动化，无原生文件选择器/其他浏览器/屏幕阅读器/有头人工矩阵或外部验收；方向键选择与200%缩放不在本轮。待Lead独立审查后另建QA，本轮不自行宣称QA PASS；T09整体及Phase4 MVP仍未完成。
+
+上传helper在创建宿主临时文件时被拒，curl因输出参数为空未发出请求；随后按技能规定附件API上传成功，未修改权限或配置。
+
+注意：regression/failure.txt 与 exception.png 为首次320日志打印KeyError留下的文件；最终 run.log 三档完成及297步steps.json覆盖重跑结果，不把旧异常截图当最终运行失败。

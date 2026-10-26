@@ -11,6 +11,9 @@
 
 html {
   scroll-behavior: smooth;
+  /* 4rem header + 1px border + 1rem clearance for keyboard focus outlines. */
+  scroll-padding-top: calc(4rem + 1px + 1rem);
+  scroll-padding-bottom: 1rem;
 }
 
 body {
