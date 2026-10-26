@@ -1138,3 +1138,5 @@ git log --oneline --decorate dev
 - 测试：backend 指定 .venv/bin/python -m pytest -q（157项）、.venv/bin/ruff check app tests；frontend 指定 pnpm typecheck、test:run（174项）、build 均退出0；既有 Starlette/httpx 弃用、NumPy RankWarning、React key 警告保留。真实 Firefox 前后重现及三档正反遍历见浏览器清单/附件；不以 JSDOM 代替布局。
 - 文档：同步 README 当前功能/限制/下一步，既有启动与五项测试命令仍准确；路线图仅记录自动化结果。
 - 已知问题与下一轮：仅Firefox headless自动化，不宣称QA PASS。交Lead独立审查后另建QA；T09、200%缩放、方向键选择、人工矩阵与Phase4 MVP仍未完成。
+
+迭代 #27 首次真实推送：2026-10-26 13:08 Asia/Shanghai，修复提交 [22bfed09ac911371c223459668a307b56378b5c8](https://github.com/CubicZnS/labflow/commit/22bfed09ac911371c223459668a307b56378b5c8) 已推送 origin/iter/27；git ls-remote 与 GitHub commits API 返回同一完整SHA。随后仅补此已存在提交链接与实际推送时间，复用未变化产品的五项门禁和真实浏览器结果，并重新运行 git diff --check。最终分支HEAD及推送时间见任务交付；只推 iter/27，不合并，不创建QA。证据附件72项回下载闭合，297步均满足稳定判据，保留脚本准备错误的说明，不宣称独立QA PASS。
