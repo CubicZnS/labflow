@@ -1153,3 +1153,13 @@ git log --oneline --decorate dev
 - 下一步：交Lead重新独立审查并交原[MAC-167](/MAC/issues/MAC-167)复验，禁止自行QA PASS/merge/push dev/main，T09和MVP未完成。
 
 返工真实远端提交：[均匀焦点校正与描边修复 4dc618ccc399b21f844d9280824e9ce8c73b0e63](https://github.com/CubicZnS/labflow/commit/4dc618ccc399b21f844d9280824e9ce8c73b0e63)，推送完成核验时间 2026-10-26 16:23:00 Asia/Shanghai，origin/iter/27 与 GitHub commits API返回同一完整SHA。343项原始证据跨四包回下载闭合，最终绝对调用主回归297步、正向/横滚复验224步及5组边界检查通过，五项门禁通过。随后仅补已存在提交链接及真实推送时间，产品代码未变，复用最终检查并重跑git diff --check；最终HEAD和推送完成时间由任务交付记录，不虚构自引用。等待Lead重新审查和原QA复验，本次无独立QA PASS。
+
+
+### 迭代 #27：独立验收与合并收尾
+
+- 目标及改动：闭环原生滚动 DIV 焦点裁切与清除按钮5px描边边界；统一焦点滚动校正、原生焦点描边及跳转链接位置，未改计算/快照/导出契约。
+- 独立 QA：[MAC-167](/MAC/issues/MAC-167) 对返工候选 PASS，历史初版 FAIL 保留。QA 独立运行 backend pytest157项/ruff、frontend typecheck/test:run174项/build 全部退出0；真实 Firefox 主回归297步、完整遍历224步、483次纳入焦点及5组边界复算通过。仅 headless 自动化，不扩展成人工验收。
+- 最终候选：`iter/27` / `bd010156e1c6f9934516341524d343ee87c3069e`，https://github.com/CubicZnS/labflow/commit/bd010156e1c6f9934516341524d343ee87c3069e ，Lead 再次通过 ls-remote 和指定 gh commits API 核实真实远端。
+- 真实合并提交：`14e1bae16d31b06cca40462edb86836f87a9bc87`，https://github.com/CubicZnS/labflow/commit/14e1bae16d31b06cca40462edb86836f87a9bc87 ，2026-10-26 20:21 Asia/Shanghai 前已推送 origin/dev。首次 pull 遇 GitHub TLS 瞬时错误，单次重试成功；无历史改写、未推 main。
+- 收尾仅同步中文 README 当前状态/下一轮、路线图集成结论和本日志，启动/测试命令及已知限制保留，#27四字段版本表已存在。复用 Lead 与独立 QA 门禁结果，运行 git diff --check；记录提交自身 SHA 在任务交付提供，避免自引用。中文合并/记录及真实远端提交交 QA 追加只读核验。
+- 已知问题与下一轮：方向键选择、200%真实缩放、其他浏览器、人工矩阵/外部验收仍未完成；下一轮由 Lead 只选择单一剩余缺口。超高 SECTION 仅对齐顶部、instant校正可能缩短平滑动画，保留文档边界。T09整体及Phase4 MVP未完成。
