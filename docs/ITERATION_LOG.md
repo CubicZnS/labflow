@@ -1151,3 +1151,5 @@ git log --oneline --decorate dev
 - 门禁：后端pytest157项、ruff；前端typecheck、Vitest174项、build全部退出0，git diff --check通过。README中文功能/状态/限制/下一步同步，既有启动与测试命令仍准确；新增本轮QA闭环版本行，实际推送时间和新提交SHA在真实推送后交付/追加已存在链接，避免虚构自引用。
 - 已知问题：仅Firefox headless/五点合成数据；高度超过可用视口的节点只能对齐顶部，不承诺所有长内容全框可见。真实方向键下拉选择、200%缩放、其他浏览器和人工矩阵仍未完成。保留一次选择器优先级失败后主动中断的证据，不算最终通过。
 - 下一步：交Lead重新独立审查并交原[MAC-167](/MAC/issues/MAC-167)复验，禁止自行QA PASS/merge/push dev/main，T09和MVP未完成。
+
+返工真实远端提交：[均匀焦点校正与描边修复 4dc618ccc399b21f844d9280824e9ce8c73b0e63](https://github.com/CubicZnS/labflow/commit/4dc618ccc399b21f844d9280824e9ce8c73b0e63)，推送完成核验时间 2026-10-26 16:23:00 Asia/Shanghai，origin/iter/27 与 GitHub commits API返回同一完整SHA。343项原始证据跨四包回下载闭合，最终绝对调用主回归297步、正向/横滚复验224步及5组边界检查通过，五项门禁通过。随后仅补已存在提交链接及真实推送时间，产品代码未变，复用最终检查并重跑git diff --check；最终HEAD和推送完成时间由任务交付记录，不虚构自引用。等待Lead重新审查和原QA复验，本次无独立QA PASS。
