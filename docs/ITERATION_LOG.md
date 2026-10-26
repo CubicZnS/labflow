@@ -1118,5 +1118,5 @@ git log --oneline --decorate dev
 - 实测：Firefox158.0.1/build20261019185856、geckodriver0.37.1、Selenium4.51.0、macOS27.0.1(26A434)。首轮186次可信按键，窗口激活补充确认两档各11次Shift+Tab稳定复现标题遮挡，窗口/控件焦点均true；另留单次激活循环与浏览器界面失焦边界原生重新激活的完整native-cycle；最终native-cycle182次按键，每档正向41/反向39个保持真实焦点样本及各1次浏览器界面边界；保留每次边界操作，不把窗口失焦样本当焦点视觉PASS。矩形顶边−9.5而非中心−9.5，中心9.5；25%视口外、75%在顶部栏下，非单次瞬态。详细取样策略、瞬态保留、命中与面积口径、循环及最小复现见浏览器清单；候选几何交集不得直接算缺陷数。
 - 测试：backend `.venv/bin/python -m pytest -q` 157项、`.venv/bin/ruff check app tests`；frontend `/Users/zhangzimo/.local/bin/pnpm typecheck`、`test:run`（6文件174项）、`build`均退出0。完整日志与退出码在证据包；保留既有Starlette/httpx弃用、NumPy RankWarning等警告。本轮没有产品代码或依赖变更，浏览器外置脚本验证实际行为，未增加镜像实现的测试。
 - 结论：目标可见性FAIL，代码门禁通过，未做独立QA。焦点循环仅代表本轮Remote路径，不推及所有对话框或浏览器。方向键选择仍FAIL，真实200%缩放/人工矩阵/其他浏览器/外部验收未执行，T09与Phase4 MVP未完成。
-- 交付提交与真实首次推送时间：待首次推送后引用已存在SHA并补记，不预填自引用SHA。6个附件已回下载逐包/逐文件校验，311个原始载荷全局闭合，包1索引与关键截图、其余完整候选截图；字节与SHA256见浏览器清单。
+- 交付提交与真实首次推送时间：[e2b0c633ac88930a4d317d95ad2d817c20af70d7](https://github.com/CubicZnS/labflow/commit/e2b0c633ac88930a4d317d95ad2d817c20af70d7)，2026-10-26 12:30:51 Asia/Shanghai（提交与推送连续执行）。6个附件已回下载逐包/逐文件校验，311个原始载荷全局闭合，包1索引与关键截图、其余完整候选截图；字节与SHA256见浏览器清单。
 - 下一轮：交回Lead独立审查稳定遮挡最小复现，再由Lead另建QA；是否修产品由Lead收敛，本轮不合并、不改父任务、不自行建QA。
