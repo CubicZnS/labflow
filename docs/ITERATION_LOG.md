@@ -1120,3 +1120,11 @@ git log --oneline --decorate dev
 - 结论：目标可见性FAIL，代码门禁通过，未做独立QA。焦点循环仅代表本轮Remote路径，不推及所有对话框或浏览器。方向键选择仍FAIL，真实200%缩放/人工矩阵/其他浏览器/外部验收未执行，T09与Phase4 MVP未完成。
 - 交付提交与真实首次推送时间：[e2b0c633ac88930a4d317d95ad2d817c20af70d7](https://github.com/CubicZnS/labflow/commit/e2b0c633ac88930a4d317d95ad2d817c20af70d7)，2026-10-26 12:30:51 Asia/Shanghai（提交与推送连续执行）。6个附件已回下载逐包/逐文件校验，311个原始载荷全局闭合，包1索引与关键截图、其余完整候选截图；字节与SHA256见浏览器清单。
 - 下一轮：交回Lead独立审查稳定遮挡最小复现，再由Lead另建QA；是否修产品由Lead收敛，本轮不合并、不改父任务、不自行建QA。
+
+### 迭代 #26：独立验收与合并收尾
+
+- 独立 QA：[MAC-160](/MAC/issues/MAC-160) 对四文档与证据交付 PASS；产品 T09 焦点遮挡仍 FAIL，Phase 4 MVP 未通过，不能把文档 PASS 当作产品通过。
+- 最终候选：`MAC-123-26` / `840b0dd618b88e9772aa89f3b3aac06a95a18914`，https://github.com/CubicZnS/labflow/commit/840b0dd618b88e9772aa89f3b3aac06a95a18914 。
+- 真实合并提交：`f5c762ad7621b62ad2d9f02a263610641bbb3c0a`，https://github.com/CubicZnS/labflow/commit/f5c762ad7621b62ad2d9f02a263610641bbb3c0a ，2026-10-26 12:54 Asia/Shanghai 已推送 origin/dev；合并摘要中文、含 Paperclip 署名，未改写历史、未推 main。
+- 记录收尾：QA 独立核验候选 SHA、四文件 65+/2- diff、中文摘要/署名、六个附件与 311 项全局载荷闭合；合并后由 Lead/记录提交补入真实 merge SHA。
+- 已知限制：T09 焦点遮挡仍为产品 FAIL；方向键选择、200% 缩放、其他浏览器、人工矩阵和外部验收未完成；下一轮不得把本记录当作 T09 或 MVP 通过。
