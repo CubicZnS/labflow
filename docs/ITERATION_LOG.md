@@ -1163,3 +1163,14 @@ git log --oneline --decorate dev
 - 真实合并提交：`14e1bae16d31b06cca40462edb86836f87a9bc87`，https://github.com/CubicZnS/labflow/commit/14e1bae16d31b06cca40462edb86836f87a9bc87 ，2026-10-26 20:21 Asia/Shanghai 前已推送 origin/dev。首次 pull 遇 GitHub TLS 瞬时错误，单次重试成功；无历史改写、未推 main。
 - 收尾仅同步中文 README 当前状态/下一轮、路线图集成结论和本日志，启动/测试命令及已知限制保留，#27四字段版本表已存在。复用 Lead 与独立 QA 门禁结果，运行 git diff --check；记录提交自身 SHA 在任务交付提供，避免自引用。中文合并/记录及真实远端提交交 QA 追加只读核验。
 - 已知问题与下一轮：方向键选择、200%真实缩放、其他浏览器、人工矩阵/外部验收仍未完成；下一轮由 Lead 只选择单一剩余缺口。超高 SECTION 仅对齐顶部、instant校正可能缩短平滑动画，保留文档边界。T09整体及Phase4 MVP未完成。
+
+
+## 迭代 #28：真实200%浏览器缩放验证（证据交付，验证未执行）
+
+- 真实目标：只验证Phase4.4b/T09真实200%缩放，不修产品。分支 `MAC-176-labflow-unattended-iteration`；已存在基线 [9726e79b59d227d9b664c55ed48e1be775ca8a62](https://github.com/CubicZnS/labflow/commit/9726e79b59d227d9b664c55ed48e1be775ca8a62)。本轮自身SHA与真实推送结果由[MAC-177任务交付](/MAC/issues/MAC-177)在提交后提供，避免自引用虚构。
+- 改动：仅README.md、docs/PRODUCT_ROADMAP.md、docs/ITERATION_LOG.md、docs/BROWSER_TRIAL_CHECKLIST.md；同步中文当前状态/限制/下一轮及#28四字段版本行。功能、接口、标准启动与五项检查命令仍准确，未新增产品/镜像测试。
+- 实测：2026-10-28 20:01 Asia/Shanghai，Firefox158.0.1 headless、geckodriver0.37.1、macOS27.0.1（26A434），原始urllib客户端Python3.9.6；独立页面5178对应本分支。Meta+五次后innerWidth/outerWidth/DPR仍1440/1440/1，CSS zoom1、transform none；System Events UI自动化只读检查false。Browser插件不可用、Playwright未配置、临时Selenium缺模块，改用标准WebDriver HTTP，不安装依赖/更改权限。精确复现、完整版本和前后截图/几何见[检查清单](BROWSER_TRIAL_CHECKLIST.md#迭代-28真实200浏览器缩放验证未执行)。
+- 判定：真实200%缩放**未执行**；200%后的导入/X-Y配对/拟合/项目保存/SVG-PNG下载、溢出/控件可达/表滚动/焦点与描边全部**未执行**。无本轮合成数据提交、工作流请求或下载文件，无产品缺陷判定、无纯键盘PASS；不把截图基础页面正常冒充工作流通过。
+- 门禁：backend指定Python pytest退出0（157项，72+72+13）、ruff退出0；frontend指定pnpm typecheck/test:run（174项）/build（36模块）均退出0。Starlette/httpx弃用、NumPy RankWarning及React key警告保留，驱动另有sandbox_extension/SWGL/内置Experiment/UrlClassifier日志。git diff --check提交前另跑，不冒称完整控制台健康审计。
+- 证据：[附件ZIP](/api/attachments/5ad71464-13fd-4c35-970a-f34911bbea72/content?download=1)，506213字节，SHA256 e88564b2454a53eedbe65c483142349fad5eccc54e25061614f82e742f916ef7；回下载ZIP相同且manifest18载荷路径/大小/哈希闭合。全部脚本/截图/日志留临时目录并上传本任务，无秘密或用户数据。
+- 已知问题/下一轮：工具不能执行并证明真实200%页面缩放，停止有限探测并明确交回Lead；由Lead选择具备浏览器UI缩放与证据读取能力的环境。待Lead独立审查后另建QA，QA PASS前禁止合并；不自行QA、不修改父任务、不push dev/main、不部署。T09整体、Phase4 MVP、方向键选择、其他浏览器/人工矩阵/外部验收仍未完成。

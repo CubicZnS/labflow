@@ -403,3 +403,28 @@ usability/另从标题用可信Shift+Tab回到跳转链接，再正向遍历至�
 各包manifest路径集合=全部载荷+manifest自身，逐项大小/SHA256一致，manifest不自引用；global-inventory.json列出的343个原始载荷在全部包恰各出现一次，集合闭合，无重复/遗漏/额外文件。仅合成数据，无秘密或用户数据；verify_archives.py可离线核对所有ZIP。上传helper本机临时目录受限时按技能规定API上传，未改权限。
 
 本次仅开发者Firefox headless自动化复验；等待Lead重新独立审查后交原QA任务验收，无本次QA PASS。T09整体、200%缩放、方向键选择、Chrome/Safari、人工矩阵、屏幕阅读器和外部验收仍未完成，Phase4 MVP未完成。
+
+
+## 迭代 #28：真实200%浏览器缩放验证（未执行）
+
+- 目标：仅验证 Phase4.4b/T09 的真实浏览器 200% 页面缩放。基线为已存在的 [9726e79b59d227d9b664c55ed48e1be775ca8a62](https://github.com/CubicZnS/labflow/commit/9726e79b59d227d9b664c55ed48e1be775ca8a62)，宿主隔离分支 `MAC-176-labflow-unattended-iteration`；未切换分支、未创建 iter/28。
+- 执行时间：2026-10-28 20:01 Asia/Shanghai。macOS 27.0.1（26A434）；Firefox 158.0.1（buildID 20261019185856）headless；geckodriver 0.37.1（300705c65d1b）；Python urllib 标准库客户端 3.9.6（无 Selenium）；后端 Python 3.12.14、Node 24.19.0、pnpm 11.28.5、Vite 构建 7.3.7。会话版本见 `capabilities.json`，宿主版本见 `tooling.txt`，不以 UA 替代 OS 版本。
+- Browser plugin not available；项目未配置 Playwright，版本命令退出1；既有临时 Selenium 环境导入失败（ModuleNotFoundError），未安装依赖。改用 WebDriver HTTP 创建独立 Firefox 会话。本轮服务为本分支 frontend `http://127.0.0.1:5178/`、backend `127.0.0.1:8000`、geckodriver `127.0.0.1:4444`；没有复用5173上的旧分支页面。系统只读检查 `osascript -e 'tell application "System Events" to get UI elements enabled'` 返回 false，未更改权限或启用特权浏览器上下文。
+
+复现操作：启动后端 `.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000`，前端 `/Users/zhangzimo/.local/bin/pnpm dev --host 127.0.0.1 --port 5178 --strictPort`，启动已有 `/tmp/labflow-browser/bin/geckodriver --host 127.0.0.1 --port 4444`。将证据解包至临时目录后 `python3 probe.py`：新建 headless 会话，外窗设置1440×1100，导航真实页面，采样及截图；W3C Actions 按住 Meta，发送五次 `+` 后释放，再采样及截图。脚本退出0仅表示探测结束，不表示缩放PASS。未使用CSS zoom、transform、内容viewport缩小或设备模拟。
+
+| 项目 | 实际证据与判定 |
+|---|---|
+| 缩放前 | innerWidth=1440、outerWidth=1440、innerHeight=1015、outerHeight=1100、DPR=1；`before.json/png` |
+| Command + “+” 五次后 | innerWidth=1440、outerWidth=1440、innerHeight=1015、outerHeight=1100、DPR=1；CSS zoom=1、transform=none；`after-command-plus-five.json/png` |
+| 真实200%缩放 | **未执行**：内容按键未产生可证明的浏览器页面缩放；当前没有可用浏览器 UI 自动化能力。尺寸未变化，不把发送快捷键算作缩放成功；不无限重试 |
+| 200%后的导入、X/Y配对、拟合 | **未执行**：缩放前置条件未满足，无本轮合成数据上传及分析请求证据 |
+| 200%后的项目保存、SVG/PNG下载 | **未执行**：无本轮项目或下载文件，不以历史成功补充为本轮PASS |
+| 200%后的溢出、可达性、表内滚动、焦点/描边 | **未执行**：没有缩放后的实际内容视口；未作全键盘/点击补充验收，无产品缺陷判定 |
+| 页面身份与截图 | URL为5178、标题“LabFlow · 科研数据分析”，基础页面非空、截图无框架错误覆盖层；不代表工作流或完整控制台健康审计 |
+
+[本任务原始证据ZIP](/api/attachments/5ad71464-13fd-4c35-970a-f34911bbea72/content?download=1)：506,213字节，SHA-256 `e88564b2454a53eedbe65c483142349fad5eccc54e25061614f82e742f916ef7`。上传后回下载字节一致，manifest.json列出的18个载荷路径、大小、SHA256全部核验且集合闭合；manifest自身不自引用。包内含探测脚本、前后截图/几何、工具版本、原始驱动/服务日志及五项门禁日志，无秘密或用户数据。没有工作流请求捕获或下载文件，不虚构证据。
+
+门禁：backend `.venv/bin/python -m pytest -q` 退出0，157项（72+72+13）；`.venv/bin/ruff check app tests` 退出0。frontend指定pnpm `typecheck`、`test:run`（6文件174项）、`build`（36模块）均退出0。pytest保留Starlette/httpx弃用及NumPy RankWarning，前端保留React key警告；驱动日志保留Firefox sandbox_extension、SWGL、内置Experiment与UrlClassifier警告，不声称完整控制台无异常。提交前 `git diff --check`另行记录。
+
+本轮只交付工具限制和文档证据，不自行QA、不合并、不推dev/main、不部署、不改配置。真实200%工作流、T09整体及Phase4 MVP均未完成；方向键、其他浏览器、人工矩阵与外部验收未纳入本轮。下一轮由Lead独立审查后选择具备真实页面缩放及浏览器 UI 证据能力的环境，再另建QA任务，QA PASS前禁止合并。
