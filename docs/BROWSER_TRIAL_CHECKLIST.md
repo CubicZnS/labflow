@@ -403,3 +403,80 @@ usability/另从标题用可信Shift+Tab回到跳转链接，再正向遍历至�
 各包manifest路径集合=全部载荷+manifest自身，逐项大小/SHA256一致，manifest不自引用；global-inventory.json列出的343个原始载荷在全部包恰各出现一次，集合闭合，无重复/遗漏/额外文件。仅合成数据，无秘密或用户数据；verify_archives.py可离线核对所有ZIP。上传helper本机临时目录受限时按技能规定API上传，未改权限。
 
 本次仅开发者Firefox headless自动化复验；等待Lead重新独立审查后交原QA任务验收，无本次QA PASS。T09整体、200%缩放、方向键选择、Chrome/Safari、人工矩阵、屏幕阅读器和外部验收仍未完成，Phase4 MVP未完成。
+
+
+## 迭代 #28：v0.1.1 候选环境阻塞（FAIL）
+
+2026-10-29 Asia/Shanghai；任务 [MAC-185](/MAC/issues/MAC-185)。仅本子任务，不恢复 Routine、不新增功能、不创建下一轮、不合并或发布。
+
+目标是实际 Firefox 100%/200% 对照及 T09 收尾。本轮未完成目标，不能称候选验收通过。开始工作区干净，当前分支 `MAC-184-v0-1-1-200-t09`，HEAD 与远端 dev 均为已存在基线 [4e84251b8e5250ce8d4d15884173b2913d4bf5b0](https://github.com/CubicZnS/labflow/commit/4e84251b8e5250ce8d4d15884173b2913d4bf5b0)。本记录提交 SHA 由推送后的任务工作产品提供，避免虚构自引用。
+
+**FAIL：执行环境**。依 paperclip issue-workspaces 引用，通过 heartbeat-context 读取当前隔离工作区，runtimeServices 为空，workspaceRuntime 为 null；实际 POST runtime-services/start 返回 `Internal server error`。未修改配置、未启动共享主工作区服务。旧 Remote4444 连接被拒。Firefox 位于用户 Applications 目录（系统 Applications 下不存在）；geckodriver 0.37.1，macOS 27.0.1 / 26A434。旧 `/tmp/labflow-browser/venv/bin/python` 无 selenium，独立 HTML 校准脚本在 import 时退出1；未创建浏览器会话，因此 Firefox 版本、innerWidth/outerWidth/DPR、布局变化与截图均缺失。未用 CSS transform/zoom 或脚本退出0冒充。
+
+| 项目 | 本轮结论 |
+|---|---|
+| Firefox 100%/200% 对照 | FAIL：未执行，缺可用受管产品服务与 Selenium 环境 |
+| 示例/合成CSV导入、X/Y配对、拟合、图表 | RESIDUAL：200%未执行 |
+| SVG/PNG下载、尺寸/hash、保存/重开/重跑 | RESIDUAL：无本轮下载产物 |
+| 方向键选择及degree=2请求 | RESIDUAL：无本轮可信按键或请求记录 |
+| focus-visible、顶部栏/描边遮挡、溢出、可达性 | RESIDUAL：未重新验证，不能沿用旧证据声称本轮PASS |
+| 普通HTML校准 | FAIL：脚本导入依赖失败，无法判断自动化边界 |
+| Chrome/Safari | 未自动验证，需人工；不得称三浏览器PASS |
+
+Chrome/Safari 人工清单均待执行：真实100%/200%对照、示例及合成CSV、X/Y与二次拟合、图表和SVG/PNG下载、项目保存/重开/重跑、Tab/Shift+Tab和方向键、可见描边及顶部栏遮挡、溢出/控件可达性；需记录版本、实际尺寸/hash与截图。T09整体、Phase4 MVP和独立QA仍未完成。
+
+五项门禁实际运行且退出码均0：backend `.venv/bin/python -m pytest -q`（157项）、`.venv/bin/ruff check app tests`；frontend 指定 `/Users/zhangzimo/.local/bin/pnpm` 的 typecheck、test:run（174项）、build。Starlette/httpx弃用、NumPy RankWarning、React key既有警告保留；未改产品源码、backend、计算、快照、导出契约、依赖或CI。git diff --check在提交前执行。
+
+证据：[环境失败与五项门禁ZIP](/api/attachments/a8bf551f-7d02-4f35-9f30-3fa56eee41a0/content?download=1)，5503字节，SHA256 `6c1d5a6c3aa75379e44cb107ed361c3a60d3a18bf1db4d237cfcda2db186d292`；artifact工作产品 `4c48133f-44fd-48f9-9af5-71ef4a8f5811`。上传回下载字节一致，manifest 11个载荷的路径、尺寸与hash逐项校验通过，集合闭合且manifest不自引用。含校准HTML/脚本、失败日志、环境记录和五项门禁日志，无产品截图/下载；脚本可在Selenium与受管服务恢复后复跑，不保证结果通过。无用户数据。
+
+阻塞解除所需：恢复当前工作区runtime服务配置/启动能力，以及可用Selenium浏览器执行环境，再执行上述全部浏览器步骤。当前任务保持blocked，等待环境恢复后由本任务继续；Lead之后独立审查再决定QA与人工发布，未发布v0.1.1。
+
+
+## 迭代 #28：B方案CSS视口等价验证
+
+2026-10-29 Asia/Shanghai；[MAC-185](/MAC/issues/MAC-185)。本节接续前述首次环境 FAIL；用户 14:15 明确变更验收为 B 方案：Firefox **1440×1000 CSS 视口对照、720×500 CSS 视口等价**。本轮未进行真实浏览器200%缩放，未改CSS zoom/transform，不把DPR变化当作缩放通过。此前环境失败记录保留为历史，不代表本次宿主执行仍受阻。
+
+- 分支始终为 `MAC-184-v0-1-1-200-t09`，起始工作区干净；已存在前序提交 [ef9968387ec5a09aa64757f4d0fb9c719129897c](https://github.com/CubicZnS/labflow/commit/ef9968387ec5a09aa64757f4d0fb9c719129897c)。本次提交的真实SHA/链接在推送后登记于任务，不在文件中虚构自引用。
+- 环境：Firefox **159.0** / geckodriver **0.37.1** / Selenium **4.51.0**，macOS **27.0.1 (26A434)**。WebDriver :4444、前端 :5173、后端 :8000 使用用户已恢复的宿主服务。隔离工作区runtimeServices元数据仍为空；未修改其配置，也未启动/停止或修改共享工作区服务。lsof记录宿主服务cwd；31个运行源码、配置及内置示例文件的SHA256与候选完全一致（source-check.json）。宿主HEAD为4e84251，候选前序仅文档变更。
+- 无产品P0复现，因此仅更新README、本迭代日志和浏览器清单；未改产品源码、backend、计算、快照/导出契约、依赖或CI，无新增用户功能。
+
+| 证据 | 1440×1000对照 | 720×500 CSS视口等价 |
+|---|---|---|
+| innerWidth / innerHeight | 1440 / 1000 | 720 / 500 |
+| outerWidth / outerHeight；DPR | 1366 / 768；1 | 1366 / 768；1 |
+| visualViewport / scale | 1440×1000 / 1 | 720×500 / 1 |
+| root zoom / transform | 1 / none | 1 / none |
+| 首屏主Grid实际列轨道 | 546px + 494px | 656px单列 |
+| 示例 / CSV / X/Y | 示例12行；CSV6行、5对、跳过1行 | 相同，实际导入与配对成功 |
+| 拟合 / 图表 | 一次y=2x+1、二次degree=2请求200与曲线 | 相同，实际请求与曲线成功 |
+| 下载 / 保存 / 重开 | SVG、PNG、schema v2实际落盘，刷新重导后打开并重跑 | 相同；恢复名称、标题、倍率与degree=2，series与fit均200 |
+| 页面宽度 / 控件 | 页面1440，无横向溢出；可见控件边界在视口内 | 页面720，无横向溢出；可见控件边界在视口内 |
+| 正向焦点 / 反向补测 | 38 / 35个纳入样本，0失败 | 34 / 31个纳入样本，0失败 |
+
+以上为Firefox headless开发者自动化，含WebDriver点击、原生option选择及文件send_keys，**不是纯键盘全流程PASS**。焦点断言检查document.hasFocus、focus-visible、3px描边及外偏移、相对sticky顶部栏和视口的完整边界、25点命中与页面宽度；共138个正反向纳入样本通过。主流程遍历末尾进入浏览器边界而无页面焦点时明确排除，重新激活后另跑反向遍历；两类sr-only文件输入排除其1px几何，另检查可见入口。`#import` SECTION高于安全视口，单列oversize边界记录为顶部安全、PageDown和Tab离开通过，不声称整个SECTION外描边可全部可见。二次拟合不确定度表在两个视口均以可信ArrowRight/Left横滚，焦点及描边断言仍通过，长表允许容器内横滚，不算页面溢出。
+
+### 实际下载（两种视口各自独立）
+
+| 文件/视口 | 字节数 / 尺寸 | SHA256 |
+|---|---|---|
+| SVG（两个视口相同） | 8869；viewBox 0 0 640 360；XML解析通过 | `f6492ae218b4767aeb88d919bd3359477645f3d9555cb88c6ca95cba42a6f520` |
+| PNG（1440×1000） | 42489；1280×720（2×） | `bd54936163cfc596db7eafb7b2257ad85078ef622b0d48f9183a90ff0b094e71` |
+| PNG（720×500） | 42489；1280×720（2×），实际解码查看 | `63556cf9f4679662921df2262d85aa4302bb6dd3bb9499489c115cb610373655` |
+| v2项目（两个视口相同） | 727；degree=2、配置和数据指纹 | `e7641ee1c67190bef0aef2f53a653879042ba9271b6e77f2aa46894608f688c0` |
+
+PNG哈希分别按真实文件记录，不承诺跨视口栅格字节相同。SVG与项目不是由页面成功提示推断，均在下载目录读取并校验。项目重开后网络原始响应记录于final/*/result.json；配置文件不含原始数据行或拟合结果。下载图可见中文标题、网格、点与曲线；HTML图例不在导出内的既有限制保留。
+
+### T09与验证边界
+
+- **RESIDUAL：方向键选择**。产品拟合次数初值1，可信ArrowDown/Enter事件均isTrusted=true且持有页面焦点，但实际值仍为1。普通HTML原生select校准亦保持1，未确认产品专有缺陷。二次拟合由WebDriver原生option点击选择，确有degree=2请求200；不将其当作方向键产生的degree=2请求。纯键盘方向键工作流、T09整体仍未闭环。
+- **RESIDUAL：真实200%浏览器缩放**。按用户B方案只验CSS视口等价，不能声称真实缩放PASS。Chrome/Safari未自动验证、需人工，三浏览器人工矩阵、屏幕阅读器和外部用户验收未完成。
+- 工作流PASS仅覆盖本次合成CSV与示例载入，不扩展到全部数据、XLSX/加权/多系列全矩阵。本轮无独立QA PASS，Phase4 MVP未完成。Chrome/Safari沿用上方T01–T10人工清单，须独立记录版本、实际缩放/尺寸、可信键盘、下载hash和截图。
+- 准备失败记录全部保留：最初点击等待、fetch包装错误的Window绑定、PNG动态标签选择器不匹配。诊断确认fetch失败由证据脚本引入，修正orig.apply(window, arguments)后恢复；使用export-png稳定选择器后下载成功。它们不计产品P0或修复成果。
+
+### 门禁与交付
+
+本次重新运行五项门禁且退出码均0：backend `.venv/bin/python -m pytest -q`（157项）、`.venv/bin/ruff check app tests`；frontend 指定 `/Users/zhangzimo/.local/bin/pnpm` 的 `typecheck`、`test:run`（174项）、`build`。既有Starlette/httpx弃用、NumPy RankWarning与React key提示保留；原始日志及exit文件在附件。提交前另运行git diff --check。README中文启动/测试命令仍准确，状态及限制已同步，版本表新增B方案续验行。
+
+[本次原始证据ZIP](/api/attachments/efda4ca8-bcc1-489a-bf7f-aac5131ab303/content?download=1)：6899146字节；SHA256 `3eee17d046d297b85965639e2cb8a342418c52713b1390fffffd3a0c1bcfa700`。上传后回下载字节完全相同；manifest逐项验证138个载荷的路径、大小与SHA256，ZIP集合闭合、无重复、manifest不自引用；artifact工作产品 `9ec97711-383f-46fa-b41e-cf29dadfdd14`。含最终run.py、edges.py、scroll.py、普通HTML校准、两视口截图/下载/网络与焦点原始数据、源码哈希比对、准备失败及五项门禁日志。仅合成数据，无秘密。复跑命令与前置服务见run.py说明；输出目录需新建，边界脚本依赖同目录run.py。附件在Paperclip任务可下载，GitHub文档读者请从MAC-185进入。
+
+交付给Lead独立审查；远端真实push并经ls-remote和指定gh commits API核实后才将本子任务设in_review。Lead决定另建QA复验，人工合并/发布；本任务不改父任务、不创建QA/下一轮、不合并dev/main、不打tag、不恢复Routine或发布。
