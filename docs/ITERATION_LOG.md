@@ -1196,7 +1196,7 @@ Chrome/Safari 人工清单均待执行：真实100%/200%对照、示例及合成
 
 2026-10-29 Asia/Shanghai；[MAC-185](/MAC/issues/MAC-185)。本节接续前述首次环境 FAIL；用户 14:15 明确变更验收为 B 方案：Firefox **1440×1000 CSS 视口对照、720×500 CSS 视口等价**。本轮未进行真实浏览器200%缩放，未改CSS zoom/transform，不把DPR变化当作缩放通过。此前环境失败记录保留为历史，不代表本次宿主执行仍受阻。
 
-- 分支始终为 `MAC-184-v0-1-1-200-t09`，起始工作区干净；已存在前序提交 [ef9968387ec5a09aa64757f4d0fb9c719129897c](https://github.com/CubicZnS/labflow/commit/ef9968387ec5a09aa64757f4d0fb9c719129897c)。本次提交的真实SHA/链接在推送后登记于任务，不在文件中虚构自引用。
+- 分支始终为 `MAC-184-v0-1-1-200-t09`，起始工作区干净；已存在前序提交 [ef9968387ec5a09aa64757f4d0fb9c719129897c](https://github.com/CubicZnS/labflow/commit/ef9968387ec5a09aa64757f4d0fb9c719129897c)。B方案候选已实际推送：[29592a1dc55f995abf00bf35e401387e1a30df21](https://github.com/CubicZnS/labflow/commit/29592a1dc55f995abf00bf35e401387e1a30df21)，本次文档修复前通过 git ls-remote 与指定 gh commits API 核实完整SHA及链接；这是已存在候选，不是文档修复提交的自引用。
 - 环境：Firefox **159.0** / geckodriver **0.37.1** / Selenium **4.51.0**，macOS **27.0.1 (26A434)**。WebDriver :4444、前端 :5173、后端 :8000 使用用户已恢复的宿主服务。隔离工作区runtimeServices元数据仍为空；未修改其配置，也未启动/停止或修改共享工作区服务。lsof记录宿主服务cwd；31个运行源码、配置及内置示例文件的SHA256与候选完全一致（source-check.json）。宿主HEAD为4e84251，候选前序仅文档变更。
 - 无产品P0复现，因此仅更新README、本迭代日志和浏览器清单；未改产品源码、backend、计算、快照/导出契约、依赖或CI，无新增用户功能。
 
@@ -1240,3 +1240,11 @@ PNG哈希分别按真实文件记录，不承诺跨视口栅格字节相同。SV
 [本次原始证据ZIP](/api/attachments/efda4ca8-bcc1-489a-bf7f-aac5131ab303/content?download=1)：6899146字节；SHA256 `3eee17d046d297b85965639e2cb8a342418c52713b1390fffffd3a0c1bcfa700`。上传后回下载字节完全相同；manifest逐项验证138个载荷的路径、大小与SHA256，ZIP集合闭合、无重复、manifest不自引用；artifact工作产品 `9ec97711-383f-46fa-b41e-cf29dadfdd14`。含最终run.py、edges.py、scroll.py、普通HTML校准、两视口截图/下载/网络与焦点原始数据、源码哈希比对、准备失败及五项门禁日志。仅合成数据，无秘密。复跑命令与前置服务见run.py说明；输出目录需新建，边界脚本依赖同目录run.py。附件在Paperclip任务可下载，GitHub文档读者请从MAC-185进入。
 
 交付给Lead独立审查；远端真实push并经ls-remote和指定gh commits API核实后才将本子任务设in_review。Lead决定另建QA复验，人工合并/发布；本任务不改父任务、不创建QA/下一轮、不合并dev/main、不打tag、不恢复Routine或发布。
+
+
+### 迭代 #28：QA文档收尾修复（待复核）
+
+- 依据 MAC-186 独立QA反馈与 MAC-185 Lead变更请求，仅修改README.md和本日志。补齐上方B方案候选真实完整SHA/链接；README改为主机隔离工作区与 `MAC-184-v0-1-1-200-t09` 分支规则，明确本轮交Lead审查、原QA复核及人工发布后停止，不创建下一轮、不恢复Routine/watchdog。
+- 验证：候选29592a1已核验；本次纯文档修复运行git diff --check，复用既有五项门禁（pytest157、ruff、typecheck、Vitest174、build均通过）及浏览器证据，不重复整套浏览器运行、不声称新增测试或QA PASS。修复提交在实际push后以ls-remote和指定gh API核验，完整分支/SHA/链接登记MAC-185工作产品与交付评论。
+- 限制保持：B方案为200% CSS视口等价，真实浏览器缩放未执行；方向键选择/纯键盘流程仍RESIDUAL，T09整体与Phase4 MVP未完成；Chrome/Safari未自动验证、需人工。未改源码、浏览器清单、依赖或CI。
+- 后续：提交Lead审查后交原独立QA复核，QA PASS前不接受完成；不得自行合并、打tag或发布。本候选交人工发布后停止，不创建下一轮、不恢复Routine/watchdog。
