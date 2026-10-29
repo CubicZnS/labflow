@@ -1,29 +1,157 @@
 # LabFlow
 
-Research data analysis and scientific plotting, from raw measurements to report-ready figures.
+LabFlow 是面向大学生、研究生、科研工作者和实验室的科研数据分析与绘图 SaaS。
+目标是把原始实验数据整理、校验、统计、拟合、绘图和报告输出的重复劳动降到最低，
+同时让每一步计算都可追溯、可复现。
 
-LabFlow is a SaaS product for students, researchers, and labs. The MVP focuses on a reliable,
-reproducible workflow: import experimental data, validate columns, run deterministic statistics,
-fit models, plot results, and export figures. AI is optional guidance, never a replacement for
-numeric computation.
+> 当前状态：迭代 #27 已针对独立 QA FAIL 补齐修复：统一焦点滚动校正覆盖原生可聚焦滚动 DIV，全局青色 3px 描边与 2px 外偏移不再被控件样式覆盖，跳转链接向内留出描边空间。真实 Firefox 320/768/1280×915 的297步复现/双向遍历中，274次纳入焦点的几何、命中和描边严格断言通过；另补从跳转链接开始的完整正向遍历及滚动 DIV 可信按键横滚。五项门禁经独立 QA 重新运行通过，原两项 FAIL 已闭环；MAC-167 对候选 bd010156 给出 PASS，已合并 dev（14e1bae）。合并后中文记录待 QA 追加只读核验。方向键选择、200%缩放、人工矩阵与其他浏览器仍未完成，T09整体及Phase4 MVP未完成。
+> 上轮状态：迭代 #25 文档与证据经 Lead 独立审查及 MAC-120 独立 QA PASS，已合并 dev；严格键盘路径仍 FAIL：方向键未改变下拉框实际值；BiDi 字符选择补充可配对、运行一次拟合及键盘保存 v2，但没有 degree=2 请求，不记纯键盘 PASS。未确认产品缺陷，T09 整体与 Phase 4 MVP 未完成。详见[本轮清单](docs/BROWSER_TRIAL_CHECKLIST.md#迭代-25纯键盘路径复核验证fail)。
+> 既有状态：迭代 #24 已修复 320px 页面溢出与关键控件横向裁切，真实 Firefox BiDi 320/768/1280px 回归通过，经 Lead 独立审查及 MAC-116 独立 QA PASS，已合并 dev；长表仍在自身容器内横滚，拟合与导出契约不变。迭代 #23 已补 T09 真实 Firefox 自动化证据：320px 页面裁切已复现，纯键盘流程未通过，200% 真实缩放未执行；文档/证据独立 QA PASS，已合并 dev，T09 产品验证仍未通过。迭代 #22 已补充 Firefox 158.0.1 headless 的 T10 离线失败与重试恢复实测（独立 QA PASS，已合并 dev）；#21 已完成 T01–T08 工作流及实际下载验证；人工浏览器矩阵和外部验收待执行，Phase 4 MVP 尚未完成。Phase 3 科学绘图已完成：项目具备 CSV/XLSX 导入、
+> 数据校验、汇总统计、X/Y 配对、线性/二次/三次拟合、系数不确定度、病态诊断、Y 误差加权拟合，
+> 以及基于配对结果的 SVG 散点图（自动坐标范围、刻度、轴标签与单位）、拟合曲线叠加、
+> Y 误差棒、图表标题、网格开关、三档刻度密度与三档字号，并支持最多 4 个系列叠加
+> （主系列 + 3 个追加系列）、中文图例，以及纯前端 SVG/PNG 导出。迭代 #14 引入本地项目快照
+> （`.labflow.json`）；迭代 #15 将快照升级为 schema v2，新增项目名称/备注与 PNG 导出倍率
+> （1×/2×/3×，默认 2×）持久化，并支持把 v1 项目文件迁移为 v2。迭代 #16 新增一键载入内置
+> 示例 CSV、把首页当前阶段与真实能力对齐到 Phase 4，并提供首次使用三步引导；示例载入复用现有
+> 导入/解析链路，失败时保留当前已解析数据，可重试或手动上传。迭代 #17 补齐可访问性基础：
+> 页面首个可聚焦元素为“跳到主要内容”跳转链接、全局高对比 `:focus-visible` 描边、尊重减少动态
+> 效果偏好、键盘可达的“打开项目”按钮，以及解析成功的屏幕阅读器状态播报与忙时 `aria-busy`。
+> 迭代 #18 完成 Phase 4.3b-1：新增中文《数据与隐私复核》文档、首页可核验的四条隐私说明、
+> 健康检查离线提示与“重试连接”按钮，并把健康检查与数据上传/配对/拟合的网络、HTTP、非 JSON
+> 错误统一为中文，`AbortError` 保持原样抛出。项目文件不包含原始数据行、配对点、拟合系数或
+> 凭据。迭代 #19 完成 Phase 4.3b-2：后端用户可见校验错误与导入/配对/拟合警告统一为中文，
+> 状态码、响应字段与数值结果保持不变。后端持久化、用户账户、真实收费和生产部署尚未完成。
 
-## Status
+## 版本迭代记录
 
-Phase 0 — bootstrap. The repository contains a runnable FastAPI backend, a React/Vite/Tailwind
-frontend shell, deterministic analysis functions with tests, and CI. Product features are added
-iteration by iteration in `docs/ITERATION_LOG.md`.
+| 版本号 | 推送时间（Asia/Shanghai） | 新增内容 | 修复内容 |
+|---|---|---|---|
+| 迭代 #0 | 2026-10-21 13:23 | 初始化私有仓库、FastAPI/React 骨架、确定性分析、CI 和产品文档 | 首次初始化，无 |
+| 迭代 #1 | 2026-10-21 13:32 | CSV 导入/校验/预览/警告接口；数据质量检查 | 修复不规则 CSV 行导致字段静默错位（`fba7414`） |
+| 迭代 #2 | 2026-10-21 13:40 | CSV 上传与预览 UI、示例数据、加载/错误状态 | 无独立修复提交；补齐上传失败和缺失值展示 |
+| 迭代 #3 | 2026-10-21 14:06 | 数值列汇总统计（n/均值/样本标准差/标准误）和统计面板 | 无独立修复提交；补齐无数值列和有效值不足状态 |
+| 迭代 #4 | 2026-10-21 16:17 | XLSX 导入、与 CSV 共享校验/统计契约、前端按扩展名路由 | 修复重复表头导致 500（`7446abb`）；修复有数据支撑的空表头被误删（`fcf7139`） |
+| 迭代 #5 | 2026-10-21 18:13 | X/Y 配对、单位、配对序列 API 和配对面板 | 修复 XLSX datetime 被当作数值、与 CSV 行为不一致（`ae91783`） |
+| 迭代 #6 | 2026-10-21 20:08 | 线性/二次/三次拟合接口与拟合面板；方程、R²、残差、RMSE | 无独立修复提交；补齐 degree/列/格式/10 MB 错误矩阵 |
+| 迭代 #7 | 2026-10-21 22:09 | 系数标准误、95% 置信区间、残差自由度、条件数与病态诊断 | 无独立修复提交；精确决定拟合改为 null + 警告，避免伪不确定度 |
+| 迭代 #8 | 2026-10-21 23:37 | Y 误差列加权拟合、χ²/约化 χ²、误差传播、加权拟合 UI | 修复 `y_error_column` 空串返回 200、静默退化为等权拟合（`93a1013`） |
+| 迭代 #9 | 2026-10-22 00:11 | SVG 散点图：自动 X/Y 范围、4–6 个刻度、轴标签与单位、空数据/单点提示；Phase 3 页面文案 | 修复独立 QA 发现的单点/全同值仅 3 个刻度与极端有限值域溢出；补齐刻度回退与可表示范围保护 |
+| 迭代 #10 | 2026-10-22 01:06 | 拟合曲线叠加（可见 X 域 101 点确定性采样）、Y 误差棒、自动 Y 范围纳入曲线与误差端点、series 代次隔离；中文 README 与迭代记录同步 | 修复旧 series 的拟合结果回写到新 series（`dd83630`）；修复高次拟合曲线越界覆盖坐标轴/标签（`dd83630`） |
+| 迭代 #11 | 2026-10-22 02:08 | 中文图表标题（空标题不占位）、默认关闭的虚线网格、稀疏/标准/密集三档刻度密度、小/中/大字号；样式控件实时生效且不重新请求 series | 修复密集刻度在大数值、小跨度数据下相邻标签重复：按刻度步长与数值量级自适应有效位数，并保证同一轴标签唯一 |
+| 迭代 #11（QA FAIL 闭环） | 2026-10-22 02:15 | 无新增用户功能；补充三档刻度密度一致性回归测试 | 修复 MAC-52 QA FAIL：稀疏/密集刻度扩张坐标域，导致坐标域、点位、拟合曲线与误差棒随刻度密度变化；刻度密度现仅在固定域内生成刻度 |
+| 迭代 #12 | 2026-10-22 03:06 | Phase 3.4 多系列叠加与图例：主系列 + 最多 3 个追加系列、共享 X/Y 坐标域、颜色与形状双重区分、中文图例、添加/移除/上限/失败处理 | 无独立修复提交 |
+| 迭代 #13 | 2026-10-22 04:07 | Phase 3.5 PNG/SVG 导出：导出当前图表、确定性文件名、SVG 矢量与 PNG 2 倍栅格、白底、空数据禁用、导出中防重复点击与中文成功/失败状态 | 无独立修复提交 |
+| 迭代 #14 | 2026-10-22 05:06 | Phase 4.1a 本地项目快照 v1：`.labflow.json` 保存/打开、SHA-256 数据指纹校验、严格字段校验、中文文件名清洗、恢复列/单位/追加系列/拟合设置/图表样式，并按保存顺序一键重跑 | 修复主系列重跑失败后项目区块、中文错误与重试入口被卸载 |
+| 迭代 #15 | 2026-10-22 06:03 | Phase 4.1b 项目元数据与 PNG 导出倍率持久化、快照 schema v2、v1 兼容迁移 | 无独立修复提交 |
+| 迭代 #16 | 2026-10-22 07:03 | Phase 4.2 示例数据一键载入、Phase 4 首页文案对齐、首次使用三步引导 | 无独立修复提交 |
+| 迭代 #17 | 2026-10-22 08:04 | Phase 4.3a 可访问性基础：跳到主要内容、全局可见焦点、键盘可达的项目打开按钮、解析状态播报与忙时禁用 | 无独立修复提交 |
+| 迭代 #18 | 2026-10-22 09:04 | Phase 4.3b-1 隐私复核与首页数据/隐私说明、健康检查离线重试、前端网络错误中文统一 | 修正首页路线图仍列出已完成项；健康检查错误文案改为中文 |
+| 迭代 #19 | 2026-10-22 10:03 | Phase 4.3b-2 后端用户可见校验错误与导入/配对/拟合警告文案中文化；状态码、响应字段与数值结果不变 | 无独立修复提交 |
+| 迭代 #20 | 2026-10-22 11:47 | 静态兼容性复核、中文浏览器矩阵与本地试用脚本（人工验证待执行） | 修复版本表断行、补足项目重开前的成功配对步骤 |
+| 迭代 #21 | 2026-10-22 22:44 | Firefox headless 实际工作流 T01–T08、SVG/三档 PNG 落盘打开、项目重开/迁移/指纹拒绝证据 | manifest 闭合重打包、附件替换及最终 HEAD 补署名 |
+| 迭代 #21 QA 修复 | 2026-10-22 23:01（实际完成时间见任务交付评论） | 保留旧提交，最终 HEAD 补记署名 | manifest 覆盖全部 102 个实际载荷，更新附件及校验值 |
+| 迭代 #22 | 2026-10-23 00:06 | Firefox T10 后端停止/恢复、示例 GET 阻断重试实测与证据校验 | 无独立修复提交 |
+| 迭代 #23 | 2026-10-23 01:11 | Firefox T09 键盘尝试、320/768/1280 布局及减少动态效果实测，记录失败与未执行项 | 无独立修复提交 |
+| 迭代 #24 | 2026-10-23 02:05:59 | Firefox 三档真实内容视口回归脚本、前后截图和闭合证据 | 修复导入卡片自动最小宽度及拟合长数值撑开页面；保留表内横滚 |
+| 迭代 #25 | 2026-10-23 04:07 | 纯键盘路径失败校准、BiDi 请求与 v2 实际下载证据；严格路径 FAIL | 无独立修复提交 |
+| 迭代 #26 | 2026-10-26 12:30 | 768/1280px 双向真实键盘焦点、稳定等待与顶部栏遮挡证据；窗口激活后复现 FAIL | 无独立修复提交 |
+| 迭代 #27 | 2026-10-26 13:08 | Firefox 前后焦点证据、三档双向遍历与可复跑脚本 | 根滚动容器预留顶部栏及焦点描边安全间距，修复反向键盘稳定遮挡 |
+| 迭代 #27（QA FAIL 闭环） | 2026-10-26 16:23 | 全焦点严格回归、基线对照、原生滚动 DIV 横滚及平滑/减少动态效果边界证据 | 统一绝对焦点滚动校正、完整描边安全边界与跳转链接位置 |
 
-## Stack
+> 版本号当前使用迭代号（尚未打语义化 Git tag）；推送时间取该轮 README 更新提交的实际推送时间（Asia/Shanghai；迭代 #14 为 2026-10-22 05:06，迭代 #15 为 2026-10-22 06:03，迭代 #16 为 2026-10-22 07:03，迭代 #17 为 2026-10-22 08:04，迭代 #18 为 2026-10-22 09:04，迭代 #19 为 2026-10-22 10:03）。完整证据、commit SHA 和 GitHub 链接见 [迭代记录](docs/ITERATION_LOG.md)。
 
-- Frontend: React 19, TypeScript, Vite, Tailwind CSS
-- Backend: Python 3.12, FastAPI, NumPy, Pandas, SciPy
-- Storage: SQLite (introduced in a later iteration)
-- Tests: Pytest, Vitest
-- CI: GitHub Actions
+## 当前能力
 
-## Quick start
+- **数据导入**：CSV、XLSX、示例数据和前 10 行预览。
+- **示例数据与新手引导**：导入卡片提供“载入示例数据”，先 `GET /samples/labflow-demo.csv`，
+  再用响应文本构造同名 `File`（`labflow-demo.csv`、`text/csv`）并复用现有 CSV 上传/解析链路，
+  成功后展示行数、数值列、警告、统计、配对面板和预览；不会自动发起 series 或 fit 请求。
+  载入中显示“正在载入示例…”并禁用上传、清除和文件选择，同步 ref 保证双击只产生一次 GET
+  和一次 POST；失败时显示中文 `role="alert"`，不改变当前已选文件、已解析结果或分析状态，
+   可重试或手动上传。首页提供三步中文“首次使用”引导，当前阶段文案为 Phase 4 · MVP 产品化。
+- **可访问性基础**：页面首个可聚焦元素是中文跳转链接“跳到主要内容”（`href="#import"`），导入区块
+  可程序化聚焦并由标题关联；全局 `:focus-visible` 使用 3px 高对比青色描边，不移除既有 `focus:ring`；
+  `prefers-reduced-motion: reduce` 下关闭平滑滚动；解析成功通过屏幕阅读器专用 `role="status"`
+  播报文件名、行数与数值列数，错误仍使用 `role="alert"`；结果卡在解析或示例载入中标记
+  `aria-busy`；“打开项目”改为键盘可达的真实按钮并正确禁用，“移除系列”在追加系列或项目忙时禁用。
+- **隐私与错误体验**：首页“数据与隐私”区块给出恰好 4 条可在仓库中核验的中文说明：上传文件只
+  发往本机分析服务、不接入第三方统计/分析/AI、应用在内存解析且不持久化文件/不写数据库、
+  `.labflow.json` 只含配置与 SHA-256 指纹；完整复核见 [数据与隐私复核](docs/PRIVACY.md)。
+  应用代码不持久化上传文件；Starlette 对大请求可能使用系统临时目录缓冲，结束后回收，不能承诺完全无临时文件。
+  健康检查失败时显示“API 未连接”、本机后端地址提示与“重试连接”按钮，重试期间徽标显示
+  “正在检查 API”且按钮禁用，成功后提示与按钮消失。健康检查及上传/配对/拟合的网络失败、
+  非 2xx、200 但响应非 JSON 均使用中文错误文案；请求取消（`AbortError`）保持原样抛出。
+- **数据校验**：缺失值、重复行、非数值列、非有限值和不规则行警告/错误。
+- **汇总统计**：n、缺失数、均值、样本标准差（ddof=1）、标准误。
+- **X/Y 配对**：选择数值列、可选单位、跳过行计数、配对序列预览。
+- **曲线拟合**：线性、二次、三次；方程、R²、系数、残差、RMSE、最大绝对残差。
+- **拟合不确定度**：系数标准误、95% 置信区间、残差自由度和条件数/病态警告。
+- **加权拟合**：可选 Y 误差列和单位，按 `1/σ²` 加权，输出 χ²、约化 χ² 和误差传播。
+- **SVG 散点图**：基于 series 配对结果内联绘制，自动 X/Y 范围（约 5% 边距）、4–6 个标准刻度、
+  轴标签与单位、空数据和单点提示；非有限点自动过滤，不引入第三方图表库。
+- **多系列叠加与图例**：主系列之外可追加最多 3 个 Y 系列（总数最多 4 个），所有系列共享主系列
+  X 列与 X/Y 单位；按添加顺序使用固定颜色与形状（圆/方/三角/菱形）双重区分；图例显示系列名、
+  形状、颜色与点数；X/Y 域取全部系列有限点的并集，并继续覆盖主系列拟合曲线与误差棒端点。
+  支持移除追加系列、4 系列上限与中文错误提示；重新生成主系列会清空追加系列和旧拟合结果。
+- **图表样式**：可选中文标题（空白标题不渲染、不占位）、默认关闭的虚线网格（按刻度位置绘制）、
+  稀疏（3–4）/标准（4–6）/密集（6–9）三档刻度密度，以及小/中/大三档字号；刻度标签按步长与
+  数值量级自适应精度，同一轴内保证标签唯一；刻度密度只在固定坐标域内生成刻度，不扩张坐标域；
+  样式变化只影响显示，不改变坐标域、点位、拟合曲线或误差棒像素坐标，也不触发新的 series 请求。
+- **拟合曲线与误差棒**：拟合成功后按系数在可见 X 域确定性采样 101 点绘制曲线；加权拟合时
+  为每个有限配对点绘制 Y 误差棒（±σ）；自动 Y 范围同时覆盖误差端点与曲线采样值。
+- **PNG/SVG 导出**：图表区提供“导出 SVG”和“导出 PNG（N×）”。SVG 为当前内联图表的确定性克隆，
+  保留标题、网格、刻度、字号、多系列形状/颜色、拟合曲线与 Y 误差棒，并插入不透明白底；
+  PNG 通过浏览器 `<canvas>` 输出 viewBox 宽高 × N 倍栅格（N 可选 1/2/3，默认 2；640×360 图表
+  2× 导出为 1280×720），同样先填白底。文件名统一以 `labflow-` 开头，优先使用图表标题，标题为空时
+  回退为 `X列-Y列`；非法字符、控制字符与换行/制表符会被清洗，空白折叠为 `-`，主体最长 80 字符，
+  相同输入始终得到相同文件名。无数据时两个按钮禁用并提示“暂无可导出的数据”；导出中显示
+  “正在导出…”并禁用按钮，成功显示“已导出 <文件名>”，失败显示中文 `role="alert"` 错误且图表
+  保持不变。导出为纯前端行为，不重新请求数据，不改变当前坐标域或点位，也不新增第三方依赖。
+- **本地项目快照（schema v2）**：配对成功后提供项目名称（≤80 字符）、项目备注（≤500 字符）、
+  PNG 导出倍率（1×/2×/3×）、“保存项目”和“打开项目”。项目文件为确定性的
+  `.labflow.json`（schema v2、2 空格缩进、固定字段顺序、末尾换行），保存项目元数据、导出倍率、
+  原始文件名、数据集指纹（格式、字节数、SHA-256、行数、数值列）、X/Y 列与单位、按顺序的追加
+  系列、拟合设置（是否曾成功运行、次数、Y 误差列与单位）以及图表标题/网格/刻度密度/字号；
+  不保存原始数据行、配对点、拟合系数/残差、警告详情、时间戳、随机数或凭据。名称/备注保存前
+  trim，超长截断；项目文件名仍由数据源文件名生成，不使用项目名称。打开时先做类型/枚举/范围/
+  重复列/未知字段等严格校验，再以 SHA-256 为主并同时核对格式、大小、行数与数值列；不匹配时
+  提示重新导入原始数据，且不改变当前分析状态、不发起配对或拟合请求。v1 项目文件会严格校验后
+  迁移为 v2 内存对象（空名称、空备注、2× 倍率），保存时统一写出 v2；其他版本给出中文“版本
+  不支持”错误。匹配成功后恢复全部设置（含项目名称/备注/PNG 倍率），并按“主系列配对 →
+  追加系列（按保存顺序逐个）→ 拟合（仅当保存时存在）”自动重跑一次；重跑中显示中文进度并
+  禁用冲突操作，旧请求由代次标记隔离；中途失败会停止后续步骤、保留已完成结果并显示失败
+  步骤的中文错误，可再次打开项目重试。项目文件上限 256 KB，完全在浏览器本地处理，不上传后端。
+- **中文优先 UI**：响应式布局、上传/统计/配对/拟合/绘图面板和清晰错误提示。
 
-### Backend
+## 尚未完成
+
+- 手工表格录入与编辑。
+- 图例位置/颜色自定义，以及自定义导出尺寸/DPI/透明背景。
+- 项目文件的云同步、后端持久化、跨设备共享与多项目列表。
+- 用户账户、团队协作、真实计费和 PIP 生产部署。
+- 实际 Chrome/Safari/Firefox 人工兼容性矩阵与外部试用验收；静态复核不能替代实测。
+- 浏览器下载成功提示只表示已触发下载，需实际检查文件；导出不含页面 HTML 图例，中文字体依赖系统；项目 SHA-256 依赖安全上下文。
+- 完整的 WCAG 审计、自动化可访问性工具与屏幕阅读器人工实测（目前只做基础键盘/播报支持）。
+
+## 下一轮计划
+
+迭代 #21 已在真实 Firefox 158.0.1 headless + geckodriver Remote 上完成[检查清单 T01–T08](docs/BROWSER_TRIAL_CHECKLIST.md#迭代-21firefox-headless-实际执行记录)，包括实际下载打开和项目迁移/拒绝。
+既有 320px 布局修复已通过独立 QA 并合并 dev；#27 初版独立 QA FAIL 已闭环，返工候选独立 QA PASS 并已合并 dev；#25 方向键选择仍未完成，下一轮由 Lead 选择单一剩余缺口；Chrome/Safari 与 Firefox 人工矩阵待执行，并处理证据支持的兼容问题；本轮自动化不代表人工矩阵或外部验收，Phase 4 MVP 尚未完成。真实招募、部署和付费服务仍需另行授权。
+原始数据在导入、配对、拟合和项目重跑时提交至本机后端，不发送第三方；项目快照文件本身在浏览器
+本地处理，不上传后端。继续保持确定性计算、中文优先与项目重跑结果一致。
+
+## 技术栈
+
+- 前端：React 19、TypeScript、Vite、Tailwind CSS
+- 后端：Python 3.12、FastAPI、NumPy、Pandas、SciPy、openpyxl
+- 测试：Pytest、Vitest
+- CI：GitHub Actions
+- 存储：当前无数据库依赖，应用在请求内存中解析，不持久化；框架可能使用临时缓冲，见 [隐私复核](docs/PRIVACY.md)
+
+## 快速开始
+
+### 后端
 
 ```sh
 cd backend
@@ -33,20 +161,22 @@ $PYTHON_BIN -m venv .venv
 .venv/bin/python -m uvicorn app.main:app --reload --port 8000
 ```
 
-API health: <http://127.0.0.1:8000/api/health>
+健康检查：<http://127.0.0.1:8000/api/health>
 
-Python 3.12+ is required. If your `python3` is older, set `PYTHON_BIN` to a 3.12+ interpreter
-before creating the virtual environment.
+需要 Python 3.12+。如果系统 `python3` 较旧，请把 `PYTHON_BIN` 指向 3.12+ 解释器。
 
-### Frontend
+### 前端
 
 ```sh
 cd frontend
-pnpm install
-pnpm dev
+/Users/zhangzimo/.local/bin/pnpm install
+/Users/zhangzimo/.local/bin/pnpm dev
 ```
 
-Open <http://127.0.0.1:5173>. Vite proxies `/api` to the backend on port 8000.
+打开 <http://127.0.0.1:5173>。Vite 会把 `/api` 代理到 8000 端口。
+
+内置示例数据位于 `frontend/public/samples/labflow-demo.csv`，开发服务器和构建产物均通过
+`/samples/labflow-demo.csv` 提供；首页“载入示例数据”按钮读取该文件后复用 CSV 上传链路。
 
 ### Docker
 
@@ -54,38 +184,146 @@ Open <http://127.0.0.1:5173>. Vite proxies `/api` to the backend on port 8000.
 docker compose up --build
 ```
 
-- Frontend: <http://127.0.0.1:8080>
-- Backend: <http://127.0.0.1:8000/api/health>
+- 前端：<http://127.0.0.1:8080>
+- 后端：<http://127.0.0.1:8000/api/health>
 
-The frontend nginx container proxies `/api` to the backend service.
+仓库已提供 Dockerfile/nginx 代理配置。当前开发用 Mac mini 未安装 Docker，容器路径尚未做冒烟验证；
+本地开发请使用上面的后端/前端命令。
 
-### Tests
+## 测试与质量
 
 ```sh
-cd backend && .venv/bin/python -m pytest
-cd frontend && pnpm test:run
-cd frontend && pnpm build
+cd backend && .venv/bin/python -m pytest -q
+cd backend && .venv/bin/ruff check app tests
+cd frontend && /Users/zhangzimo/.local/bin/pnpm typecheck
+cd frontend && /Users/zhangzimo/.local/bin/pnpm test:run
+cd frontend && /Users/zhangzimo/.local/bin/pnpm build
 ```
 
-## Repository layout
+截至迭代 #21（2026-10-22，本轮仅改文档，证据作为任务附件交付）：
+
+- 后端：原命令 `pytest -q` 退出码 0，共 157 项通过；ruff 通过。存在 Starlette/httpx 弃用警告与病态拟合用例 RankWarning。
+- 前端：174 项测试通过，typecheck/build 通过；测试存在 React `key` 特殊属性警告。
+- 自动化门禁通过；另有真实 Firefox headless T01–T08 执行证据。Chrome/Safari 未实测，三浏览器人工矩阵与外部验收均待执行。
+- GitHub Actions 已配置；本轮未将本地门禁等同于远端 CI 结果。
+
+数值测试使用已知值或独立公式基线；AI 输出不作为数值正确性的判据。
+
+## API 概览
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/health` | 健康检查 |
+| POST | `/api/analysis/stats` | 对一组数值做均值/样本标准差/标准误 |
+| POST | `/api/analysis/fit` | 对 X/Y 数组做 1–3 次拟合 |
+| POST | `/api/datasets/csv` | 上传 CSV，返回校验、预览、统计和警告 |
+| POST | `/api/datasets/xlsx` | 上传 XLSX，契约与 CSV 一致 |
+| POST | `/api/datasets/series` | 选择 X/Y 列和单位，返回配对序列 |
+| POST | `/api/datasets/fit` | 对导入数据集拟合，支持不确定度和 Y 误差加权 |
+
+## 目录结构
 
 ```text
-backend/       FastAPI app and deterministic analysis functions
-frontend/      React application shell
-docs/          Roadmap, architecture, testing, decisions, iteration log
-.github/       CI workflow
+backend/       FastAPI 应用、确定性分析和拟合代码
+frontend/      React 应用、上传/统计/配对/拟合/绘图面板（含 ScatterPlot）
+docs/          路线图、架构、测试、商业模型、决策、迭代记录
+.github/       CI 工作流
 ```
 
-## Git workflow
+## 迭代与 Git 规则
 
-- `main` is the stable branch and is only updated by human-approved merges/releases.
-- Each unattended iteration uses an `iter/N` branch, is validated by QA, and is pushed to GitHub.
-- Integration work lands on `dev` after QA. Automated agents never force-push.
-- Every successful iteration records a real commit SHA and remote branch in `docs/ITERATION_LOG.md`.
+- `main` 只保留稳定版本，由人工批准合并/发布。
+- 每轮开发从 `dev` 创建 `iter/N`，Dev 提交并 push，独立 QA 通过后由 Lead 合并到 `dev`。
+- 禁止 force push、重写历史、直接推 `main`、提交密钥或用户数据。
+- **每轮版本更新必须同步更新本 README，且 README 使用中文。**
+- **每轮必须更新 `docs/ITERATION_LOG.md`，记录真实目标、改动、测试、分支、commit SHA、链接、已知问题和下一轮。**
+- 从迭代 #8 起，commit message 使用中文：`迭代 #N：<中文摘要>`；merge/记录 commit 也使用中文。
+- QA 必须检查 README 是否更新且为中文，以及迭代记录是否完整；缺失则判 FAIL。
 
-## Guardrails
+## 如何查看版本记录
 
-- No secrets or user data in Git.
-- No real billing, purchases, or production deployment without approval.
-- Numeric results are produced by tested deterministic code.
-- Uploaded data is not sent to third-party AI services.
+```sh
+# 简洁历史
+git log --oneline --graph --decorate
+
+# 只看开发分支
+git log --oneline --decorate dev
+
+# 查看某次提交
+git show <SHA>
+```
+
+- GitHub Commits：<https://github.com/CubicZnS/labflow/commits/dev>
+- 中文迭代记录：`docs/ITERATION_LOG.md`
+- 中文提交索引：在 `docs/ITERATION_LOG.md` 顶部，把旧英文 commit message 映射为中文说明
+
+## 文档
+
+- [产品路线图](docs/PRODUCT_ROADMAP.md)
+- [数据与隐私复核](docs/PRIVACY.md)
+- [架构说明](docs/ARCHITECTURE.md)
+- [测试策略](docs/TESTING.md)
+- [商业模型](docs/BUSINESS_MODEL.md)
+- [架构与产品决策](docs/DECISIONS.md)
+- [Agent 运行模型](docs/AGENT_OPERATING_MODEL.md)
+- [迭代记录](docs/ITERATION_LOG.md)
+
+## 安全与边界
+
+- 不把 API Key、Token、数据库凭据或用户数据提交进 Git。
+- 当前不启用真实收费，不购买服务器/域名/API Credits，不做生产部署。
+- 实验数据默认本地处理；MVP 不把数据送到第三方 AI 服务。
+- 数值结果由确定性代码计算；AI 只可做解释和引导。
+
+## 当前限制
+
+- 仅支持逗号分隔 UTF-8 CSV 和首个 XLSX 工作表。
+- 上传上限 10 MB，文件在大小检查前已读取。
+- 一键载入依赖前端静态资源 `/samples/labflow-demo.csv`；静态资源不可用或网络失败时显示中文
+  错误，不发起上传，可重试或改用手动上传。示例载入成功后仍需手动选择 X/Y 并生成配对。
+- 拟合不确定度基于独立同分布误差假设；加权拟合把输入的 σ 视为绝对误差。
+- 散点图支持最多 4 个系列叠加（主系列 + 3 个追加系列）、中文图例、拟合曲线、Y 误差棒、标题、
+  网格、三档刻度密度与三档字号，并支持 SVG/PNG 导出。
+- 导出的 SVG/PNG 不包含 HTML 图例；多系列仍可在图内通过颜色与形状区分。
+- 导出的 SVG 使用查看器/系统字体渲染文字，未内嵌字体，跨设备可能出现字体替换。
+- 暂不支持自定义导出尺寸、DPI 或透明背景；PNG 仅支持 1×/2×/3× 栅格倍率，默认 2×。
+- 多系列共享主系列 X 列与 X/Y 单位；追加系列只提供散点，不提供独立拟合曲线或误差棒。
+- 网格默认关闭，开启后按当前刻度位置绘制虚线参考线；本轮不提供手动坐标范围、图例位置或颜色编辑。
+- 拟合曲线覆盖当前可见 X 域（含约 5% 边距），自动 Y 范围会包含曲线采样值；误差棒把 σ 视为绝对误差。
+- 项目文件只保存数据指纹、项目元数据（名称/备注）、导出倍率与分析配置，不包含原始数据；
+  打开项目前必须重新导入保存时同一份数据文件，SHA-256、格式、字节数、行数或数值列任一不一致
+  都会拒绝打开。
+- 项目文件上限 256 KB，写出 schema v2，可读取并迁移 schema v1；其他版本显示中文“版本不支持”。
+  项目名称最长 80 字符、备注最长 500 字符，保存前 trim，超长截断；项目文件名继续由数据源
+  文件名生成，不使用项目名称。SHA-256 依赖浏览器 Web Crypto，不支持时显示中文错误。
+- 项目快照暂不保存导出格式（SVG/PNG 每次导出时选择）、自定义尺寸/DPI、图例布局、手动坐标范围
+  或后端/云端状态，也不做跨设备同步。
+- 打开项目要求当前数据集已成功生成过配对结果才能首次进入项目区域；主系列重跑失败后项目
+  区块、失败步骤的中文错误与“打开项目”重试入口保持可见。追加系列恢复后仍共享主系列 X 列
+  与 X/Y 单位，追加系列本身不恢复独立拟合或误差棒。
+- 旧 series 的拟合结果由 series 代次隔离，不会回写到新 series。
+- 可访问性覆盖键盘、焦点可见性与屏幕阅读器状态播报的基础路径；未引入 axe 等自动化审计工具，
+  也未做完整 WCAG 逐条认证或屏幕阅读器人工实测。
+- 当前是本地 MVP，默认无 TLS、鉴权、速率限制或租户隔离；部署到真实服务器前必须重新做隐私与
+  安全复核，并重新评估传输加密、访问控制、日志与留存策略。
+- 后端用户可见校验错误与导入/配对/拟合警告已在迭代 #19 统一为中文；CSV、XLSX、X/Y、χ²、σ²、
+  1/σ²、`y_error_column` 等技术记号按需保留英文。前端网络/HTTP/非 JSON 错误文案已在迭代 #18
+  统一为中文。
+- 离线提示固定指向开发默认地址 `http://127.0.0.1:8000`；改用其他主机或端口时需要同步修改文案。
+- 当前是开发阶段，没有真实用户、收入或市场验证数据。
+
+- QA 修复：旧附件 `cedead60-5b9c-426e-9daf-9039670c273f`（SHA-256 `833fc9d358ddbeb7ddba3e125011864a66669b63890db28423b4b6ec9e7606c5`）明确作废。新附件 [MAC-100 闭合证据包](/api/attachments/0cfdbd50-a2ce-44b6-a377-a564054faf8a/content?download=1)，SHA-256 `e256156cada09c7d0b6549930816898c40a05af9e708b69e4cff508252d30b1a`；上传后重新下载核验，102 个载荷文件的存在性、字节数和 SHA-256 全部一致，manifest 自身不列入校验表。路径相对 `iter21/manifest.json` 所在目录，`../scripts/` 和 `../iter21-*.log` 指向包内同级脚本及日志；删除原清单中 4 条不存在记录，补入原包中 5 个未列脚本/日志，不补造失败证据。
+- 署名处理：旧提交 `2c8cf5c`、`b94d698` 原样保留；新增中文修复提交，最终 HEAD 正文末尾包含 `Co-Authored-By: Paperclip <noreply@paperclip.ing>`，不重写历史、不 force push。若 QA 要求修改旧提交署名，须升级给 Lead/用户决定。
+- 最终交付：[iter/21 最终 HEAD](https://github.com/CubicZnS/labflow/commits/iter/21)；实际推送时间、不可变最终 SHA 与 GitHub commit 链接在 MAC-100 和 MAC-99 交付评论记录（提交内无法自引用自身 SHA）。本次仅文档/附件修复，运行 `git diff --check`、附件闭合校验、远端 SHA 与 GitHub API 核验；产品门禁沿用上轮记录，未重跑。交回 QA 复验，不宣布 PASS、不合并。
+
+- QA 清单与署名修复提交：[720f425c44beb2613afffda063dbfab94532692a](https://github.com/CubicZnS/labflow/commit/720f425c44beb2613afffda063dbfab94532692a)；推送时间：2026-10-22 23:01:07 Asia/Shanghai。
+
+迭代 #21 集成状态：独立 QA 已对最终候选 c18121e 给出 PASS，已合并并推送 dev（[d4ebf58](https://github.com/CubicZnS/labflow/commit/d4ebf58c60c9429d2633a34d8263db7d57943379)）。上方“交回 QA”描述为修复交付时的历史状态；合并及记录提交另行只读复核。该轮提出的 T10 已在 #22 补充，其他浏览器、T09 与外部验收仍待执行。
+
+迭代 #22：仅补 T10 文档与合成数据实测，不改变功能、接口、启动及测试命令。独立端口 5174→8001 为本轮临时隔离环境，标准启动仍为上文 5173→8000。停止本轮后端后刷新/重试显示“API 未连接”、中文错误，无解析假成功；恢复后健康检查、重导 CSV、配对与一次拟合成功。单独阻断示例 GET 后中文提示可见，原项目与图形保留，解除后可重新载入。代理将后端连接拒绝转为 HTTP 500；检查中按钮禁用由 BiDi 暂挂健康 GET 后观察，释放后返回真实失败，不能证明超时或离线分析。完整记录见 [T10 实测](docs/BROWSER_TRIAL_CHECKLIST.md#迭代-22t10-离线失败与重试恢复实测)。
+
+
+迭代 #23：仅更新文档，功能、接口、标准启动和五项测试命令保持准确。真实 Firefox headless 实测 T09 **未通过**：刷新首 Tab 跳转链接及 Enter 进入 `#import` 成功；文件为自动化注入，非原生文件选择器人工验收。纯键盘配对成功，但拟合次数选择、运行拟合及保存未完成；反向 Tab 可回到上部，不能宣布全程无陷阱/焦点清晰。另用点击建立分析状态验证项目重开、实际 SVG/PNG 下载与解码、忙时禁用。320×915 CSS px（Firefox BiDi 内容视口，DPR1）页面宽773，关键控件裁切，不只是长表横滚；768/1280 页面宽正常，768 有一次焦点控件中心遮挡取样。200% 真实浏览器缩放未执行（快捷键后 innerWidth/DPR 未变）；未用 CSS zoom。Firefox 会话减少动态效果偏好生效，非系统设置人工验收。详见[本轮浏览器记录](docs/BROWSER_TRIAL_CHECKLIST.md#迭代-23t09-键盘与布局实测未通过)。不修产品、不宣称 QA PASS，人工矩阵/屏幕阅读器/其他浏览器/外部验收仍未完成。
+
+
+迭代 #24：导入区网格使用可收缩轨道与卡片，拟合结果单列轨道允许收缩、长数值换行；没有用页面隐藏横向溢出掩盖裁切。真实 Firefox 内容视口320×915、768×915、1280×915下，合成CSV上传→配对→拟合、项目保存/重开和SVG/PNG下载回归通过；页面宽分别320/768/1280。详细证据与复跑命令见[浏览器清单](docs/BROWSER_TRIAL_CHECKLIST.md#迭代-24修复320px页面溢出)。仅本轮布局自动化通过；键盘、焦点遮挡、200%缩放及人工矩阵仍待复核，T09整体和MVP未完成。

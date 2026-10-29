@@ -16,7 +16,7 @@ students, and research labs that repeatedly perform similar data-analysis and pl
 
 ## Phases
 
-### Phase 0 — Bootstrap (current)
+### Phase 0 — Bootstrap (complete)
 
 - [x] Private GitHub repository and branch workflow
 - [x] FastAPI backend shell with deterministic analysis module
@@ -24,31 +24,68 @@ students, and research labs that repeatedly perform similar data-analysis and pl
 - [x] Pytest and Vitest foundations
 - [x] GitHub Actions CI
 - [x] Product, architecture, testing, business, decision, and iteration docs
-- [ ] First commit pushed and verified on the remote
+- [x] First commit pushed and verified on the remote
 
 Acceptance: both applications start; tests pass; CI is configured; the first commit exists on GitHub.
 
-### Phase 1 — Data import and validation
+### Phase 1 — Data import and validation (core complete)
 
-- CSV and XLSX import with preview
-- Manual table entry/editing
-- Numeric column detection, X/Y selection, units
-- Missing/invalid/duplicate value diagnostics
-- Basic statistics: mean, sample standard deviation, standard error
+- [x] CSV import with validation, warnings, and preview
+- [x] XLSX import with preview
+- [ ] Manual table entry/editing
+- [x] X/Y selection and units
+- [x] Numeric column detection
+- [x] Missing/invalid/duplicate value diagnostics
+- [x] Basic statistics: mean, sample standard deviation, standard error
 
 Acceptance: a real experimental CSV/XLSX can be imported and produces correct summary statistics.
 
-### Phase 2 — Curve fitting
+### Phase 2 — Curve fitting (complete)
 
-- Linear regression
-- Quadratic and cubic polynomial fits
-- Fit equation, R-squared, residuals
-- Error bars and uncertainty propagation
-- Warnings for underdetermined or ill-conditioned fits
+Phase 1 acceptance is met: real CSV/XLSX files import with validation, statistics, and an explicit
+paired series with units. Manual table entry/editing is deferred until after fitting/plotting.
+
+- [x] Linear regression
+- [x] Quadratic and cubic polynomial fits
+- [x] Fit equation, R-squared, residuals
+- [x] Coefficient standard errors and 95% confidence intervals
+- [x] Ill-conditioned and exactly-determined fit warnings (underdetermined fits already return 422)
+- [x] Y-error columns and measurement-error-aware weighted fits (χ², reduced χ²,
+      absolute-error covariance)
+
+Phase 2.1 (iteration 6) delivered dataset-level fits on the paired series with equation, R-squared,
+residuals, RMSE, and maximum absolute residual. Phase 2.2 (iteration 7) added coefficient standard
+errors, 95% confidence intervals, residual degrees of freedom, and explicit exactly-determined and
+ill-conditioned warnings. Phase 2.3 (iteration 8) added optional absolute Y-error columns, weighted
+least-squares coefficients, `pinv(XᵀWX)` uncertainty, χ²/reduced χ² diagnostics, and Chinese-first
+error-column controls. Error-bar rendering moves to Phase 3 because it is a plotting concern.
 
 Acceptance: known-value fixtures match independent numerical baselines.
 
-### Phase 3 — Scientific plotting
+### Phase 3 — Scientific plotting (complete)
+
+Planned increments:
+
+- [x] 3.1 SVG scatter plot of the paired series with axis labels/units, automatic ranges, and empty/
+      single-point states; no new chart dependency (iteration #9, merge `2862994`)
+- [x] 3.2 Fitted-curve overlay and Y-error bars, reusing the existing fit response; Y range includes
+      curve samples and error endpoints, stale fit responses are isolated per series
+      (iteration #10, merge `f98b1c9`)
+- [x] 3.3 Chart title, grid toggle, tick density, and font-size controls on the single-series
+      scatter plot; coordinate domain, point positions, fitted curve, and error bars are
+      independent of the selected density (iteration #11, merge `4545a60`)
+- [x] 3.4 Multiple series overlay with legend: primary series plus up to three added Y series,
+      shared X/Y domains, fixed color/shape encoding, Chinese legend, add/remove/limit/error
+      handling; primary-only fit overlay and error bars
+      (iteration #12, merge `227d04a`)
+- [x] 3.5 PNG and SVG export (iteration #13, merge `f00101b`)
+
+Phase 3 acceptance is met: the current chart can be exported as a deterministic SVG clone or a
+2× PNG raster with a white background, without new dependencies or re-fetching data. The HTML
+legend is intentionally excluded from the image and remains a documented limitation (iteration
+#13, merge `f00101b1910c8707e3244aa559aeb0c659b1c8a1`).
+
+Original scope kept for reference:
 
 - Scatter, line, scatter+fit, error-bar charts
 - Multiple series, axis labels/units/ranges
@@ -57,12 +94,42 @@ Acceptance: known-value fixtures match independent numerical baselines.
 
 Acceptance: a user can go from uploaded data to an exported publication-style figure.
 
-### Phase 4 — MVP productization
+### Phase 4 — MVP productization (in progress)
 
-- Project save/reopen and rerun
-- Sample datasets and onboarding
-- Error handling and accessibility pass
-- Data privacy and security review
+- [x] 4.1a Local project snapshot v1: deterministic `.labflow.json` with a SHA-256 data
+      fingerprint (format, size, row count, numeric columns) plus X/Y columns/units, ordered
+      extra series, fit settings, and chart style. Saving, strict Chinese validation, dataset
+      identity check, and ordered one-click rerun (main series → extras → fit) are implemented;
+      the file contains no raw data rows, pairs, fit coefficients, or credentials
+      (iteration #14, merge `d56f2a2`)
+- [x] 4.1b Project metadata and export settings: snapshot schema v2 adds `metadata.name`
+      (≤80), `metadata.note` (≤500), and `export.pngScale` (1/2/3, default 2); v1 project
+      files are strictly validated and migrated to v2; SVG/PNG export format stays per-click
+      and custom size/DPI is not persisted. Local-only, no-upload boundary kept
+      (iteration #15, merge `aeed184`)
+- [x] Project save/reopen and rerun (local config snapshot; the same data file must be
+      re-imported and is verified by SHA-256 before rerun)
+- [x] 4.2 Sample datasets and onboarding: one-click load of the built-in demo CSV, landing
+      page copy aligned with current Phase 4 capabilities, and a first-run step guide
+      (iteration #16, merge `aa5268e`)
+- [x] 4.3a Accessibility foundation and status announcements: skip link, global visible focus,
+      reduced-motion preference, accessible parse-status announcements and `aria-busy`,
+      keyboard-reachable project-open button, busy-state disables
+      (iteration #17, merge `b4a3379`)
+- [x] 4.3b-1 Privacy review and frontend error experience: Chinese network/HTTP/non-JSON
+      messages for health checks and dataset POSTs, offline health-check retry, a verifiable
+      four-item privacy summary on the landing page, and `docs/PRIVACY.md`
+      (iteration #18)
+- [x] 4.3b-2 Localize backend user-facing validation error messages: all user-facing `detail`
+      strings and import/pairing/fitting warnings are Chinese, with status codes, response
+      fields, endpoints, and numeric results unchanged (iteration #19)
+- [x] 4.4a 发布前静态代码兼容性审查与中文试用手册准备（迭代 #20）：
+      [实际能力证据、人工矩阵与本地脚本](BROWSER_TRIAL_CHECKLIST.md)。仅文档准备，不代表浏览器验证通过。
+- [ ] 4.4b 执行 Chrome/Safari/Firefox 人工矩阵，记录完整版本、OS、日期、下载文件及失败证据，
+      再处理证据支持的兼容问题；目前全部待执行。
+- [ ] 4.4c 外部用户无需开发者帮助完成工作流的真实验收；招募、部署与付费服务仍须另行授权。
+
+Phase 4 MVP 尚未完成；静态审查与手册准备完成不等于人工验证或产品接受。
 
 Acceptance: an external test user completes the workflow without developer help.
 
@@ -97,3 +164,43 @@ AI-generated numeric results, mobile apps.
 - Variable cost per active user
 
 Until real data exists, metrics are reported as `暂无数据`; assumptions are not presented as facts.
+
+## 迭代 #22 实际状态（2026-10-23 Asia/Shanghai）
+
+Phase 4.4b 的 T10 已完成 Firefox 158.0.1 headless + Selenium Remote/BiDi 自动化实测：后端停止后的中文失败/重试状态、恢复重导配对拟合，以及单独阻断示例 GET 时结果保留/解除重试。证据与边界见 [浏览器清单](BROWSER_TRIAL_CHECKLIST.md#迭代-22t10-离线失败与重试恢复实测)。Lead 独立审查及 MAC-105/MAC-106 独立 QA 已 PASS，已合并 dev；此结论仅覆盖本轮 T10 证据和文档。T09、Chrome/Safari、Firefox 有头人工矩阵与真实外部验收仍待执行，Phase 4 MVP 未完成。无离线分析或请求超时能力承诺；下一轮由 Lead 只选一个未完成项。
+
+
+## 迭代 #23 实际状态（2026-10-23 Asia/Shanghai）
+
+Phase4.4b T09已补真实Firefox headless自动化证据，**整体未通过**：首焦点跳转/导入配对已观察；纯键盘拟合/保存未完成，方向键/焦点分派边界待复核。点击补充项目/下载工作流不充当键盘PASS。320×915真实BiDi内容视口测得页面宽773、关键控件裁切；768/1280宽度正常，但768有一次焦点中心被顶部栏遮挡取样。200%真实浏览器缩放未执行，减少动态效果会话偏好生效。详见[本轮清单](BROWSER_TRIAL_CHECKLIST.md#迭代-23t09-键盘与布局实测未通过)及[交付任务](/MAC/issues/MAC-109)。本轮只记录，不修产品；下一轮由Lead缩小320溢出修复及键盘/焦点复核范围，独立审查后另建QA。五项代码门禁通过不等于T09或QA PASS，人工矩阵/屏幕阅读器/三浏览器/外部验收仍未完成，Phase4 MVP未完成。
+
+
+迭代 #23 集成状态：文档/证据独立 QA PASS，已合并 dev（[12ebbe8](https://github.com/CubicZnS/labflow/commit/12ebbe8a0c19084a9f8be906f2a058b5fbee3a31)）。T09 产品验证仍未通过；下一轮只修320px布局溢出，其他缺口单独验证，Phase 4 MVP 未完成。
+
+
+## 迭代 #24 实际状态（2026-10-23 Asia/Shanghai）
+
+已修复有证据支持的320px页面溢出：导入区Grid/卡片允许收缩，拟合长数值换行；真实Firefox BiDi 320/768/1280×915工作流回归页面宽等于视口，控件水平边界及表内滚动通过。计算、导出尺寸与快照契约不变，五项门禁通过，前后截图/脚本与闭合附件见[浏览器清单](BROWSER_TRIAL_CHECKLIST.md#迭代-24修复320px页面溢出)。分支iter/24已通过Lead独立审查及MAC-116独立QA PASS，已合并dev（74b8ba8）。键盘、焦点遮挡、200%缩放与人工矩阵仍待单独复核；T09整体及Phase4 MVP未完成。下一轮只由Lead选择一个剩余缺口。
+
+
+## 迭代 #25 实际状态（2026-10-23 Asia/Shanghai）
+
+仅复核纯键盘路径，严格验证FAIL：普通非React校准页与LabFlow均观察到可信方向键事件到达但下拉值未变；严格路径停在X/Y均x、配对禁用。BiDi加字符y的超范围补充可配对、一次拟合、键盘返回保存并实际下载v2，但实际degree=1，无degree=2请求，不充当规定路径PASS。未证明产品缺陷，未定位Firefox/macOS/Remote内部根因；#23激活失败不能直接作产品缺陷，也不反推全部同因。四次失败/补充与闭合附件见[本轮清单](BROWSER_TRIAL_CHECKLIST.md#迭代-25纯键盘路径复核验证fail)。本轮无产品修复、五项代码门禁通过；Lead独立审查与MAC-120独立QA已对文档/证据交付给出PASS，已合并dev（fdc1014），不改变键盘验证FAIL。下一轮只由Lead收敛一个剩余缺口；焦点遮挡、200%缩放、人工矩阵/其他浏览器/外部验收仍待执行，T09整体及Phase4 MVP未完成。
+
+
+## 迭代 #26 实际状态（2026-10-24 Asia/Shanghai）
+
+仅复核焦点遮挡，未改产品：Firefox headless 768/1280×915 在拟合后反向键盘到达图表标题时稳定遮挡 **FAIL**。窗口原生激活后 document.hasFocus/控件:focus 均true，标题顶边−9.5、中心9.5，连续约1秒不变；可见75%仍全部位于65px顶部栏下，中心与25网格点均被遮挡。#23的−9.5应解释为顶边而非中心。双向键盘循环/原始即时与稳定取样、截图和最小复现见[本轮清单](BROWSER_TRIAL_CHECKLIST.md#迭代-26键盘焦点与顶部栏稳定遮挡验证fail)。只修改四份允许文档，分支按人工答复保留MAC-123-26；五项门禁通过不改变产品验证FAIL，待Lead独立审查并另建QA，不自行合并或创建修复任务。下一轮由Lead选择此稳定遮挡的最小修复，或其他单一缺口；方向键选择FAIL、200%真实缩放与人工矩阵仍未完成，T09整体及Phase4 MVP未完成。
+
+
+## 迭代 #27 实际状态（2026-10-26 Asia/Shanghai）
+
+迭代 #27 以根滚动容器 scroll-padding（顶部4rem+1px+1rem、底部1rem）修复键盘焦点被 sticky 顶部栏遮挡。Firefox headless 768/1280×915 同路径修复前标题顶边−9.5、内部命中0/25，修复后顶边471、内部命中25/25，document.hasFocus/:focus/:focus-visible均true。320/768/1280双向遍历与页面宽度回归见浏览器清单。五项门禁通过，待 Lead 独立审查及另建 QA；方向键选择、200%缩放、人工矩阵、其他浏览器与外部验收仍未完成，T09整体和Phase4 MVP未完成。
+
+
+## 迭代 #27 QA FAIL 闭环候选（2026-10-26 Asia/Shanghai）
+
+迭代 #27 已针对独立 QA FAIL 补齐修复：统一焦点滚动校正覆盖原生可聚焦滚动 DIV，全局青色 3px 描边与 2px 外偏移不再被控件样式覆盖，跳转链接向内留出描边空间。真实 Firefox 320/768/1280×915 的297步复现/双向遍历中，274次纳入焦点的几何、命中和描边严格断言通过；另补从跳转链接开始的完整正向遍历及滚动 DIV 可信按键横滚。五项门禁重新通过，交 Lead 重新独立审查及原 QA 任务复验，尚无本次 QA PASS。方向键选择、200%缩放、人工矩阵与其他浏览器仍未完成，T09整体及Phase4 MVP未完成。 初版“297步通过”只指标题/宽度断言，独立QA发现遗漏原生DIV和描边边界，现已记录并补齐，不把初版记录当全节点通过。基线等效对照、先失败后修复、最终逐节点严格结果及排除依据详见[浏览器清单](BROWSER_TRIAL_CHECKLIST.md#迭代-27qa-fail-后补齐全焦点与描边边界)。
+
+
+迭代 #27 集成收尾：Lead 独立审查后，MAC-167 对候选 bd010156 独立 QA PASS，原两项 FAIL 逐一闭环；五项门禁、521步真实 Firefox 复验及5组边界均由 QA 独立检查。已合并 dev（[14e1bae](https://github.com/CubicZnS/labflow/commit/14e1bae16d31b06cca40462edb86836f87a9bc87)）。上文待验收为历史候选状态；合并后记录另交 QA 只读核验。方向键选择、200%缩放、人工矩阵及外部验收仍未完成，下一轮只选择一个缺口，Phase4 MVP 未完成。

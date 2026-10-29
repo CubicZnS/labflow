@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -36,3 +38,79 @@ class FitResponse(BaseModel):
     equation: str
     slope: float | None = None
     intercept: float | None = None
+
+
+class ColumnStats(BaseModel):
+    n: int
+    missing: int
+    mean: float
+    std: float
+    sem: float
+
+
+class CsvImportResponse(BaseModel):
+    row_count: int
+    columns: list[str]
+    numeric_columns: list[str]
+    column_stats: dict[str, ColumnStats]
+    preview: list[dict[str, Any]]
+    warnings: list[str]
+
+
+class SeriesPair(BaseModel):
+    x: float
+    y: float
+
+
+class SeriesResponse(BaseModel):
+    x_column: str
+    y_column: str
+    x_unit: str | None
+    y_unit: str | None
+    row_count: int
+    pair_count: int
+    skipped_count: int
+    pairs: list[SeriesPair]
+    x_stats: ColumnStats | None
+    y_stats: ColumnStats | None
+    warnings: list[str]
+
+
+class ConfidenceInterval(BaseModel):
+    low: float
+    high: float
+
+
+class FitUncertainty(BaseModel):
+    residual_dof: int
+    standard_errors: list[float] | None
+    confidence_intervals: list[ConfidenceInterval] | None
+    condition_number: float | None
+    ill_conditioned: bool
+
+
+class DatasetFitResponse(BaseModel):
+    x_column: str
+    y_column: str
+    x_unit: str | None
+    y_unit: str | None
+    row_count: int
+    pair_count: int
+    skipped_count: int
+    degree: int
+    coefficients: list[float]
+    equation: str
+    r_squared: float
+    pairs: list[SeriesPair]
+    fitted: list[float]
+    residuals: list[float]
+    rmse: float
+    max_abs_residual: float
+    warnings: list[str]
+    uncertainty: FitUncertainty
+    weighted: bool
+    y_error_column: str | None
+    y_error_unit: str | None
+    y_errors: list[float] | None
+    chi_squared: float | None
+    reduced_chi_squared: float | None

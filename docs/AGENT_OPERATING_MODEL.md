@@ -50,3 +50,11 @@ unnecessary model calls; Dev and QA remain independent.
 - Iterations push to `iter/N`; integration lands on `dev` after QA.
 - No force-push, history rewrite, secret commit, or fabricated SHA.
 - A successful iteration requires a verified remote commit.
+
+## README 与中文更新规则（强制）
+
+- 每轮版本更新必须同步更新 `README.md`，且 README 内容使用中文。
+- README 至少更新：当前状态、已实现功能、启动/测试命令、已知限制、下一轮。
+- 每轮必须更新 `docs/ITERATION_LOG.md`，使用中文记录真实目标、改动、测试、分支、commit SHA、链接、已知问题和下一轮。
+- commit message 使用中文：`迭代 #N：<中文摘要>`；merge/记录 commit 也使用中文。
+- QA 验收检查 README 是否更新且为中文；缺失或只有英文则判 FAIL。

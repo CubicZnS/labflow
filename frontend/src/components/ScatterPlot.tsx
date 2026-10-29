@@ -1,0 +1,1104 @@
+import { useRef, useState } from "react";
+import type { FitResponse, SeriesPair } from "../lib/api";
+import {
+  downloadChart,
+  type ChartExportFormat,
+  type PngExportScale,
+} from "../lib/chartExport";
+
+const VIEW_WIDTH = 640;
+const VIEW_HEIGHT = 360;
+const MARGIN = { top: 24, right: 28, bottom: 64, left: 76 };
+const INNER_WIDTH = VIEW_WIDTH - MARGIN.left - MARGIN.right;
+const INNER_HEIGHT = VIEW_HEIGHT - MARGIN.top - MARGIN.bottom;
+const AXIS_Y = MARGIN.top + INNER_HEIGHT;
+const MIN_TICKS = 4;
+const MAX_TICKS = 6;
+const PADDING_RATIO = 0.05;
+const POINT_COLOR = "#0e7490";
+const FIT_COLOR = "#b45309";
+const SERIES_STYLES: { color: string; shape: SeriesShape }[] = [
+  { color: POINT_COLOR, shape: "circle" },
+  { color: "#6d5bd0", shape: "square" },
+  { color: "#be123c", shape: "triangle" },
+  { color: "#4d7c0f", shape: "diamond" },
+];
+const ERROR_BAR_COLOR = "#0f766e";
+const FIT_CURVE_SAMPLE_COUNT = 101;
+const ERROR_BAR_CAP = 5;
+const GRID_COLOR = "#e2e8f0";
+
+export type TickDensity = "sparse" | "standard" | "dense";
+export type FontScale = "small" | "medium" | "large";
+export type SeriesShape = "circle" | "square" | "triangle" | "diamond";
+
+export type ScatterExtraSeries = {
+  id: string;
+  name: string;
+  pairs: SeriesPair[];
+};
+
+type ResolvedSeries = {
+  id: string;
+  name: string;
+  points: SeriesPair[];
+  color: string;
+  shape: SeriesShape;
+};
+
+const TICK_LIMITS: Record<
+  Exclude<TickDensity, "standard">,
+  { minTicks: number; maxTicks: number; preferred: number }
+> = {
+  sparse: { minTicks: 3, maxTicks: 4, preferred: 4 },
+  dense: { minTicks: 6, maxTicks: 9, preferred: 8 },
+};
+
+const FONT_SCALES: Record<FontScale, { tick: number; axis: number; title: number }> = {
+  small: { tick: 9, axis: 10, title: 13 },
+  medium: { tick: 11, axis: 12, title: 15 },
+  large: { tick: 14, axis: 15, title: 18 },
+};
+
+type Domain = { min: number; max: number };
+type Ticks = { values: number[]; step: number; domain: Domain };
+type ErrorBarDatum = {
+  x: number;
+  y: number;
+  sigma: number;
+  low: number;
+  high: number;
+};
+
+function axisLabel(column: string, unit?: string | null): string {
+  const trimmed = unit?.trim();
+  return trimmed ? `${column} (${trimmed})` : column;
+}
+
+function finitePairs(pairs: SeriesPair[]): SeriesPair[] {
+  return pairs.filter(
+    (pair) => Number.isFinite(pair.x) && Number.isFinite(pair.y),
+  );
+}
+
+function evaluatePolynomial(coefficients: number[], x: number): number {
+  let value = 0;
+  for (const coefficient of coefficients) {
+    value = value * x + coefficient;
+  }
+  return value;
+}
+
+function buildFitCurve(
+  fit: FitResponse | null,
+  domain: Domain,
+): SeriesPair[] | null {
+  if (!fit) {
+    return null;
+  }
+  const { coefficients } = fit;
+  if (
+    coefficients.length === 0 ||
+    !coefficients.every((coefficient) => Number.isFinite(coefficient))
+  ) {
+    return null;
+  }
+  const span = domain.max - domain.min;
+  if (!Number.isFinite(span) || span < 0) {
+    return null;
+  }
+  const samples: SeriesPair[] = [];
+  for (let index = 0; index < FIT_CURVE_SAMPLE_COUNT; index += 1) {
+    const ratio = index / (FIT_CURVE_SAMPLE_COUNT - 1);
+    const x =
+      index === 0
+        ? domain.min
+        : index === FIT_CURVE_SAMPLE_COUNT - 1
+          ? domain.max
+          : domain.min + span * ratio;
+    const y = evaluatePolynomial(coefficients, x);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return null;
+    }
+    samples.push({ x, y });
+  }
+  return samples;
+}
+
+function buildErrorBars(fit: FitResponse | null): ErrorBarDatum[] {
+  if (!fit || !fit.weighted || !fit.y_errors || fit.y_errors.length === 0) {
+    return [];
+  }
+  const limit = Math.min(fit.pairs.length, fit.y_errors.length);
+  const bars: ErrorBarDatum[] = [];
+  for (let index = 0; index < limit; index += 1) {
+    const pair = fit.pairs[index];
+    const sigma = fit.y_errors[index];
+    if (
+      !pair ||
+      !Number.isFinite(pair.x) ||
+      !Number.isFinite(pair.y) ||
+      !Number.isFinite(sigma)
+    ) {
+      continue;
+    }
+    const low = pair.y - sigma;
+    const high = pair.y + sigma;
+    if (!Number.isFinite(low) || !Number.isFinite(high)) {
+      continue;
+    }
+    bars.push({ x: pair.x, y: pair.y, sigma, low, high });
+  }
+  return bars;
+}
+
+function clampToFinite(value: number, fallback: number): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+  return value;
+}
+
+function computeDomain(values: number[]): Domain {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
+    return { min: 0, max: 1 };
+  }
+  if (min === max) {
+    const delta = min === 0 ? 1 : Math.abs(min) * PADDING_RATIO;
+    const low = clampToFinite(min - delta, -Number.MAX_VALUE);
+    const high = clampToFinite(min + delta, Number.MAX_VALUE);
+    if (low < high) {
+      return { min: low, max: high };
+    }
+    return min > 0
+      ? { min: clampToFinite(min - delta, -Number.MAX_VALUE), max: min }
+      : { min: min, max: clampToFinite(min + delta, Number.MAX_VALUE) };
+  }
+  const span = max - min;
+  if (!Number.isFinite(span)) {
+    return {
+      min: clampToFinite(min, -Number.MAX_VALUE),
+      max: clampToFinite(max, Number.MAX_VALUE),
+    };
+  }
+  const padding = span * PADDING_RATIO;
+  const low = clampToFinite(min - padding, min);
+  const high = clampToFinite(max + padding, max);
+  if (!Number.isFinite(high - low) || high <= low) {
+    return { min, max };
+  }
+  return { min: low, max: high };
+}
+
+function normalize(value: number, step: number): number {
+  if (Math.abs(value) < step * 1e-9) {
+    return 0;
+  }
+  return value;
+}
+
+function candidateSteps(span: number): number[] {
+  const raw = span / 4;
+  if (!Number.isFinite(raw) || raw <= 0) {
+    return [];
+  }
+  const exponent = Math.floor(Math.log10(raw));
+  const steps: number[] = [];
+  for (let power = exponent + 2; power >= exponent - 5; power -= 1) {
+    for (const multiplier of [5, 2.5, 2, 1]) {
+      const step = multiplier * 10 ** power;
+      if (Number.isFinite(step) && step > 0) {
+        steps.push(step);
+      }
+    }
+  }
+  return steps;
+}
+
+function ticksFor(domain: Domain, step: number): number[] {
+  if (!Number.isFinite(step) || step <= 0) {
+    return [];
+  }
+  const firstIndex = Math.ceil(domain.min / step - 1e-9);
+  const lastIndex = Math.floor(domain.max / step + 1e-9);
+  const values: number[] = [];
+  for (let index = firstIndex; index <= lastIndex && values.length < 30; index += 1) {
+    values.push(normalize(index * step, step));
+  }
+  return values;
+}
+
+function generateStandardTicks(domain: Domain): Ticks {
+  const span = domain.max - domain.min;
+  if (!Number.isFinite(span) || span <= 0) {
+    const fractions = [0, 0.25, 0.5, 0.75, 1];
+    const values = fractions
+      .map((fraction) => domain.min * (1 - fraction) + domain.max * fraction)
+      .filter((value) => Number.isFinite(value));
+    const halfSpan = Math.abs(domain.max / 2 - domain.min / 2);
+    return {
+      values: values.length > 0 ? values : [domain.min, domain.max],
+      step: halfSpan > 0 ? halfSpan : 1,
+      domain,
+    };
+  }
+
+  for (const step of candidateSteps(span)) {
+    const inside = uniqueFinite(ticksFor(domain, step));
+    if (inside.length >= MIN_TICKS && inside.length <= MAX_TICKS) {
+      return { values: inside, step, domain };
+    }
+  }
+
+  return standardFallbackTicks(domain);
+}
+
+function uniqueFinite(values: number[]): number[] {
+  const seen = new Set<number>();
+  const result: number[] = [];
+  for (const value of values) {
+    if (!Number.isFinite(value) || seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
+}
+
+function fractionTicks(domain: Domain, count: number): number[] {
+  if (count < 2) {
+    return uniqueFinite([domain.min, domain.max]);
+  }
+  const values: number[] = [];
+  for (let index = 1; index <= count; index += 1) {
+    const fraction = index / (count + 1);
+    values.push(domain.min * (1 - fraction) + domain.max * fraction);
+  }
+  return uniqueFinite(values);
+}
+
+function fallbackTicks(domain: Domain, preferred: number): Ticks {
+  const values = fractionTicks(domain, preferred);
+  const safeValues =
+    values.length >= 2 ? values : uniqueFinite([domain.min, domain.max]);
+  const span = (safeValues[safeValues.length - 1] ?? 0) - (safeValues[0] ?? 0);
+  const step = span / Math.max(1, safeValues.length - 1);
+  return {
+    values: safeValues.length > 0 ? safeValues : [domain.min, domain.max],
+    step: Number.isFinite(step) && step > 0 ? step : 1,
+    domain,
+  };
+}
+
+function standardFallbackTicks(domain: Domain): Ticks {
+  const values = fractionTicks(domain, MIN_TICKS + 1);
+  const safeValues =
+    values.length >= 2 ? values : uniqueFinite([domain.min, domain.max]);
+  const span = (safeValues[safeValues.length - 1] ?? 0) - (safeValues[0] ?? 0);
+  const step = span / Math.max(1, (safeValues.length - 1) * 10);
+  return {
+    values: safeValues.length > 0 ? safeValues : [domain.min, domain.max],
+    step: Number.isFinite(step) && step > 0 ? step : 1,
+    domain,
+  };
+}
+
+function generateDensityTicks(
+  domain: Domain,
+  minTicks: number,
+  maxTicks: number,
+  preferred: number,
+): Ticks {
+  const span = domain.max - domain.min;
+  if (!Number.isFinite(span) || span <= 0) {
+    return fallbackTicks(domain, preferred);
+  }
+
+  let best: { values: number[]; step: number } | null = null;
+
+  for (const step of candidateSteps(span)) {
+    const values = uniqueFinite(ticksFor(domain, step));
+    if (values.length < minTicks || values.length > maxTicks) {
+      continue;
+    }
+    if (!best) {
+      best = { values, step };
+      continue;
+    }
+    const score = Math.abs(values.length - preferred);
+    const currentScore = Math.abs(best.values.length - preferred);
+    if (score < currentScore - 1e-9) {
+      best = { values, step };
+    }
+  }
+
+  if (best) {
+    return { values: best.values, step: best.step, domain };
+  }
+  return fallbackTicks(domain, preferred);
+}
+
+function buildAxis(values: number[], density: TickDensity = "standard"): Ticks {
+  const domain = computeDomain(values);
+  if (density === "standard") {
+    const ticks = generateStandardTicks(domain);
+    return { values: ticks.values, step: ticks.step, domain };
+  }
+  const limits = TICK_LIMITS[density];
+  const ticks = generateDensityTicks(
+    domain,
+    limits.minTicks,
+    limits.maxTicks,
+    limits.preferred,
+  );
+  return { values: ticks.values, step: ticks.step, domain };
+}
+
+function trimExponential(text: string): string {
+  return text.replace(/\.?0+e/, "e").replace("e+", "e");
+}
+
+function formatLegacyTick(value: number, step: number): string {
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+  if (value === 0) {
+    return "0";
+  }
+  const abs = Math.abs(value);
+  if (abs >= 1e5 || abs < 1e-3) {
+    return trimExponential(value.toExponential(2));
+  }
+  const decimals = Math.min(8, Math.max(0, Math.ceil(-Math.log10(step)) + 1));
+  return String(Number(value.toFixed(decimals)));
+}
+
+function formatAdaptiveTick(value: number, step: number, extra = 0): string {
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+  if (value === 0) {
+    return "0";
+  }
+  const abs = Math.abs(value);
+  if (abs >= 1e5 || abs < 1e-3) {
+    const ratio = step > 0 && Number.isFinite(step) ? abs / step : Number.NaN;
+    const significant =
+      Number.isFinite(ratio) && ratio > 0
+        ? Math.ceil(Math.log10(ratio)) + 1 + extra
+        : 2 + extra;
+    const digits = Math.min(17, Math.max(2, significant));
+    const text = trimExponential(value.toExponential(digits - 1));
+    if (Number.isFinite(Number(text))) {
+      return text;
+    }
+    return trimExponential(value.toPrecision(17));
+  }
+  const decimals = Math.min(8, Math.max(0, Math.ceil(-Math.log10(step)) + 1 + extra));
+  return String(Number(value.toFixed(decimals)));
+}
+
+function labelsAreUnique(labels: string[]): boolean {
+  return new Set(labels).size === labels.length;
+}
+
+function buildTickLabels(
+  values: number[],
+  step: number,
+  density: TickDensity,
+): string[] {
+  if (density === "standard") {
+    const legacy = values.map((value) => formatLegacyTick(value, step));
+    if (
+      labelsAreUnique(legacy) &&
+      legacy.every((label) => Number.isFinite(Number(label)))
+    ) {
+      return legacy;
+    }
+  }
+  for (let extra = 0; extra <= 12; extra += 1) {
+    const labels = values.map((value) => formatAdaptiveTick(value, step, extra));
+    if (labelsAreUnique(labels)) {
+      return labels;
+    }
+  }
+  return values.map((value) => (Number.isFinite(value) ? String(value) : "—"));
+}
+
+function axisRatio(value: number, domain: Domain): number {
+  const span = domain.max - domain.min;
+  if (Number.isFinite(span) && span > 0) {
+    return (value - domain.min) / span;
+  }
+  const halfSpan = domain.max / 2 - domain.min / 2;
+  if (Number.isFinite(halfSpan) && halfSpan > 0) {
+    return (value / 2 - domain.min / 2) / halfSpan;
+  }
+  return 0.5;
+}
+
+function scaleX(value: number, domain: Domain): number {
+  return MARGIN.left + axisRatio(value, domain) * INNER_WIDTH;
+}
+
+function scaleY(value: number, domain: Domain): number {
+  return AXIS_Y - axisRatio(value, domain) * INNER_HEIGHT;
+}
+
+function SeriesMarker({
+  color,
+  shape,
+  size = 12,
+}: {
+  color: string;
+  shape: SeriesShape;
+  size?: number;
+}) {
+  const half = size / 2;
+  if (shape === "circle") {
+    return <circle cx={half} cy={half} r={half - 1} fill={color} />;
+  }
+  if (shape === "square") {
+    return (
+      <rect x={1} y={1} width={size - 2} height={size - 2} rx={1} fill={color} />
+    );
+  }
+  if (shape === "triangle") {
+    return (
+      <polygon
+        points={`${half},1 ${size - 1},${size - 1} 1,${size - 1}`}
+        fill={color}
+      />
+    );
+  }
+  return (
+    <polygon
+      points={`${half},1 ${size - 1},${half} ${half},${size - 1} 1,${half}`}
+      fill={color}
+    />
+  );
+}
+
+function SeriesPoint({
+  pair,
+  series,
+  xDomain,
+  yDomain,
+}: {
+  pair: SeriesPair;
+  series: ResolvedSeries;
+  xDomain: Domain;
+  yDomain: Domain;
+}) {
+  const cx = scaleX(pair.x, xDomain);
+  const cy = scaleY(pair.y, yDomain);
+  const common = {
+    "data-testid": "scatter-point",
+    "data-series-id": series.id,
+    "data-shape": series.shape,
+    "data-x": String(pair.x),
+    "data-y": String(pair.y),
+    fill: series.color,
+    stroke: "#ffffff",
+    strokeWidth: 1.5,
+  };
+  if (series.shape === "square") {
+    return <rect {...common} x={cx - 3.5} y={cy - 3.5} width={7} height={7} rx={0.75} />;
+  }
+  if (series.shape === "triangle") {
+    return (
+      <polygon
+        {...common}
+        points={`${cx},${cy - 4.5} ${cx + 4.5},${cy + 3.5} ${cx - 4.5},${cy + 3.5}`}
+      />
+    );
+  }
+  if (series.shape === "diamond") {
+    return (
+      <polygon
+        {...common}
+        points={`${cx},${cy - 5} ${cx + 4.5},${cy} ${cx},${cy + 5} ${cx - 4.5},${cy}`}
+      />
+    );
+  }
+  return <circle {...common} cx={cx} cy={cy} r={4} />;
+}
+
+export function ScatterPlot({
+  pairs,
+  extraSeries = [],
+  xColumn,
+  yColumn,
+  xUnit,
+  yUnit,
+  fit = null,
+  title = "",
+  showGrid = false,
+  tickDensity = "standard",
+  fontScale = "medium",
+  pngScale = 2,
+}: {
+  pairs: SeriesPair[];
+  extraSeries?: ScatterExtraSeries[];
+  xColumn: string;
+  yColumn: string;
+  xUnit?: string | null;
+  yUnit?: string | null;
+  fit?: FitResponse | null;
+  title?: string;
+  showGrid?: boolean;
+  tickDensity?: TickDensity;
+  fontScale?: FontScale;
+  pngScale?: PngExportScale;
+}) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const exportInFlight = useRef(false);
+  const [exporting, setExporting] = useState<ChartExportFormat | null>(null);
+  const [exportStatus, setExportStatus] = useState("");
+  const [exportError, setExportError] = useState("");
+
+  const resolvedSeries: ResolvedSeries[] = [
+    { id: "main", name: yColumn, pairs: finitePairs(pairs) },
+    ...extraSeries.map((series) => ({
+      id: series.id,
+      name: series.name,
+      pairs: finitePairs(series.pairs),
+    })),
+  ].map((series, index) => {
+    const style = SERIES_STYLES[Math.min(index, SERIES_STYLES.length - 1)];
+    return {
+      id: series.id,
+      name: series.name,
+      points: series.pairs,
+      color: style.color,
+      shape: style.shape,
+    };
+  });
+  const seriesCount = resolvedSeries.length;
+  const isMultiSeries = seriesCount > 1;
+  const pointCount = resolvedSeries.reduce(
+    (total, series) => total + series.points.length,
+    0,
+  );
+  const hasPoints = pointCount > 0;
+  const xLabel = axisLabel(xColumn, xUnit);
+  const unitLabel = yUnit?.trim();
+  const yLabel = isMultiSeries
+    ? unitLabel
+      ? `Y (${unitLabel})`
+      : "Y"
+    : axisLabel(yColumn, yUnit);
+  const trimmedTitle = title.trim();
+  const fonts = FONT_SCALES[fontScale];
+
+  const allPoints = resolvedSeries.flatMap((series) => series.points);
+  const xAxis = hasPoints
+    ? buildAxis(allPoints.map((pair) => pair.x), tickDensity)
+    : null;
+  const xDomain = xAxis?.domain ?? null;
+
+  const errorBars = hasPoints ? buildErrorBars(fit) : [];
+  const hasErrorBars = errorBars.length > 0;
+  const fitCurve = xDomain ? buildFitCurve(fit, xDomain) : null;
+  const yValues = allPoints.map((pair) => pair.y);
+  if (hasErrorBars) {
+    for (const bar of errorBars) {
+      yValues.push(bar.low, bar.high);
+    }
+  }
+  if (fitCurve) {
+    for (const sample of fitCurve) {
+      yValues.push(sample.y);
+    }
+  }
+  const yAxis = hasPoints ? buildAxis(yValues, tickDensity) : null;
+  const yDomain = yAxis?.domain ?? null;
+  const xTicks = xAxis;
+  const yTicks = yAxis;
+  const xTickLabels = xTicks
+    ? buildTickLabels(xTicks.values, xTicks.step, tickDensity)
+    : [];
+  const yTickLabels = yTicks
+    ? buildTickLabels(yTicks.values, yTicks.step, tickDensity)
+    : [];
+
+  const domainAttributes = xDomain && yDomain
+    ? {
+        "data-domain-x-min": String(xDomain.min),
+        "data-domain-x-max": String(xDomain.max),
+        "data-domain-y-min": String(yDomain.min),
+        "data-domain-y-max": String(yDomain.max),
+      }
+    : {};
+
+  const overlayLabels: string[] = [];
+  if (fitCurve) {
+    overlayLabels.push("包含拟合曲线");
+  }
+  if (hasErrorBars) {
+    overlayLabels.push(`包含 ${errorBars.length} 条 Y 误差棒（±σ）`);
+  }
+
+  const seriesNames = resolvedSeries.map((series) => series.name);
+  const seriesSummary = isMultiSeries
+    ? `${seriesCount} 个系列，${pointCount} 个数据点，系列：${seriesNames.join("、")}`
+    : `${pointCount} 个数据点`;
+
+  const ariaLabel = hasPoints
+    ? `${xLabel} 对 ${yLabel} 的散点图，共 ${seriesSummary}${
+        trimmedTitle ? `，标题「${trimmedTitle}」` : ""
+      }${overlayLabels.length > 0 ? `，${overlayLabels.join("，")}` : ""}`
+    : `${xLabel} 对 ${yLabel} 的散点图，暂无可绘制的数据点${
+        trimmedTitle ? `，标题「${trimmedTitle}」` : ""
+      }`;
+
+  const exportingAny = exporting !== null;
+  const exportStatusText = exportingAny ? "正在导出…" : exportStatus;
+
+  const handleExport = async (format: ChartExportFormat) => {
+    if (!hasPoints || exportInFlight.current) {
+      return;
+    }
+    const svg = svgRef.current;
+    if (!svg) {
+      setExportError("导出失败：找不到图表");
+      return;
+    }
+    exportInFlight.current = true;
+    setExporting(format);
+    setExportError("");
+    setExportStatus("");
+    try {
+      const fileName = await downloadChart({
+        svg,
+        format,
+        title: trimmedTitle,
+        xColumn,
+        yColumn,
+        pngScale,
+      });
+      setExportStatus(`已导出 ${fileName}`);
+    } catch (error) {
+      setExportError(
+        error instanceof Error && error.message.trim().length > 0
+          ? error.message
+          : "导出失败，请重试",
+      );
+    } finally {
+      exportInFlight.current = false;
+      setExporting(null);
+    }
+  };
+
+  return (
+    <figure
+      className="mt-4 rounded-xl border border-slate-200 bg-white p-4"
+      data-testid="scatter-section"
+    >
+      <figcaption className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="text-sm font-semibold text-ink">散点图</span>
+        <span className="text-xs text-slate-500" data-testid="scatter-summary">
+          {isMultiSeries
+            ? `${seriesCount} 个系列 · ${pointCount} 个数据点`
+            : `${xLabel} · ${yLabel} · ${pointCount} 个数据点`}
+        </span>
+        <div
+          className="flex flex-wrap items-center gap-2 text-xs"
+          data-testid="export-controls"
+        >
+          <button
+            type="button"
+            data-testid="export-svg"
+            disabled={!hasPoints || exportingAny}
+            onClick={() => void handleExport("svg")}
+            className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {exporting === "svg" ? "正在导出…" : "导出 SVG"}
+          </button>
+          <button
+            type="button"
+            data-testid="export-png"
+            disabled={!hasPoints || exportingAny}
+            onClick={() => void handleExport("png")}
+            className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {exporting === "png" ? "正在导出…" : `导出 PNG（${pngScale}×）`}
+          </button>
+          {!hasPoints ? (
+            <span className="text-slate-500" data-testid="export-empty-hint">
+              暂无可导出的数据
+            </span>
+          ) : null}
+          <span
+            className="text-slate-500"
+            role="status"
+            aria-live="polite"
+            data-testid="export-status"
+          >
+            {exportStatusText}
+          </span>
+        </div>
+      </figcaption>
+
+      <svg
+        ref={svgRef}
+        data-testid="scatter-plot"
+        role="img"
+        aria-label={ariaLabel}
+        data-point-count={pointCount}
+        data-series-count={seriesCount}
+        {...domainAttributes}
+        viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
+        preserveAspectRatio="xMidYMid meet"
+        className="mt-3 h-auto w-full"
+      >
+        {trimmedTitle ? (
+          <text
+            data-testid="chart-title"
+            x={VIEW_WIDTH / 2}
+            y={18}
+            textAnchor="middle"
+            fill="#0f172a"
+            fontSize={fonts.title}
+            fontWeight={600}
+          >
+            {trimmedTitle}
+          </text>
+        ) : null}
+
+        {hasPoints && xDomain && yDomain && xTicks && yTicks ? (
+          <>
+            {showGrid ? (
+              <g aria-hidden="true" data-testid="grid-group">
+                {xTicks.values.map((value) => {
+                  const x = scaleX(value, xDomain);
+                  return (
+                    <line
+                      key={`grid-x-${value}`}
+                      data-testid="grid-line"
+                      data-axis="x"
+                      x1={x}
+                      y1={MARGIN.top}
+                      x2={x}
+                      y2={AXIS_Y}
+                      stroke={GRID_COLOR}
+                      strokeWidth={1}
+                      strokeDasharray="4 4"
+                    />
+                  );
+                })}
+                {yTicks.values.map((value) => {
+                  const y = scaleY(value, yDomain);
+                  return (
+                    <line
+                      key={`grid-y-${value}`}
+                      data-testid="grid-line"
+                      data-axis="y"
+                      x1={MARGIN.left}
+                      y1={y}
+                      x2={MARGIN.left + INNER_WIDTH}
+                      y2={y}
+                      stroke={GRID_COLOR}
+                      strokeWidth={1}
+                      strokeDasharray="4 4"
+                    />
+                  );
+                })}
+              </g>
+            ) : null}
+
+            <line
+              x1={MARGIN.left}
+              y1={AXIS_Y}
+              x2={MARGIN.left + INNER_WIDTH}
+              y2={AXIS_Y}
+              stroke="#94a3b8"
+              strokeWidth={1}
+            />
+            <line
+              x1={MARGIN.left}
+              y1={MARGIN.top}
+              x2={MARGIN.left}
+              y2={AXIS_Y}
+              stroke="#94a3b8"
+              strokeWidth={1}
+            />
+
+            {xTicks.values.map((value, index) => {
+              const x = scaleX(value, xDomain);
+              return (
+                <g key={`tick-x-${value}`}>
+                  <line
+                    x1={x}
+                    y1={AXIS_Y}
+                    x2={x}
+                    y2={AXIS_Y + 5}
+                    stroke="#94a3b8"
+                    strokeWidth={1}
+                  />
+                  <text
+                    data-testid="scatter-x-tick"
+                    x={x}
+                    y={AXIS_Y + 20}
+                    textAnchor="middle"
+                    fill="#64748b"
+                    fontSize={fonts.tick}
+                  >
+                    {xTickLabels[index]}
+                  </text>
+                </g>
+              );
+            })}
+
+            {yTicks.values.map((value, index) => {
+              const y = scaleY(value, yDomain);
+              return (
+                <g key={`tick-y-${value}`}>
+                  <line
+                    x1={MARGIN.left - 5}
+                    y1={y}
+                    x2={MARGIN.left}
+                    y2={y}
+                    stroke="#94a3b8"
+                    strokeWidth={1}
+                  />
+                  <text
+                    data-testid="scatter-y-tick"
+                    x={MARGIN.left - 9}
+                    y={y + 4}
+                    textAnchor="end"
+                    fill="#64748b"
+                    fontSize={fonts.tick}
+                  >
+                    {yTickLabels[index]}
+                  </text>
+                </g>
+              );
+            })}
+
+            <text
+              data-testid="scatter-x-label"
+              x={MARGIN.left + INNER_WIDTH / 2}
+              y={VIEW_HEIGHT - 14}
+              textAnchor="middle"
+              fill="#334155"
+              fontSize={fonts.axis}
+              fontWeight={600}
+            >
+              {xLabel}
+            </text>
+            <text
+              data-testid="scatter-y-label"
+              x={16}
+              y={MARGIN.top + INNER_HEIGHT / 2}
+              textAnchor="middle"
+              fill="#334155"
+              fontSize={fonts.axis}
+              fontWeight={600}
+              transform={`rotate(-90 16 ${MARGIN.top + INNER_HEIGHT / 2})`}
+            >
+              {yLabel}
+            </text>
+
+            {fitCurve && fit && xDomain && yDomain ? (
+              <polyline
+                data-testid="fit-curve"
+                data-point-count={FIT_CURVE_SAMPLE_COUNT}
+                data-degree={String(fit.degree)}
+                data-x-min={String(xDomain.min)}
+                data-x-max={String(xDomain.max)}
+                points={fitCurve
+                  .map(
+                    (sample) =>
+                      `${scaleX(sample.x, xDomain)},${scaleY(sample.y, yDomain)}`,
+                  )
+                  .join(" ")}
+                fill="none"
+                stroke={FIT_COLOR}
+                strokeWidth={2.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ) : null}
+
+            {hasErrorBars && xDomain && yDomain
+              ? errorBars.map((bar, index) => {
+                  const x = scaleX(bar.x, xDomain);
+                  const top = scaleY(bar.high, yDomain);
+                  const bottom = scaleY(bar.low, yDomain);
+                  return (
+                    <g
+                      key={`error-bar-${index}`}
+                      data-testid="error-bar"
+                      data-x={String(bar.x)}
+                      data-y={String(bar.y)}
+                      data-sigma={String(bar.sigma)}
+                      data-y-low={String(bar.low)}
+                      data-y-high={String(bar.high)}
+                    >
+                      <line
+                        x1={x}
+                        y1={top}
+                        x2={x}
+                        y2={bottom}
+                        stroke={ERROR_BAR_COLOR}
+                        strokeWidth={1.5}
+                      />
+                      <line
+                        x1={x - ERROR_BAR_CAP}
+                        y1={top}
+                        x2={x + ERROR_BAR_CAP}
+                        y2={top}
+                        stroke={ERROR_BAR_COLOR}
+                        strokeWidth={1.5}
+                      />
+                      <line
+                        x1={x - ERROR_BAR_CAP}
+                        y1={bottom}
+                        x2={x + ERROR_BAR_CAP}
+                        y2={bottom}
+                        stroke={ERROR_BAR_COLOR}
+                        strokeWidth={1.5}
+                      />
+                    </g>
+                  );
+                })
+              : null}
+
+            {resolvedSeries.map((series) => (
+              <g
+                key={series.id}
+                data-testid="scatter-series"
+                data-series-id={series.id}
+                data-series-name={series.name}
+                data-series-color={series.color}
+                data-series-shape={series.shape}
+                data-point-count={series.points.length}
+              >
+                {series.points.map((pair, index) => (
+                  <SeriesPoint
+                    key={`point-${series.id}-${index}`}
+                    pair={pair}
+                    series={series}
+                    xDomain={xDomain}
+                    yDomain={yDomain}
+                  />
+                ))}
+              </g>
+            ))}
+          </>
+        ) : (
+          <text
+            data-testid="scatter-empty"
+            x={VIEW_WIDTH / 2}
+            y={VIEW_HEIGHT / 2}
+            textAnchor="middle"
+            fill="#64748b"
+            fontSize={14}
+          >
+            暂无可绘制的数据点
+          </text>
+        )}
+      </svg>
+
+      {exportError ? (
+        <p className="mt-2 text-xs text-rose-700" role="alert" data-testid="export-error">
+          {exportError}
+        </p>
+      ) : null}
+
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+        <div className="flex flex-wrap items-center gap-3" data-testid="series-legend">
+          {resolvedSeries.map((series) => (
+            <span
+              key={series.id}
+              className="inline-flex items-center gap-2"
+              data-testid="series-legend-item"
+              data-series-id={series.id}
+              data-series-name={series.name}
+              data-series-color={series.color}
+              data-series-shape={series.shape}
+              data-point-count={series.points.length}
+            >
+              <svg
+                aria-hidden="true"
+                width={12}
+                height={12}
+                viewBox="0 0 12 12"
+                data-testid="series-legend-marker"
+                data-shape={series.shape}
+                data-color={series.color}
+              >
+                <SeriesMarker color={series.color} shape={series.shape} />
+              </svg>
+              <span className="font-medium text-slate-700">{series.name}</span>
+              <span>{series.points.length} 个数据点</span>
+            </span>
+          ))}
+        </div>
+        {!isMultiSeries ? (
+          <span className="inline-flex items-center gap-2" data-testid="scatter-legend">
+            <span
+              aria-hidden="true"
+              className="inline-block h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: POINT_COLOR }}
+            />
+            圆点表示一个数据点（{pointCount} 个）
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-2" data-testid="multi-series-hint">
+            形状与颜色共同区分不同系列
+          </span>
+        )}
+        {fitCurve && fit ? (
+          <span
+            className="inline-flex items-center gap-2"
+            data-testid="scatter-fit-legend"
+          >
+            <span
+              aria-hidden="true"
+              className="inline-block h-0.5 w-5 rounded-full"
+              style={{ backgroundColor: FIT_COLOR }}
+            />
+            实线为拟合曲线（{fit.degree} 次多项式）
+          </span>
+        ) : null}
+        {hasErrorBars ? (
+          <span
+            className="inline-flex items-center gap-2"
+            data-testid="scatter-error-legend"
+          >
+            <span
+              aria-hidden="true"
+              className="inline-block h-3 w-0.5"
+              style={{ backgroundColor: ERROR_BAR_COLOR }}
+            />
+            竖线为 Y 误差棒（±σ）
+          </span>
+        ) : null}
+        {showGrid && hasPoints ? (
+          <span
+            className="inline-flex items-center gap-2"
+            data-testid="scatter-grid-legend"
+          >
+            <span
+              aria-hidden="true"
+              className="inline-block w-5 border-t border-dashed border-slate-400"
+            />
+            虚线段为网格参考线
+          </span>
+        ) : null}
+        <span>自动坐标范围，含约 5% 边距</span>
+      </div>
+
+      {pointCount === 1 ? (
+        <p className="mt-2 text-xs text-amber-700" data-testid="scatter-single-hint">
+          仅 1 个数据点，无法判断趋势
+        </p>
+      ) : null}
+    </figure>
+  );
+}

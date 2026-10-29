@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { CsvImportPanel } from "./components/CsvImportPanel";
 import { fetchHealth } from "./lib/api";
 
 type ApiState = "loading" | "online" | "offline";
@@ -7,7 +8,7 @@ const workflow = [
   {
     step: "01",
     title: "导入数据",
-    body: "CSV、XLSX 或手动录入；自动识别数值列并预览。",
+    body: "CSV、XLSX 导入或一键载入示例数据；自动识别数值列并预览。",
   },
   {
     step: "02",
@@ -29,8 +30,8 @@ const workflow = [
 const features = [
   "均值、样本标准差、标准误",
   "线性、二次、三次拟合",
-  "拟合方程、R²、残差与误差棒",
-  "中文优先的科研级图表样式",
+  "拟合方程、R²、残差与不确定度",
+  "SVG 散点图、拟合曲线与 Y 误差棒",
   "项目保存、重开与重跑",
   "数据不离开本地，不送第三方 AI",
 ];
@@ -38,20 +39,60 @@ const features = [
 function App() {
   const [apiState, setApiState] = useState<ApiState>("loading");
   const [apiVersion, setApiVersion] = useState("");
+  const [offlineNotice, setOfflineNotice] = useState(false);
+
+  const checkHealth = useCallback(async (signal?: AbortSignal) => {
+    setApiState("loading");
+    try {
+      const health = await fetchHealth(signal);
+      setApiVersion(health.version);
+      setApiState("online");
+      setOfflineNotice(false);
+    } catch {
+      if (!signal?.aborted) {
+        setApiState("offline");
+        setOfflineNotice(true);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchHealth(controller.signal)
-      .then((health) => {
-        setApiVersion(health.version);
-        setApiState("online");
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setApiState("offline");
-        }
-      });
+    void checkHealth(controller.signal);
     return () => controller.abort();
+  }, [checkHealth]);
+
+  useEffect(() => {
+    let frame = 0;
+    const keepFocusVisible = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      cancelAnimationFrame(frame);
+      // Native focus scrolling can leave partly visible controls/scroll regions in place.
+      frame = requestAnimationFrame(() => {
+        if (document.activeElement !== target || !target.matches(":focus-visible")) return;
+        const header = document.querySelector("header");
+        if (header?.contains(target) || target.matches(".skip-link")) return;
+        const rect = target.getBoundingClientRect();
+        if (rect.width <= 1 && rect.height <= 1) return;
+        const style = getComputedStyle(target);
+        const clearance = Math.max(0,
+          (parseFloat(style.outlineWidth) || 0) + (parseFloat(style.outlineOffset) || 0),
+        ) + 8;
+        const top = (header?.getBoundingClientRect().bottom ?? 0) + clearance;
+        const bottom = window.innerHeight - clearance;
+        // Fit the whole outline when possible; anchor oversized regions at their top.
+        const delta = rect.top < top
+          ? rect.top - top
+          : Math.min(Math.max(0, rect.bottom - bottom), rect.top - top);
+        if (delta) window.scrollTo({ top: window.scrollY + delta, behavior: "instant" });
+      });
+    };
+    document.addEventListener("focusin", keepFocusVisible);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("focusin", keepFocusVisible);
+    };
   }, []);
 
   const apiLabel =
@@ -63,6 +104,9 @@ function App() {
 
   return (
     <div className="min-h-screen">
+      <a href="#import" className="skip-link">
+        跳到主要内容
+      </a>
       <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-mist/80 backdrop-blur">
         <div className="container-page flex h-16 items-center justify-between">
           <a className="flex items-center gap-3" href="#top" aria-label="LabFlow 首页">
@@ -72,13 +116,14 @@ function App() {
             <span className="text-lg font-semibold tracking-tight text-ink">LabFlow</span>
           </a>
           <nav className="hidden items-center gap-7 text-sm text-slate-600 md:flex">
+            <a className="hover:text-ink" href="#import">导入数据</a>
             <a className="hover:text-ink" href="#workflow">工作流</a>
             <a className="hover:text-ink" href="#roadmap">路线图</a>
             <a className="hover:text-ink" href="#trust">数据与隐私</a>
           </nav>
           <a
             className="rounded-xl bg-ink px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-            href="#workflow"
+            href="#import"
           >
             开始分析
           </a>
@@ -90,7 +135,7 @@ function App() {
           <div>
             <span className="pill border-cyan/20 bg-cyan/5 text-cyan">
               <span className="h-1.5 w-1.5 rounded-full bg-cyan" />
-              Phase 0 · 可运行骨架
+              Phase 4 · MVP 产品化
             </span>
             <h1 className="mt-6 max-w-2xl text-4xl font-semibold leading-tight tracking-tight text-ink sm:text-5xl">
               从原始实验数据，
@@ -103,9 +148,9 @@ function App() {
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <a
                 className="rounded-xl bg-cyan px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan/20 transition hover:bg-cyan-800"
-                href="#workflow"
+                href="#import"
               >
-                查看分析流程
+                上传实验数据
               </a>
               <a
                 className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:border-slate-400"
@@ -179,6 +224,50 @@ function App() {
           </div>
         </section>
 
+        <section
+          className="container-page pb-4"
+          aria-labelledby="onboarding-title"
+          data-testid="onboarding-guide"
+        >
+          <div className="rounded-3xl border border-cyan/20 bg-cyan/5 p-6 sm:p-8">
+            <p className="eyebrow">Getting started</p>
+            <h2 id="onboarding-title" className="mt-3 text-2xl font-semibold tracking-tight text-ink">
+              首次使用
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              按下面三步完成一次可复现的分析；每一步都会保留中文状态提示与错误说明。
+            </p>
+            <ol className="mt-6 grid gap-4 md:grid-cols-3">
+              <li className="rounded-2xl border border-slate-200 bg-white p-5">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-cyan/10 text-sm font-semibold text-cyan">
+                  1
+                </span>
+                <p className="mt-3 text-sm leading-6 text-slate-700">
+                  载入示例数据或上传 CSV/XLSX，先检查行数、数值列与警告。
+                </p>
+              </li>
+              <li className="rounded-2xl border border-slate-200 bg-white p-5">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-cyan/10 text-sm font-semibold text-cyan">
+                  2
+                </span>
+                <p className="mt-3 text-sm leading-6 text-slate-700">
+                  选择 X/Y 列与单位并生成配对，可按需追加系列与 Y 误差列。
+                </p>
+              </li>
+              <li className="rounded-2xl border border-slate-200 bg-white p-5">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-cyan/10 text-sm font-semibold text-cyan">
+                  3
+                </span>
+                <p className="mt-3 text-sm leading-6 text-slate-700">
+                  运行拟合、调整图表样式并导出 SVG/PNG；需要复现时保存 .labflow.json 项目文件。
+                </p>
+              </li>
+            </ol>
+          </div>
+        </section>
+
+        <CsvImportPanel />
+
         <section id="workflow" className="container-page py-16">
           <div className="max-w-2xl">
             <p className="eyebrow">Workflow</p>
@@ -200,25 +289,49 @@ function App() {
           <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
             <div className="card">
               <p className="eyebrow">Current phase</p>
-              <h2 className="mt-3 text-2xl font-semibold text-ink">Phase 0 · 可运行骨架</h2>
+              <h2 className="mt-3 text-2xl font-semibold text-ink">Phase 4 · MVP 产品化</h2>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                前后端骨架、确定性分析核心、测试与 CI 已就位。
-                下一阶段从 CSV/XLSX 导入和基础统计开始。
+                当前已可用：导入与校验、描述统计、线性/二次/三次拟合、多系列绘图、
+                PNG/SVG 导出和本地项目快照。剩余 Phase 4 工作：后端校验错误文案中文化，
+                以及外部试用与跨浏览器验证。
               </p>
-              <div className="mt-5 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <span className="text-sm text-slate-600">后端状态</span>
-                <span
-                  className={
-                    "pill " +
-                    (apiState === "online"
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : apiState === "offline"
-                        ? "border-amber-200 bg-amber-50 text-amber-700"
-                        : "border-slate-200 bg-white text-slate-500")
-                  }
-                >
-                  {apiLabel}
-                </span>
+              <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">后端状态</span>
+                  <span
+                    className={
+                      "pill " +
+                      (apiState === "online"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : apiState === "offline"
+                          ? "border-amber-200 bg-amber-50 text-amber-700"
+                          : "border-slate-200 bg-white text-slate-500")
+                    }
+                  >
+                    {apiLabel}
+                  </span>
+                </div>
+                {offlineNotice && (
+                  <div className="mt-3 border-t border-slate-200 pt-3">
+                    <p
+                      className="text-sm leading-6 text-slate-600"
+                      data-testid="api-offline-hint"
+                    >
+                      分析服务未连接。请确认后端已在 http://127.0.0.1:8000 启动，然后点击重试。
+                    </p>
+                    <button
+                      type="button"
+                      className="mt-3 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      data-testid="api-retry"
+                      disabled={apiState === "loading"}
+                      onClick={() => {
+                        void checkHealth();
+                      }}
+                    >
+                      重试连接
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             <div className="card">
@@ -243,9 +356,21 @@ function App() {
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Trust by design</p>
                 <h2 className="mt-3 text-2xl font-semibold sm:text-3xl">计算结果透明，用户数据留在本地。</h2>
                 <p className="mt-3 text-sm leading-6 text-slate-300">
-                  公式、单位、有效数字和拟合条件都会记录。
-                  MVP 不启用真实收费、不把实验数据送往第三方 AI。
+                  公式、单位、有效数字和拟合条件都会记录，计算由确定性算法完成。
+                  以下说明可在本仓库与浏览器网络面板中逐项核验。
                 </p>
+                <ul
+                  className="mt-5 grid list-disc gap-2 pl-5 text-sm leading-6 text-slate-300"
+                  data-testid="privacy-list"
+                >
+                  <li>上传文件只发送到本机运行的分析服务（/api/datasets/*），不经过第三方服务器。</li>
+                  <li>不接入第三方统计、分析或 AI 服务，页面没有跟踪或广告脚本。</li>
+                  <li>分析结果只在内存中处理；后端不保存上传文件、不写数据库，也没有账户体系。</li>
+                  <li>
+                    .labflow.json 项目文件由浏览器在本地生成并保存，只含配置与 SHA-256
+                    数据指纹，不含原始数据行。
+                  </li>
+                </ul>
               </div>
               <a
                 className="inline-flex shrink-0 items-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:bg-slate-100"
@@ -261,7 +386,7 @@ function App() {
       <footer className="border-t border-slate-200/70 py-8">
         <div className="container-page flex flex-col gap-2 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <p>LabFlow · 科研数据分析与绘图</p>
-          <p>Phase 0 bootstrap · 结果可复现优先</p>
+          <p>Phase 4 · MVP 产品化 · 结果可复现优先</p>
         </div>
       </footer>
     </div>
